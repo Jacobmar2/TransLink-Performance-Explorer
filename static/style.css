@@ -1,0 +1,494 @@
+/* Daily boardings selector buttons */
+.daily-boardings-selectors {
+    display: inline-flex;  /* 🔥 even safer */
+    gap: 10px;
+    margin: 18px auto 0 auto;
+}
+
+/* Revenue/Service hours selector buttons */
+.hours-selectors {
+    display: inline-flex;
+    gap: 10px;
+    margin: 18px auto 0 auto;
+}
+
+.daily-btn {
+    background: #e6ecf0;
+    color: #006c9e;
+    border: 1.5px solid #006c9e;
+    border-radius: 6px;
+    padding: 7px 18px;
+    font-size: 1em;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.18s, color 0.18s, border 0.18s;
+    outline: none;
+}
+.daily-btn:hover,
+.daily-btn:focus,
+.daily-btn-active {
+    background: #006c9e;
+    color: #fff;
+    border-color: #006c9e;
+}
+
+.hours-btn {
+    background: #e6ecf0;
+    color: #006c9e;
+    border: 1.5px solid #006c9e;
+    border-radius: 6px;
+    padding: 7px 18px;
+    font-size: 1em;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.18s, color 0.18s, border 0.18s;
+    outline: none;
+}
+.hours-btn:hover,
+.hours-btn:focus,
+.hours-btn-active {
+    background: #006c9e;
+    color: #fff;
+    border-color: #006c9e;
+}
+
+body {
+    font-family: Arial, sans-serif;
+    background-color: #e9f4ff;
+    min-height: 100vh;
+
+    display: flex;
+    flex-direction: column; /* stack vertically */
+    justify-content: flex-start;
+    align-items: center;
+}
+
+.card {
+    background-color: #0059b3;
+    color: white;
+    padding: 1.5em;
+    margin: 1em 0;
+    border-radius: 1em;
+    width: 60%;
+    max-width: 900px;
+    min-width: 300px;
+    text-align: center;
+}
+
+.button-card {
+    display: block;
+    background-color: #006c9e;
+    color: white;
+    text-align: center;
+    padding: 1.2em;
+    margin: 1em 0;
+    border-radius: 1em;
+    width: 60%;
+    max-width: 600px;
+    min-width: 300px;
+    font-size: 1.3em;
+    text-decoration: none;
+    font-weight: bold;
+    box-shadow: 0 8px 16px rgba(0,0,0,0.5);
+
+    transition: 0.2s ease;
+}
+
+.button-card-2 {
+    display: block;
+    background-color: #362f2f;
+    color: white;
+    text-align: center;
+    padding: 1em;
+    margin: 1.2em 0;
+    border-radius: 1em;
+    width: 300px;
+    font-size: 1em;
+    text-decoration: none;
+    font-weight: bold;
+    box-shadow: 0 8px 16px rgba(0,0,0,0.5);
+
+    transition: 0.2s ease;
+    
+}
+
+.button-card:hover{
+    background-color: #0087c0;
+    transform: translateY(-3px);
+    box-shadow: 0 6px 14px rgba(0,0,0,0.28);
+}
+
+.button-card-2:hover{
+    background-color: #302c2c;
+    transform: translateY(-3px);
+    box-shadow: 0 6px 14px rgba(0,0,0,0.28);
+}
+
+/* Prevent horizontal shift when button is pressed or focused */
+.button-card-2 {
+    transition: background-color 0.2s ease, transform 0.12s ease;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+}
+.button-card-2:active,
+.button-card-2:focus {
+    transform: translateY(-3px); /* keep same vertical translate as hover */
+    outline: none; /* avoid focus outline shifting layout */
+}
+.button-card-2:focus-visible {
+    outline: 2px solid rgba(0,108,158,0.18);
+    outline-offset: 3px;
+}
+
+.button-small {
+    max-width: 400px;
+}
+
+.button-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1em;
+    justify-content: center;
+    width: 100%;
+    margin: 1em 0;
+}
+
+.button-group .button-card {
+    margin: 0;
+    flex: 1 1 calc(50% - 0.5em);
+    min-width: 250px;
+}
+
+.top-welcome {
+    margin-top: -100px; /* adjust if needed */
+}
+
+/* Icon footer */
+.footer-icons {
+    margin-top: 40px;
+    text-align: center;
+}
+
+.footer-icons a {
+    display: inline-block;
+    margin: 0 12px;
+    width: 40px;
+    height: 40px;
+}
+
+.footer-icons img {
+    width: 40px;
+    height: 40px;
+    opacity: 0.8;
+    transition: 0.2s ease;
+}
+
+.footer-icons img:hover {
+    opacity: 1;
+    transform: scale(1.1);
+}
+
+
+h2 {
+    text-align: center;
+    margin-bottom: 1em;
+    font-size: 2em;
+}
+
+input[type="file"], button {
+    display: block;
+    margin: 1em auto;
+    font-size: 1em;
+    padding: 0.5em 1em;
+    border-radius: 0.5em;
+    border: none;
+    background-color: white;
+    color: #009cde;
+    cursor: pointer;
+}
+
+button:hover {
+    background-color: #007bbd;
+    color: white;
+}
+
+/* --- How-To Page Blocks --- */
+
+.howto-block {
+    background-color: #009cde;
+    color: white;
+    padding: 1.5em;
+    margin: 1em 0;
+    border-radius: 1em;
+    width: 60%;
+    max-width: 900px;
+    min-width: 300px;
+    text-align: center;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+
+.howto-text {
+    background-color: #eaeef0;
+    color: rgb(17, 16, 16);
+    padding: 1.5em;
+    margin: 1em 0;
+    border-radius: 1em;
+    width: 60%;
+    max-width: 900px;
+    min-width: 300px;
+    text-align: center;
+}
+
+.howto-image {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 1em 0;
+    width: 80%;   /* bigger */
+    max-width: 1600px;  /* optional — allow larger max */
+}
+
+.howto-image img {
+    width: 60%;
+    max-width: 600px;
+    min-width: 200px;
+    border-radius: 1em;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+
+.caption {
+    font-size: 0.9em;
+    margin-top: 0.5em;
+    color: #006c9e;
+}
+
+.howto-text {
+    text-align: center;   /* everything centered by default */
+}
+
+.about-notes {
+    text-align: left;     /* override for notes */
+    display: inline-block; /* keeps it centered within page while text is left-aligned */
+    max-width: 700px;     /* optional (prevents super wide text) */
+}
+
+
+/* Back button inherits .button-card styling */
+.back-button {
+    margin-bottom: 2em;
+}
+
+body {
+    background: #e6ecf0;
+    font-family: Arial, sans-serif;
+    display: flex;
+    justify-content: center;
+    padding: 50px;
+}
+
+.results-card-2 {
+    background: #0059b3;
+    color: white;
+    width: 60%;
+    max-width: 400px;
+    min-width: 300px;
+    margin: 30px;
+    padding: 20px 25px;
+    border-radius: 20px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.25);
+    text-align: center;
+}
+
+.results-card-2 h1 {
+    font-size: 35px;
+    margin-bottom: 20px;
+}
+
+.results-card-2 h2 {
+    font-size: 25px;
+    margin-bottom: 20px;
+}
+
+.results-card-2 p {
+    font-size: 25px;
+}
+
+.card-green {
+    background-color: #0A8C4A;
+}
+
+.sub {
+    margin-top: 25px;
+}
+
+.breakdown {
+    font-size: 20px;
+}
+
+
+
+.breakdown-2 {
+    font-size: 20px;
+    text-align: left;
+    padding: 10px 50px;
+}
+
+/* Colors matching TransLink theme */
+.yellow {
+    color: #fed200;
+    font-weight: bold;
+}
+
+.skytrain {
+    color: #3DD3FF;
+    font-weight: bold;
+}
+
+.seabus {
+    color: #B1A59E;
+    font-weight: bold;
+}
+
+.wce {
+    color: #d131d1;
+    font-weight: bold;
+}
+
+/* Compare VS card: slightly wider than main .card */
+.vs-compare {
+    /* grow nearly full-width of the viewport but cap at a reasonable max */
+    width: min(96vw, 1500px);
+    max-width: calc(100% - 40px);
+    min-width: 0; /* avoid being stuck at a large minimum */
+    margin: 0.5em auto;
+    text-align: center;
+    padding: 1.5em;
+    border-radius: 1em;
+    box-sizing: border-box;
+}
+
+/* Two-half VS layout */
+.vs-compare .vs-container {
+    display: flex;
+    border-radius: 12px;
+    overflow: hidden;
+    position: relative;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.12);
+    min-height: 380px;
+    margin-bottom: 18px; /* add small separation when multiple vs-container blocks appear */
+}
+
+.vs-compare .half {
+    flex: 1;
+    padding: 18px 36px;
+    color: #fff;
+    font-weight: 700;
+    font-size: 40px;
+    line-height: 1;
+    display: flex;
+    flex-direction: column; /* stack number and stats vertically */
+    gap: 8px;
+    align-items: center;
+    justify-content: flex-start;
+    padding-top: 35px;
+}
+
+.vs-compare .left {
+    background: #0096d6;
+}
+
+.vs-compare .right {
+    background: #ef8d1a;
+}
+
+.vs-compare .vs-badge {
+    position: absolute;
+    left: 50%;
+    top: 30px;
+    transform: translateX(-50%);
+    background: rgba(0,108,158,0.75); /* #006C9E at 75% opacity */
+    color: #fff;
+    font-weight: 800;
+    padding: 10px 18px;
+    font-size: 18px;
+    border-radius: 8px;
+    z-index: 2;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+}
+
+/* Full-width divider line */
+.vs-compare .divider-line {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 120px;
+    height: 5px;
+    background: rgba(255,255,255,0.8);
+    z-index: 1;
+}
+
+/* Annual Boardings badge */
+.vs-compare .annual-boardings-badge {
+    position: absolute;
+    left: 50%;
+    top: 140px;
+    transform: translateX(-50%);
+    background: rgba(0,108,158,0.75); /* #006C9E at 75% opacity */
+    color: #fff;
+    font-weight: 800;
+    padding: 10px 18px;
+    font-size: 25px;
+    border-radius: 8px;
+    z-index: 2;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+}
+
+/* Comparison badge (same style as annual badge, placed lower) */
+.vs-compare .comparison-badge {
+    position: absolute;
+    left: 50%;
+    bottom: 18px;
+    transform: translateX(-50%);
+    background: rgba(0,108,158,0.75);
+    color: #fff;
+    font-weight: 800;
+    padding: 10px 18px;
+    font-size: 22px;
+    border-radius: 8px;
+    z-index: 2;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+    white-space: pre-line; /* allow newline in comparison text */
+}
+
+/* Thin white separator placed just below the comparison badge */
+.vs-compare .comparison-separator {
+    position: absolute;
+    left: 50%;
+    bottom: 8px; /* sits just below the comparison-badge (which is bottom:18px) */
+    transform: translateX(-50%);
+    width: 90%;
+    height: 5px;
+    background: rgba(255,255,255,0.9);
+    z-index: 1;
+    border-radius: 2px;
+}
+
+/* Placeholder stats box inside each half */
+.vs-compare .stats-box {
+    margin: 0 auto; /* center and rely on column gap */
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 18px;
+    color: #fff;
+    width: 90%;
+    max-width: 450px;
+    text-align: center;
+    padding-top: 100px;
+    padding-bottom: 70px;
+    line-height: 1.6;
+}
+
+.vs-compare .stats-box div {
+    line-height: 1.4;
+}

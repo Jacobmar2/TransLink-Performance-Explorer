@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>My 2 Stations</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    </head>
+<body>
+
+    <div class="card">
+        <h2>My 2 Stations</h2>
+    </div>
+
+    <div class="select-row" style="display:flex;gap:5em;justify-content:center;flex-wrap:wrap;margin:1.2em 0;">
+        <div style="min-width:300px;">
+            <label for="station1"><strong>Station 1</strong></label>
+            <select id="station1" name="station1" style="width:100%;padding:0.8em;border-radius:0.5em;">
+                <option value="">Select station</option>
+                <option>22nd Street Station</option>
+                <option>29th Avenue Station</option>
+                <option>Aberdeen Station</option>
+                <option>Braid Station</option>
+                <option>Brentwood Town Centre Station</option>
+                <option>Bridgeport Station</option>
+                <option>Broadway-City Hall Station</option>
+                <option>Burquitlam Station</option>
+                <option>Burrard Station</option>
+                <option>Columbia Station</option>
+                <option>Commercial-Broadway Station</option>
+                <option>Coquitlam Central Station</option>
+                <option>Coquitlam Central Station</option>
+                <option>Edmonds Station</option>
+                <option>Gateway Station</option>
+                <option>Gilmore Station</option>
+                <option>Granville Station</option>
+                <option>Holdom Station</option>
+                <option>Inlet Centre Station</option>
+                <option>Joyce-Collingwood Station</option>
+                <option>King Edward Station</option>
+                <option>King George Station</option>
+                <option>Lafarge Lake-Douglas Station</option>
+                <option>Lake City Way Station</option>
+                <option>Langara-49th Avenue Station</option>
+                <option>Lansdowne Station</option>
+                <option>Lincoln Station</option>
+                <option>Lonsdale Quay</option>
+                <option>Lougheed Town Centre Station</option>
+                <option>Main Street-Science World Station</option>
+                <option>Maple Meadows Station</option>
+                <option>Marine Drive Station</option>
+                <option>Metrotown Station</option>
+                <option>Mission City Station</option>
+                <option>Moody Centre Station</option>
+                <option>Moody Centre Station</option>
+                <option>Nanaimo Station</option>
+                <option>New Westminster Station</option>
+                <option>Oakridge-41st Avenue Station</option>
+                <option>Olympic Village Station</option>
+                <option>Patterson Station</option>
+                <option>Pitt Meadows Station</option>
+                <option>Port Coquitlam Station</option>
+                <option>Port Haney Station</option>
+                <option>Production Way-University Station</option>
+                <option>Renfrew Station</option>
+                <option>Richmond-Brighouse Station</option>
+                <option>Royal Oak Station</option>
+                <option>Rupert Station</option>
+                <option>Sapperton Station</option>
+                <option>Scott Road Station</option>
+                <option>Sea Island Station</option>
+                <option>Sperling-Burnaby Lake Station</option>
+                <option>Stadium-Chinatown Station</option>
+                <option>Surrey Central Station</option>
+                <option>Templeton Station</option>
+                <option>Vancouver City Centre Station</option>
+                <option>VCC-Clark Station</option>
+                <option>Waterfront Station</option>
+                <option>Waterfront Station</option>
+                <option>Waterfront Station</option>
+                <option>Yaletown-Roundhouse Station</option>
+                <option>YVR-Airport Station</option>
+            </select>
+        </div>
+
+        <div style="display:flex;align-items:center;justify-content:center;min-width:70px;">
+            <button id="swapStationsBtn" aria-label="Swap stations" title="Swap stations" style="height:40px;width:40px;border-radius:20px;border:none;background:#006c9e;color:#fff;font-size:18px;cursor:pointer;margin:0 8px;">⇄</button>
+        </div>
+
+        <div style="min-width:300px;">
+            <label for="station2"><strong>Station 2</strong></label>
+            <select id="station2" name="station2" style="width:100%;padding:0.8em;border-radius:0.5em;">
+                <option value="">Select station</option>
+                <option>22nd Street Station</option>
+                <option>29th Avenue Station</option>
+                <option>Aberdeen Station</option>
+                <option>Braid Station</option>
+                <option>Brentwood Town Centre Station</option>
+                <option>Bridgeport Station</option>
+                <option>Broadway-City Hall Station</option>
+                <option>Burquitlam Station</option>
+                <option>Burrard Station</option>
+                <option>Columbia Station</option>
+                <option>Commercial-Broadway Station</option>
+                <option>Coquitlam Central Station</option>
+                <option>Coquitlam Central Station</option>
+                <option>Edmonds Station</option>
+                <option>Gateway Station</option>
+                <option>Gilmore Station</option>
+                <option>Granville Station</option>
+                <option>Holdom Station</option>
+                <option>Inlet Centre Station</option>
+                <option>Joyce-Collingwood Station</option>
+                <option>King Edward Station</option>
+                <option>King George Station</option>
+                <option>Lafarge Lake-Douglas Station</option>
+                <option>Lake City Way Station</option>
+                <option>Langara-49th Avenue Station</option>
+                <option>Lansdowne Station</option>
+                <option>Lincoln Station</option>
+                <option>Lonsdale Quay</option>
+                <option>Lougheed Town Centre Station</option>
+                <option>Main Street-Science World Station</option>
+                <option>Maple Meadows Station</option>
+                <option>Marine Drive Station</option>
+                <option>Metrotown Station</option>
+                <option>Mission City Station</option>
+                <option>Moody Centre Station</option>
+                <option>Moody Centre Station</option>
+                <option>Nanaimo Station</option>
+                <option>New Westminster Station</option>
+                <option>Oakridge-41st Avenue Station</option>
+                <option>Olympic Village Station</option>
+                <option>Patterson Station</option>
+                <option>Pitt Meadows Station</option>
+                <option>Port Coquitlam Station</option>
+                <option>Port Haney Station</option>
+                <option>Production Way-University Station</option>
+                <option>Renfrew Station</option>
+                <option>Richmond-Brighouse Station</option>
+                <option>Royal Oak Station</option>
+                <option>Rupert Station</option>
+                <option>Sapperton Station</option>
+                <option>Scott Road Station</option>
+                <option>Sea Island Station</option>
+                <option>Sperling-Burnaby Lake Station</option>
+                <option>Stadium-Chinatown Station</option>
+                <option>Surrey Central Station</option>
+                <option>Templeton Station</option>
+                <option>Vancouver City Centre Station</option>
+                <option>VCC-Clark Station</option>
+                <option>Waterfront Station</option>
+                <option>Waterfront Station</option>
+                <option>Waterfront Station</option>
+                <option>Yaletown-Roundhouse Station</option>
+                <option>YVR-Airport Station</option>
+            </select>
+        </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;align-items:center;margin-top:1em;gap:0.5em;">
+        <div style="width:260px;text-align:center;">
+            <button id="compareStationsBtn" class="button-card-2" style="width:100%;">Compare</button>
+        </div>
+        <div id="compareStationsResult" style="width:260px;text-align:center;margin-top:0.5em;font-weight:bold;color:#006c9e;word-wrap:break-word;"></div>
+    </div>
+
+    <script>
+        document.getElementById('compareStationsBtn').addEventListener('click', function () {
+            var a = document.getElementById('station1').value || 'x';
+            var b = document.getElementById('station2').value || 'y';
+            document.getElementById('compareStationsResult').textContent = 'comparing stations ' + a + ' and ' + b;
+        });
+
+        // Swap button: swap selected values of the two dropdowns and re-run comparison
+        document.getElementById('swapStationsBtn').addEventListener('click', function () {
+            const s1 = document.getElementById('station1');
+            const s2 = document.getElementById('station2');
+            if (!s1 || !s2) return;
+            const v1 = s1.value;
+            const v2 = s2.value;
+            s1.value = v2;
+            s2.value = v1;
+            const compareBtn = document.getElementById('compareStationsBtn');
+            if (compareBtn) compareBtn.click();
+        });
+    </script>
+
+    <a href="/" class="button-card back-button">
+        &laquo; Back to Home / Upload Page
+    </a>
+
+</body>
+</html>

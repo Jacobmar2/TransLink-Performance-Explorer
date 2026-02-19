@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Welcome to Translink Performance Explorer!</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+
+    <!-- Move this higher using .top-welcome -->
+    <div class="card">
+        <h2>Welcome to Translink Performance Explorer!</h2>
+    </div>
+
+    <div class="button-group">
+        <a href="/bus-lines" class="button-card button-small">
+            My 2 Bus Lines
+        </a>
+
+        <a href="/stations" class="button-card button-small">
+            My 2 Stations
+        </a>
+    </div>
+
+    <div class="button-group">
+        <a href="/greater-less" class="button-card button-small">
+            Greater/Less Than
+        </a>
+
+        <a href="/similar-to" class="button-card button-small">
+            Similar To
+        </a>
+    </div>
+
+    <div class="button-group">
+        <a href="/greater-less" class="button-card button-small">
+            My 2 Years
+        </a>
+
+        <a href="/similar-to" class="button-card button-small">
+            Deep Bus Line Comparison
+        </a>
+    </div>
+
+    <div class="card">
+        <h2>External Sites (by TransLink)</h2>
+    </div>
+
+    <a href="https://translink.maps.arcgis.com/apps/MapSeries/index.html?appid=482ed47ba3bd47c3a24262c7c5810275" class="button-card button-small" target="_blank">
+        TSPR Visualization App
+    </a>
+
+    <a href="https://public.tableau.com/app/profile/translink/viz/2024TSPR-RailSummaries/TableofContents" class="button-card button-small" target="_blank">
+        2024 Rail Summaries
+    </a>
+
+    <div class="button-group">
+        <a href="https://public.tableau.com/app/profile/translink/viz/2024TSPR-BusSeaBusSummaries/TheWorkbook" class="button-card button-small" target="_blank">
+            2024 Bus Summaries
+        </a>
+
+        <a href="https://public.tableau.com/app/profile/translink/viz/2023TSPR-BusSeaBusSummaries/TheWorkbook" class="button-card button-small" target="_blank">
+            2023 Bus Summaries
+        </a>
+    </div>
+
+    <div class="card">
+        <h2>Further Sources</h2>
+    </div>
+
+    <a href="/about" class="button-card button-small">
+        About Translink Performance Explorer
+    </a>
+
+    <!-- Social icons footer -->
+    <div class="footer-icons">
+
+        <!-- GitHub Icon -->
+        <a href="https://github.com/Jacobmar2" target="_blank">
+            <img src="https://cdn.jsdelivr.net/npm/simple-icons@v9/icons/github.svg" alt="GitHub">
+        </a>
+
+        <!-- LinkedIn Icon -->
+        <a href="https://www.linkedin.com/in/jacob-martinez0422/" target="_blank">
+            <img src="https://cdn.jsdelivr.net/npm/simple-icons@v9/icons/linkedin.svg" alt="LinkedIn">
+        </a>
+
+    </div>
+
+</body>
+</html>
