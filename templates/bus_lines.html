@@ -434,8 +434,10 @@
         let boardingsData = {};
         let dailyBoardingsData = {};
         let hoursData = {};
+        let metricsData = {};
         let currentDailyType = 'weekday'; // Track the current daily type selected
         let currentHoursType = 'revenue'; // Track the current hours type selected
+        let currentMetricType = 'boardings_per_revenue_hour'; // Track the current metric type selected
         let currentLineA = ''; // Track the current line A
         let currentLineB = ''; // Track the current line B
         let dataLoaded = false;
@@ -477,12 +479,32 @@
             })
             .catch(error => console.error('Error loading hours data:', error));
 
+        // Load metrics data from API on page load
+        fetch('/api/metrics-data')
+            .then(response => {
+                if (!response.ok) throw new Error('Failed to load metrics data');
+                return response.json();
+            })
+            .then(data => {
+                metricsData = data;
+                console.log('Metrics data loaded successfully');
+            })
+            .catch(error => console.error('Error loading metrics data:', error));
+
         function formatNumber(num) {
             return Math.round(num).toLocaleString();
         }
 
         function escapeHtml(str) {
             return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
+
+        function buildInfoIcon(definitionText) {
+            var safeDef = escapeHtml(definitionText);
+            return ' <span class="info-tooltip" tabindex="0" aria-label="Definition">' +
+                '<span class="info-tooltip-trigger">i</span>' +
+                '<span class="info-tooltip-text">' + safeDef + '</span>' +
+            '</span>';
         }
 
         function generatePeopleIcons(boardings) {
@@ -492,6 +514,14 @@
             const peopleUnits = rounded / 100000;
             const fullPeople = Math.floor(peopleUnits);
             const hasHalfPerson = (peopleUnits % 1) !== 0;
+
+            if (fullPeople === 0 && !hasHalfPerson) {
+                return '<div style="margin: 30px 0; font-size: 1.05em; color: rgba(255,255,255,0.95); font-weight: 700;">No figures displayed</div>' +
+                    '<div style="font-size: 1em; color: rgba(255,255,255,0.8); margin-top: 6px; letter-spacing: 0.5px; display:flex;gap:12px;align-items:center;justify-content:center;">' +
+                        '<img src="/static/icons/person symbol.png" alt="person" style="height:35px;width:auto;display:inline-block;">' +
+                        '<span>= 100,000 boardings</span>' +
+                    '</div>';
+            }
 
             let html = '<div style="margin: 30px 0; font-size: 1.2em; line-height: 2.2;">';
             let count = 0;
@@ -532,6 +562,14 @@
             const fullPeople = Math.floor(peopleUnits);
             const hasHalfPerson = (peopleUnits % 1) !== 0;
 
+            if (fullPeople === 0 && !hasHalfPerson) {
+                return '<div style="margin: 30px 0; font-size: 1.05em; color: rgba(255,255,255,0.95); font-weight: 700;">No figures displayed</div>' +
+                    '<div style="font-size: 1em; color: rgba(255,255,255,0.8); margin-top: 6px; letter-spacing: 0.5px; display:flex;gap:12px;align-items:center;justify-content:center;">' +
+                        '<img src="/static/icons/person symbol.png" alt="person" style="height:35px;width:auto;display:inline-block;">' +
+                        '<span>= 1,000 boardings</span>' +
+                    '</div>';
+            }
+
             let html = '<div style="margin: 30px 0; font-size: 1.2em; line-height: 2.2;">';
             let count = 0;
 
@@ -571,6 +609,14 @@
             const fullSquares = Math.floor(squareUnits);
             const hasHalfSquare = (squareUnits % 1) !== 0;
 
+            if (fullSquares === 0 && !hasHalfSquare) {
+                return '<div style="margin: 30px 0; font-size: 1.05em; color: rgba(255,255,255,0.95); font-weight: 700;">No figures displayed</div>' +
+                    '<div style="font-size: 1em; color: rgba(255,255,255,0.8); margin-top: 6px; letter-spacing: 0.5px; display:flex;gap:12px;align-items:center;justify-content:center;">' +
+                        '<img src="/static/icons/full square.png" alt="person" style="height:35px;width:auto;display:inline-block;">' +
+                        '<span>= 1,000 hours</span>' +
+                    '</div>';
+            }
+
             let html = '<div style="margin: 30px 0; font-size: 1.2em; line-height: 2.2;">';
             let count = 0;
 
@@ -604,12 +650,216 @@
             return html;
         }
 
+        function generatePeopleIconsMetrics(value) {
+            // 1 full person = 1 boarding/metric (rounded to nearest whole number)
+            const rounded = Math.round(value);
+            const fullPeople = rounded;
+            const hasHalfPerson = false; // No half people for metrics
+
+            let html = '<div style="margin: 30px 0; font-size: 1.2em; line-height: 2.2;">';
+            let count = 0;
+
+            // Create rows of 10 people
+            for (let i = 0; i < fullPeople; i++) {
+                if (count === 10) {
+                    html += '<br>';
+                    count = 0;
+                }
+                html += '<img src="/static/icons/person symbol.png" alt="person" style="height: 80px; width: 40px; display: inline-block; margin: 2px;">';
+                count++;
+            }
+
+            html += '</div>';
+            html += '<div style="font-size: 1em; color: rgba(255,255,255,0.8); margin-top: 6px; letter-spacing: 0.5px; display:flex;gap:12px;align-items:center;justify-content:center;">' +
+                    '</div>';
+
+            return html;
+        }
+
         function formatSig(n) {
             // format number to 3 significant figures and remove trailing zeros where reasonable
             if (n === 0) return '0';
             const s = Number(n).toPrecision(3);
             // remove unnecessary trailing zeros and possible trailing dot
             return parseFloat(s).toString();
+        }
+
+        function clamp(value, min, max) {
+            return Math.min(Math.max(value, min), max);
+        }
+
+        function getPeakBarColor(value, peakType) {
+            if (peakType === 'peak_cap') {
+                if (value < 15) return '#ff1a1a';
+                if (value < 30) return '#ff8c00';
+                if (value <= 45) return '#ffd400';
+                return '#10d010';
+            }
+
+            if (value < 40) return '#10d010';
+            if (value < 60) return '#ffd400';
+            if (value <= 75) return '#ff8c00';
+            return '#ff1a1a';
+        }
+
+        function generatePeakBarIndicator(value, peakType) {
+            const numericValue = Number(value);
+            if (!Number.isFinite(numericValue)) {
+                return 'No data available';
+            }
+
+            const fullValue = peakType === 'peak_cap' ? 60 : 100;
+            const fillPercent = clamp((numericValue / fullValue) * 100, 0, 100);
+            const fillColor = getPeakBarColor(numericValue, peakType);
+            const metricLabel = peakType === 'peak_cap' ? 'Capacity Utilization' : 'Peak Load Factor';
+
+            return '<div style="display:flex;flex-direction:column;align-items:center;gap:14px;">' +
+                '<div style="position:relative;width:148px;height:400px;background:#fdfdfd;border:2px solid rgba(0,0,0,0.22);border-radius:0;overflow:hidden;">' +
+                    '<div style="position:absolute;left:0;right:0;bottom:0;height:' + fillPercent + '%;background:' + fillColor + ';"></div>' +
+                '</div>' +
+                '<div style="font-size:32px;font-weight:800;color:#fff;line-height:1.2;">' + metricLabel + ': ' + formatSig(numericValue) + '%</div>' +
+            '</div>';
+        }
+
+        function getOvercrowdBarColor(value) {
+            if (value < 5) return '#10d010';
+            if (value < 15) return '#ffd400';
+            if (value < 25) return '#ff8c00';
+            return '#ff1a1a';
+        }
+
+        function generateOvercrowdBarIndicator(value, overType) {
+            const numericValue = Number(value);
+            if (!Number.isFinite(numericValue)) {
+                return 'No data available';
+            }
+
+            const fullValue = 40;
+            const fillPercent = clamp((numericValue / fullValue) * 100, 0, 100);
+            const fillColor = getOvercrowdBarColor(numericValue);
+            const metricLabel = overType === 'over_pct' ? '% Overcrowded Trips' : 'Overcrowded Revenue Hours';
+
+            return '<div style="display:flex;flex-direction:column;align-items:center;gap:14px;">' +
+                '<div style="position:relative;width:148px;height:400px;background:#fdfdfd;border:2px solid rgba(0,0,0,0.22);border-radius:0;overflow:hidden;">' +
+                    '<div style="position:absolute;left:0;right:0;bottom:0;height:' + fillPercent + '%;background:' + fillColor + ';"></div>' +
+                '</div>' +
+                '<div style="font-size:32px;font-weight:800;color:#fff;line-height:1.2;">' + metricLabel + ': ' + formatSig(numericValue) + '%</div>' +
+            '</div>';
+        }
+
+        function getBunchingBarColor(value) {
+            if (value < 2) return '#10d010';
+            if (value < 5) return '#ffd400';
+            if (value < 8) return '#ff8c00';
+            return '#ff1a1a';
+        }
+
+        function generateBunchingBarIndicator(value) {
+            const numericValue = Number(value);
+            if (!Number.isFinite(numericValue)) {
+                return 'No data available';
+            }
+
+            const fullValue = 10;
+            const fillPercent = clamp((numericValue / fullValue) * 100, 0, 100);
+            const fillColor = getBunchingBarColor(numericValue);
+
+            return '<div style="display:flex;flex-direction:column;align-items:center;gap:14px;">' +
+                '<div style="position:relative;width:148px;height:400px;background:#fdfdfd;border:2px solid rgba(0,0,0,0.22);border-radius:0;overflow:hidden;">' +
+                    '<div style="position:absolute;left:0;right:0;bottom:0;height:' + fillPercent + '%;background:' + fillColor + ';"></div>' +
+                '</div>' +
+                '<div style="font-size:32px;font-weight:800;color:#fff;line-height:1.2;">Bus Bunching: ' + formatSig(numericValue) + '%</div>' +
+            '</div>';
+        }
+
+        function getOtpColor(value) {
+            if (value < 70) return '#ff1a1a';
+            if (value < 80) return '#ff8c00';
+            if (value <= 90) return '#ffd400';
+            return '#10d010';
+        }
+
+        function generateOtpPieIndicator(value) {
+            const numericValue = Number(value);
+            if (!Number.isFinite(numericValue)) {
+                return 'No data available';
+            }
+
+            const clampedValue = clamp(numericValue, 0, 100);
+            const angle = clampedValue * 3.6;
+            const otpColor = getOtpColor(numericValue);
+
+            return '<div style="display:flex;flex-direction:column;align-items:center;gap:14px;">' +
+                '<div style="position:relative;width:220px;height:220px;border:2px solid rgba(0,0,0,0.22);border-radius:50%;background:conic-gradient(' + otpColor + ' 0deg ' + angle + 'deg,#ffffff ' + angle + 'deg 360deg);"></div>' +
+                '<div style="font-size:32px;font-weight:800;color:#fff;line-height:1.2;">On Time Performance: ' + formatSig(numericValue) + '%</div>' +
+            '</div>';
+        }
+
+        function generateSpeedometer(value, speedUnit) {
+            const numericValue = Number(value);
+            if (!Number.isFinite(numericValue)) {
+                return 'No data available';
+            }
+
+            const unitLabel = speedUnit === 'mph' ? 'MPH' : 'KPH';
+            const maxSpeed = speedUnit === 'mph' ? 50 : 80;
+            const clamped = clamp(numericValue, 0, maxSpeed);
+            const ratio = clamped / maxSpeed;
+
+            const cx = 150;
+            const cy = 150;
+            const outerR = 115;
+            const needleLen = 94;
+            const theta = Math.PI * (1 - ratio);
+            const needleX = cx + needleLen * Math.cos(theta);
+            const needleY = cy - needleLen * Math.sin(theta);
+
+            let ticksAndLabels = '';
+            for (let mark = 0; mark <= maxSpeed; mark += 5) {
+                const markTheta = Math.PI * (1 - (mark / maxSpeed));
+                const isMajor = mark % 10 === 0;
+
+                const innerR = isMajor ? 96 : 102;
+                const x1 = cx + outerR * Math.cos(markTheta);
+                const y1 = cy - outerR * Math.sin(markTheta);
+                const x2 = cx + innerR * Math.cos(markTheta);
+                const y2 = cy - innerR * Math.sin(markTheta);
+
+                ticksAndLabels += '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke="#ffffff" stroke-width="' + (isMajor ? 3 : 2) + '" stroke-linecap="round"></line>';
+
+                if (isMajor) {
+                    const labelR = 81;
+                    const lx = cx + labelR * Math.cos(markTheta);
+                    const ly = cy - labelR * Math.sin(markTheta);
+                    ticksAndLabels += '<text x="' + lx + '" y="' + ly + '" fill="#ffffff" font-size="15" font-weight="700" text-anchor="middle" dominant-baseline="middle">' + mark + '</text>';
+                }
+            }
+
+            return '<div style="display:flex;flex-direction:column;align-items:center;gap:12px;">' +
+                '<svg width="400" height="250" viewBox="0 0 300 200" aria-label="Average speed speedometer">' +
+                    '<path d="M 35 150 A 115 115 0 0 1 265 150" pathLength="100" fill="none" stroke="#ffffff" stroke-width="18" stroke-linecap="round"></path>' +
+                    ticksAndLabels +
+                    '<line x1="' + cx + '" y1="' + cy + '" x2="' + needleX + '" y2="' + needleY + '" stroke="#ffffff" stroke-width="5" stroke-linecap="round"></line>' +
+                    '<circle cx="' + cx + '" cy="' + cy + '" r="10" fill="#ffffff"></circle>' +
+                '</svg>' +
+                '<div style="font-size:32px;font-weight:800;color:#fff;line-height:1.2;">Avg Speed: ' + formatSig(numericValue) + ' ' + unitLabel + '</div>' +
+            '</div>';
+        }
+
+        function buildSpeedTimeComparisonText(lineA, speedA, lineB, speedB) {
+            if (!(speedA > 0) || !(speedB > 0)) return '';
+
+            if (speedA === speedB) {
+                return lineA + ' and ' + lineB + ' cover the same distance in 60 mins';
+            }
+
+            if (speedA > speedB) {
+                var slowerMins = 60 * (speedA / speedB);
+                return 'Distance ' + lineA + ' covers in 60 mins, ' + lineB + ' covers in ' + formatSig(slowerMins) + ' mins';
+            }
+
+            var fasterMins = 60 * (speedA / speedB);
+            return 'Distance ' + lineA + ' covers in 60 mins, ' + lineB + ' covers in ' + formatSig(fasterMins) + ' mins';
         }
 
         document.getElementById('compareBtn').addEventListener('click', function () {
@@ -691,6 +941,56 @@
                     '<button type="button" class="hours-btn" id="btn-hours-service">Service</button>' +
                 '</div>' +
                 '<div id="hours-display" class="vs-container">' +
+                    
+                '</div>' +
+
+                // Metrics selection buttons
+                '<div class="metrics-selectors">' +
+                    '<button type="button" class="metrics-btn metrics-btn-active" id="btn-metrics-bprh">Boardings per Revenue Hour</button>' +
+                    '<button type="button" class="metrics-btn" id="btn-metrics-ppl">Peak Passenger Load</button>' +
+                '</div>' +
+                '<div id="metrics-display" class="vs-container">' +
+                    
+                '</div>' +
+
+                // Peak load factor / Capacity utilization
+                '<div class="metrics-selectors">' +
+                    '<button type="button" class="section-btn peak-btn section-btn-active" id="btn-peak-plf">Peak Load Factor</button>' +
+                    '<button type="button" class="section-btn peak-btn" id="btn-peak-cap">Capacity Utilization</button>' +
+                '</div>' +
+                '<div id="peak-display" class="vs-container">' +
+                    '<div class="half left">' + a + '<div class="stats-box">TODO</div></div>' +
+                    '<div class="half right">' + b + '<div class="stats-box">TODO</div></div>' +
+                '</div>' +
+
+                // Overcrowded revenue hours / % overcrowded trips
+                '<div class="metrics-selectors">' +
+                    '<button type="button" class="section-btn overcrowd-btn section-btn-active" id="btn-over-hrs">Overcrowded Revenue Hours</button>' +
+                    '<button type="button" class="section-btn overcrowd-btn" id="btn-over-pct">% Overcrowded Trips</button>' +
+                '</div>' +
+                '<div id="overcrowd-display" class="vs-container">' +
+                    '<div class="half left">' + a + '<div class="stats-box">TODO</div></div>' +
+                    '<div class="half right">' + b + '<div class="stats-box">TODO</div></div>' +
+                '</div>' +
+
+                // % On-time performance / % Bus bunching
+                '<div class="metrics-selectors">' +
+                    '<button type="button" class="section-btn ontime-btn section-btn-active" id="btn-ontime-pct">% On Time Performance</button>' +
+                    '<button type="button" class="section-btn ontime-btn" id="btn-bunching-pct">% Bus Bunching</button>' +
+                '</div>' +
+                '<div id="ontime-display" class="vs-container">' +
+                    '<div class="half left">' + a + '<div class="stats-box">TODO</div></div>' +
+                    '<div class="half right">' + b + '<div class="stats-box">TODO</div></div>' +
+                '</div>' +
+
+                // Avg speed (KPH / MPH)
+                '<div class="metrics-selectors">' +
+                    '<button type="button" class="section-btn speed-btn section-btn-active" id="btn-speed-kph">Avg Speed KPH</button>' +
+                    '<button type="button" class="section-btn speed-btn" id="btn-speed-mph">Avg Speed MPH</button>' +
+                '</div>' +
+                '<div id="avgspeed-display" class="vs-container">' +
+                    '<div class="half left">' + a + '<div class="stats-box">TODO</div></div>' +
+                    '<div class="half right">' + b + '<div class="stats-box">TODO</div></div>' +
                 '</div>';
 
             document.getElementById('compareResult').innerHTML = html;
@@ -700,6 +1000,15 @@
             
             // Update hours display for the default (revenue) selection
             updateHoursDisplay(a, b, 'revenue');
+            
+            // Update metrics display for the default (boardings per revenue hours) selection
+            updateMetricsDisplay(a, b, 'boardings_per_revenue_hour');
+
+            // Update new placeholder sections (TODO) with default selections
+            updatePeakDisplay(a, b, 'peak_plf');
+            updateOvercrowdDisplay(a, b, 'over_hrs');
+            updateOntimeDisplay(a, b, 'ontime_pct');
+            updateAvgSpeedDisplay(a, b, 'kph');
         });
 
         function updateDailyBoardingsDisplay(a, b, dayType) {
@@ -799,6 +1108,10 @@
             } else if (hoursType === 'service') {
                 hoursName = 'Service';
             }
+
+            var hoursDefinitionText = (hoursType === 'revenue')
+                ? 'Annual Revenue Hours = Σ(all in-service hours where the bus is carrying passengers) over the year.'
+                : 'Annual Service Hours = Σ(all operated service hours) over the year = Revenue Hours + non-revenue operating hours.';
             
             // Check if line a has data
             if (hoursData && hoursData[a]) {
@@ -857,11 +1170,356 @@
                 '</div>' +
                 '<div class="vs-badge">VS</div>' +
                 '<div class="divider-line"></div>' +
-                '<div class="annual-boardings-badge">Annual ' + hoursName + ' Hours</div>' +
+                '<div class="annual-boardings-badge">Annual ' + hoursName + ' Hours' + buildInfoIcon(hoursDefinitionText) + '</div>' +
                 (hoursComparisonText ? '<div class="comparison-badge">' + hoursComparisonText + '</div>' : '') +
                 '</div>';
 
             document.getElementById('hours-display').innerHTML = html;
+        }
+
+        function updateMetricsDisplay(a, b, metricType) {
+            currentMetricType = metricType;
+            
+            // Get metrics data for the selected type
+            var metricsAHtml = '';
+            var metricsBHtml = '';
+            var metricsName = '';
+            var metricsValueA = null;
+            var metricsValueB = null;
+            
+            if (metricType === 'boardings_per_revenue_hour') {
+                metricsName = 'Boardings per Revenue Hour';
+            } else if (metricType === 'peak_passenger_load') {
+                metricsName = 'Peak Passenger Load';
+            }
+
+            var metricsDefinitionText = (metricType === 'boardings_per_revenue_hour')
+                ? 'Boardings per Revenue Hour = Annual Boardings ÷ Annual Revenue Hours.'
+                : 'Avg Peak Passenger Load = Σ(peak passenger load for each trip) ÷ number of trips.';
+            
+            // Check if line a has data
+            if (metricsData && metricsData[a]) {
+                var typeVal = metricsData[a][metricType];
+                if (typeVal !== undefined && typeVal !== null && !isNaN(typeVal)) {
+                    metricsValueA = typeVal;
+                    metricsAHtml = generatePeopleIconsMetrics(metricsValueA) +
+                        '<div style="margin-top: 12px; font-size: 34px; font-weight: 800; color: #fff;">' + formatSig(metricsValueA) + '<br><span style="font-size:0.75em; font-weight:600;">' + metricsName + '</span></div>';
+                } else {
+                    metricsAHtml = 'No data available';
+                }
+            } else {
+                metricsAHtml = 'No data available for line ' + a;
+            }
+
+            // Check if line b has data
+            if (metricsData && metricsData[b]) {
+                var typeVal = metricsData[b][metricType];
+                if (typeVal !== undefined && typeVal !== null && !isNaN(typeVal)) {
+                    metricsValueB = typeVal;
+                    metricsBHtml = generatePeopleIconsMetrics(metricsValueB) +
+                        '<div style="margin-top: 12px; font-size: 34px; font-weight: 800; color: #fff;">' + formatSig(metricsValueB) + '<br><span style="font-size:0.75em; font-weight:600;">' + metricsName + '</span></div>';
+                } else {
+                    metricsBHtml = 'No data available';
+                }
+            } else {
+                metricsBHtml = 'No data available for line ' + b;
+            }
+
+            // Build metrics comparison text
+            var metricsComparisonText = '';
+            if (metricsValueA !== null && metricsValueB !== null) {
+                var leftVal = Number(metricsValueA);
+                var rightVal = Number(metricsValueB);
+                if (leftVal === rightVal) {
+                    metricsComparisonText = a + ' and ' + b + ' have equal ' + metricsName.toLowerCase();
+                } else if (leftVal > rightVal) {
+                    var ratio = leftVal / rightVal;
+                    if (ratio > 2) {
+                        metricsComparisonText = a + ' has ' + formatSig(ratio) + 'x more ' + metricsName.toLowerCase() + ' than ' + b;
+                    } else {
+                        var pct = (leftVal - rightVal) / rightVal * 100;
+                        metricsComparisonText = a + ' has ' + formatSig(pct) + '% more ' + metricsName.toLowerCase() + ' than ' + b;
+                    }
+                } else {
+                    var pct = (rightVal - leftVal) / rightVal * 100;
+                    metricsComparisonText = a + ' has ' + formatSig(pct) + '% less ' + metricsName.toLowerCase() + ' than ' + b;
+                }
+            }
+
+            var html = '<div class="half left">' + a +
+                '<div class="stats-box">' + metricsAHtml + '</div>' +
+                '</div>' +
+                '<div class="half right">' + b +
+                    '<div class="stats-box">' + metricsBHtml + '</div>' +
+                '</div>' +
+                '<div class="vs-badge">VS</div>' +
+                '<div class="divider-line"></div>' +
+                '<div class="annual-boardings-badge">' + 'Average ' + metricsName + buildInfoIcon(metricsDefinitionText) + '</div>' +
+                (metricsComparisonText ? '<div class="comparison-badge">' + metricsComparisonText + '</div>' : '') +
+                '</div>';
+
+            document.getElementById('metrics-display').innerHTML = html;
+        }
+
+            function updatePeakDisplay(a, b, peakType) {
+                var title = (peakType === 'peak_cap') ? 'Capacity Utilization' : 'Peak Load Factor';
+                var metricKey = (peakType === 'peak_cap') ? 'capacity_utilization' : 'peak_load_factor';
+                var definitionText = (peakType === 'peak_cap')
+                    ? 'Capacity Utilization: percentage of practical vehicle capacity used during service.'
+                    : 'Peak Load Factor: percentage of vehicle capacity used at the busiest point on the route.';
+
+                var peakValueA = null;
+                var peakValueB = null;
+
+                var peakAHtml = 'No data available for line ' + a;
+                var peakBHtml = 'No data available for line ' + b;
+
+                if (metricsData && metricsData[a]) {
+                    var valueA = metricsData[a][metricKey];
+                    if (valueA !== undefined && valueA !== null && !isNaN(valueA)) {
+                        peakValueA = Number(valueA);
+                        peakAHtml = generatePeakBarIndicator(peakValueA, peakType);
+                    } else {
+                        peakAHtml = 'No data available';
+                    }
+                }
+
+                if (metricsData && metricsData[b]) {
+                    var valueB = metricsData[b][metricKey];
+                    if (valueB !== undefined && valueB !== null && !isNaN(valueB)) {
+                        peakValueB = Number(valueB);
+                        peakBHtml = generatePeakBarIndicator(peakValueB, peakType);
+                    } else {
+                        peakBHtml = 'No data available';
+                    }
+                }
+
+                var comparisonText = '';
+                if (peakValueA !== null && peakValueB !== null) {
+                    var leftVal = Number(peakValueA);
+                    var rightVal = Number(peakValueB);
+                    var metricLabel = title.toLowerCase();
+                    if (leftVal === rightVal) {
+                        comparisonText = a + ' and ' + b + ' have equal ' + metricLabel;
+                    } else if (leftVal > rightVal) {
+                        var ratio = leftVal / rightVal;
+                        if (ratio > 2) {
+                            comparisonText = a + ' has ' + formatSig(ratio) + 'x higher ' + metricLabel + ' than ' + b;
+                        } else {
+                            var pct = (leftVal - rightVal) / rightVal * 100;
+                            comparisonText = a + ' has ' + formatSig(pct) + '% higher ' + metricLabel + ' than ' + b;
+                        }
+                    } else {
+                        var pct = (rightVal - leftVal) / rightVal * 100;
+                        comparisonText = a + ' has ' + formatSig(pct) + '% lower ' + metricLabel + ' than ' + b;
+                    }
+                }
+
+                var html = '<div class="half left">' + a +
+                    '<div class="stats-box">' + peakAHtml + '</div>' +
+                    '</div>' +
+                    '<div class="half right">' + b +
+                    '<div class="stats-box">' + peakBHtml + '</div>' +
+                    '</div>' +
+                    '<div class="vs-badge">VS</div>' +
+                    '<div class="divider-line"></div>' +
+                    '<div class="annual-boardings-badge">' + title + buildInfoIcon(definitionText) + '</div>' +
+                    (comparisonText ? '<div class="comparison-badge">' + comparisonText + '</div>' : '');
+
+                document.getElementById('peak-display').innerHTML = html;
+            }
+
+            function updateOvercrowdDisplay(a, b, overType) {
+                var title = (overType === 'over_pct') ? '% Overcrowded Trips' : 'Overcrowded Revenue Hours';
+                var metricKey = (overType === 'over_pct') ? 'overcrowded_trips_percent' : 'overcrowded_revenue_hours';
+                var definitionText = (overType === 'over_pct')
+                    ? '% Overcrowded Trips: percentage of trips that exceed the overcrowding threshold.'
+                    : 'Overcrowded Revenue Hours: percentage of revenue service hours that exceed the overcrowding threshold.';
+
+                var overValueA = null;
+                var overValueB = null;
+
+                var overAHtml = 'No data available for line ' + a;
+                var overBHtml = 'No data available for line ' + b;
+
+                if (metricsData && metricsData[a]) {
+                    var valueA = metricsData[a][metricKey];
+                    if (valueA !== undefined && valueA !== null && !isNaN(valueA)) {
+                        overValueA = Number(valueA);
+                        overAHtml = generateOvercrowdBarIndicator(overValueA, overType);
+                    } else {
+                        overAHtml = 'No data available';
+                    }
+                }
+
+                if (metricsData && metricsData[b]) {
+                    var valueB = metricsData[b][metricKey];
+                    if (valueB !== undefined && valueB !== null && !isNaN(valueB)) {
+                        overValueB = Number(valueB);
+                        overBHtml = generateOvercrowdBarIndicator(overValueB, overType);
+                    } else {
+                        overBHtml = 'No data available';
+                    }
+                }
+
+                var comparisonText = '';
+                if (overValueA !== null && overValueB !== null) {
+                    var leftVal = Number(overValueA);
+                    var rightVal = Number(overValueB);
+                    var metricLabel = title.toLowerCase();
+                    if (leftVal === rightVal) {
+                        comparisonText = a + ' and ' + b + ' have equal ' + metricLabel;
+                    } else if (leftVal > rightVal) {
+                        var ratio = leftVal / rightVal;
+                        if (ratio > 2) {
+                            comparisonText = a + ' has ' + formatSig(ratio) + 'x higher ' + metricLabel + ' than ' + b;
+                        } else {
+                            var pct = (leftVal - rightVal) / rightVal * 100;
+                            comparisonText = a + ' has ' + formatSig(pct) + '% higher ' + metricLabel + ' than ' + b;
+                        }
+                    } else {
+                        var pct = (rightVal - leftVal) / rightVal * 100;
+                        comparisonText = a + ' has ' + formatSig(pct) + '% lower ' + metricLabel + ' than ' + b;
+                    }
+                }
+
+                var html = '<div class="half left">' + a +
+                    '<div class="stats-box">' + overAHtml + '</div>' +
+                    '</div>' +
+                    '<div class="half right">' + b +
+                    '<div class="stats-box">' + overBHtml + '</div>' +
+                    '</div>' +
+                    '<div class="vs-badge">VS</div>' +
+                    '<div class="divider-line"></div>' +
+                    '<div class="annual-boardings-badge">' + title + buildInfoIcon(definitionText) + '</div>' +
+                    (comparisonText ? '<div class="comparison-badge">' + comparisonText + '</div>' : '');
+
+                document.getElementById('overcrowd-display').innerHTML = html;
+            }
+
+            function updateOntimeDisplay(a, b, ontimeType) {
+                var title = (ontimeType === 'bunching_pct') ? '% Bus Bunching' : '% On Time Performance';
+                var metricKey = (ontimeType === 'bunching_pct') ? 'bus_bunching_percentage' : 'on_time_performance';
+
+                var ontimeValueA = null;
+                var ontimeValueB = null;
+
+                var ontimeAHtml = 'No data available for line ' + a;
+                var ontimeBHtml = 'No data available for line ' + b;
+
+                if (metricsData && metricsData[a]) {
+                    var valueA = metricsData[a][metricKey];
+                    if (valueA !== undefined && valueA !== null && !isNaN(valueA)) {
+                        ontimeValueA = Number(valueA);
+                        ontimeAHtml = ontimeType === 'bunching_pct'
+                            ? generateBunchingBarIndicator(ontimeValueA)
+                            : generateOtpPieIndicator(ontimeValueA);
+                    } else {
+                        ontimeAHtml = 'No data available';
+                    }
+                }
+
+                if (metricsData && metricsData[b]) {
+                    var valueB = metricsData[b][metricKey];
+                    if (valueB !== undefined && valueB !== null && !isNaN(valueB)) {
+                        ontimeValueB = Number(valueB);
+                        ontimeBHtml = ontimeType === 'bunching_pct'
+                            ? generateBunchingBarIndicator(ontimeValueB)
+                            : generateOtpPieIndicator(ontimeValueB);
+                    } else {
+                        ontimeBHtml = 'No data available';
+                    }
+                }
+
+                var comparisonText = '';
+                if (ontimeValueA !== null && ontimeValueB !== null) {
+                    var leftVal = Number(ontimeValueA);
+                    var rightVal = Number(ontimeValueB);
+                    var metricLabel = title.toLowerCase();
+                    if (leftVal === rightVal) {
+                        comparisonText = a + ' and ' + b + ' have equal ' + metricLabel;
+                    } else if (leftVal > rightVal) {
+                        var ratio = leftVal / rightVal;
+                        if (ratio > 2) {
+                            comparisonText = a + ' has ' + formatSig(ratio) + 'x higher ' + metricLabel + ' than ' + b;
+                        } else {
+                            var pct = (leftVal - rightVal) / rightVal * 100;
+                            comparisonText = a + ' has ' + formatSig(pct) + '% higher ' + metricLabel + ' than ' + b;
+                        }
+                    } else {
+                        var pct = (rightVal - leftVal) / rightVal * 100;
+                        comparisonText = a + ' has ' + formatSig(pct) + '% lower ' + metricLabel + ' than ' + b;
+                    }
+                }
+
+                var html = '<div class="half left">' + a +
+                    '<div class="stats-box">' + ontimeAHtml + '</div>' +
+                    '</div>' +
+                    '<div class="half right">' + b +
+                    '<div class="stats-box">' + ontimeBHtml + '</div>' +
+                    '</div>' +
+                    '<div class="vs-badge">VS</div>' +
+                    '<div class="divider-line"></div>' +
+                    '<div class="annual-boardings-badge">' + title + '</div>' +
+                    (comparisonText ? '<div class="comparison-badge">' + comparisonText + '</div>' : '');
+
+                document.getElementById('ontime-display').innerHTML = html;
+            }
+
+function updateAvgSpeedDisplay(a, b, speedUnit) {
+            var unitLabel = (speedUnit === 'mph') ? 'MPH' : 'KPH';
+
+            var speedValueA = null;
+            var speedValueB = null;
+
+            var speedAHtml = 'No data available for line ' + a;
+            var speedBHtml = 'No data available for line ' + b;
+
+            if (metricsData && metricsData[a]) {
+                var valueA = metricsData[a]['avg_speed_kph'];
+                if (valueA !== undefined && valueA !== null && !isNaN(valueA)) {
+                    speedValueA = Number(valueA);
+                    if (speedUnit === 'mph') {
+                        speedValueA = speedValueA * 0.621371;
+                    }
+                    speedAHtml = generateSpeedometer(speedValueA, speedUnit);
+                } else {
+                    speedAHtml = 'No data available';
+                }
+            }
+
+            if (metricsData && metricsData[b]) {
+                var valueB = metricsData[b]['avg_speed_kph'];
+                if (valueB !== undefined && valueB !== null && !isNaN(valueB)) {
+                    speedValueB = Number(valueB);
+                    if (speedUnit === 'mph') {
+                        speedValueB = speedValueB * 0.621371;
+                    }
+                    speedBHtml = generateSpeedometer(speedValueB, speedUnit);
+                } else {
+                    speedBHtml = 'No data available';
+                }
+            }
+
+            var timeComparisonText = '';
+            if (speedValueA !== null && speedValueB !== null) {
+                var leftVal = Number(speedValueA);
+                var rightVal = Number(speedValueB);
+                timeComparisonText = buildSpeedTimeComparisonText(a, leftVal, b, rightVal);
+            }
+
+            var html = '<div class="half left">' + a +
+                '<div class="stats-box">' + speedAHtml + '</div>' +
+                '</div>' +
+                '<div class="half right">' + b +
+                '<div class="stats-box">' + speedBHtml + '</div>' +
+                '</div>' +
+                '<div class="vs-badge">VS</div>' +
+                '<div class="divider-line"></div>' +
+                '<div class="annual-boardings-badge">Avg Speed (' + unitLabel + ')</div>' +
+                (timeComparisonText ? '<div class="comparison-badge">' + timeComparisonText + '</div>' : '');
+
+            document.getElementById('avgspeed-display').innerHTML = html;
         }
 
         // Swap button: swap selected values of the two dropdowns and re-run comparison
@@ -907,6 +1565,53 @@
                 
                 // Update the display with the current stored lines
                 updateHoursDisplay(currentLineA, currentLineB, hoursType);
+            }
+
+            // Metrics selector button group logic
+            if (e.target.classList.contains('metrics-btn')) {
+                document.querySelectorAll('.metrics-btn').forEach(btn => btn.classList.remove('metrics-btn-active'));
+                e.target.classList.add('metrics-btn-active');
+                
+                // Determine which metric type was selected and update display
+                let metricType = 'boardings_per_revenue_hour';
+                if (e.target.id === 'btn-metrics-ppl') {
+                    metricType = 'peak_passenger_load';
+                }
+                
+                // Update the display with the current stored lines
+                updateMetricsDisplay(currentLineA, currentLineB, metricType);
+            }
+
+            // Peak load selector logic
+            if (e.target.classList.contains('peak-btn')) {
+                document.querySelectorAll('.peak-btn').forEach(btn => btn.classList.remove('section-btn-active'));
+                e.target.classList.add('section-btn-active');
+                let peakType = (e.target.id === 'btn-peak-cap') ? 'peak_cap' : 'peak_plf';
+                updatePeakDisplay(currentLineA, currentLineB, peakType);
+            }
+
+            // Overcrowding selector logic
+            if (e.target.classList.contains('overcrowd-btn')) {
+                document.querySelectorAll('.overcrowd-btn').forEach(btn => btn.classList.remove('section-btn-active'));
+                e.target.classList.add('section-btn-active');
+                let overType = (e.target.id === 'btn-over-pct') ? 'over_pct' : 'over_hrs';
+                updateOvercrowdDisplay(currentLineA, currentLineB, overType);
+            }
+
+            // On-time / bunching selector logic
+            if (e.target.classList.contains('ontime-btn')) {
+                document.querySelectorAll('.ontime-btn').forEach(btn => btn.classList.remove('section-btn-active'));
+                e.target.classList.add('section-btn-active');
+                let ontimeType = (e.target.id === 'btn-bunching-pct') ? 'bunching_pct' : 'ontime_pct';
+                updateOntimeDisplay(currentLineA, currentLineB, ontimeType);
+            }
+
+            // Avg speed / unit selector logic
+            if (e.target.classList.contains('speed-btn')) {
+                document.querySelectorAll('.speed-btn').forEach(btn => btn.classList.remove('section-btn-active'));
+                e.target.classList.add('section-btn-active');
+                let speedUnit = (e.target.id === 'btn-speed-mph') ? 'mph' : 'kph';
+                updateAvgSpeedDisplay(currentLineA, currentLineB, speedUnit);
             }
         });
     </script>

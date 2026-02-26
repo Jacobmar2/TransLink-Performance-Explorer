@@ -28,7 +28,6 @@
                 <option>Columbia Station</option>
                 <option>Commercial-Broadway Station</option>
                 <option>Coquitlam Central Station</option>
-                <option>Coquitlam Central Station</option>
                 <option>Edmonds Station</option>
                 <option>Gateway Station</option>
                 <option>Gilmore Station</option>
@@ -43,23 +42,16 @@
                 <option>Langara-49th Avenue Station</option>
                 <option>Lansdowne Station</option>
                 <option>Lincoln Station</option>
-                <option>Lonsdale Quay</option>
                 <option>Lougheed Town Centre Station</option>
                 <option>Main Street-Science World Station</option>
-                <option>Maple Meadows Station</option>
                 <option>Marine Drive Station</option>
                 <option>Metrotown Station</option>
-                <option>Mission City Station</option>
-                <option>Moody Centre Station</option>
                 <option>Moody Centre Station</option>
                 <option>Nanaimo Station</option>
                 <option>New Westminster Station</option>
                 <option>Oakridge-41st Avenue Station</option>
                 <option>Olympic Village Station</option>
                 <option>Patterson Station</option>
-                <option>Pitt Meadows Station</option>
-                <option>Port Coquitlam Station</option>
-                <option>Port Haney Station</option>
                 <option>Production Way-University Station</option>
                 <option>Renfrew Station</option>
                 <option>Richmond-Brighouse Station</option>
@@ -74,8 +66,6 @@
                 <option>Templeton Station</option>
                 <option>Vancouver City Centre Station</option>
                 <option>VCC-Clark Station</option>
-                <option>Waterfront Station</option>
-                <option>Waterfront Station</option>
                 <option>Waterfront Station</option>
                 <option>Yaletown-Roundhouse Station</option>
                 <option>YVR-Airport Station</option>
@@ -102,7 +92,6 @@
                 <option>Columbia Station</option>
                 <option>Commercial-Broadway Station</option>
                 <option>Coquitlam Central Station</option>
-                <option>Coquitlam Central Station</option>
                 <option>Edmonds Station</option>
                 <option>Gateway Station</option>
                 <option>Gilmore Station</option>
@@ -117,23 +106,16 @@
                 <option>Langara-49th Avenue Station</option>
                 <option>Lansdowne Station</option>
                 <option>Lincoln Station</option>
-                <option>Lonsdale Quay</option>
                 <option>Lougheed Town Centre Station</option>
                 <option>Main Street-Science World Station</option>
-                <option>Maple Meadows Station</option>
                 <option>Marine Drive Station</option>
                 <option>Metrotown Station</option>
-                <option>Mission City Station</option>
-                <option>Moody Centre Station</option>
                 <option>Moody Centre Station</option>
                 <option>Nanaimo Station</option>
                 <option>New Westminster Station</option>
                 <option>Oakridge-41st Avenue Station</option>
                 <option>Olympic Village Station</option>
                 <option>Patterson Station</option>
-                <option>Pitt Meadows Station</option>
-                <option>Port Coquitlam Station</option>
-                <option>Port Haney Station</option>
                 <option>Production Way-University Station</option>
                 <option>Renfrew Station</option>
                 <option>Richmond-Brighouse Station</option>
@@ -149,8 +131,6 @@
                 <option>Vancouver City Centre Station</option>
                 <option>VCC-Clark Station</option>
                 <option>Waterfront Station</option>
-                <option>Waterfront Station</option>
-                <option>Waterfront Station</option>
                 <option>Yaletown-Roundhouse Station</option>
                 <option>YVR-Airport Station</option>
             </select>
@@ -161,14 +141,282 @@
         <div style="width:260px;text-align:center;">
             <button id="compareStationsBtn" class="button-card-2" style="width:100%;">Compare</button>
         </div>
-        <div id="compareStationsResult" style="width:260px;text-align:center;margin-top:0.5em;font-weight:bold;color:#006c9e;word-wrap:break-word;"></div>
+        <div id="compareStationsResult" class="vs-compare" style="text-align:center;margin-top:0.5em;font-weight:bold;color:#006c9e;word-wrap:break-word;"></div>
     </div>
 
     <script>
+        let stationBoardingsData = {};
+        let stationDailyBoardingsData = {};
+        let currentStationA = '';
+        let currentStationB = '';
+        let currentDailyType = 'weekday';
+
+        fetch('/api/station-boardings-data')
+            .then(response => {
+                if (!response.ok) throw new Error('Failed to load station boardings data');
+                return response.json();
+            })
+            .then(data => {
+                stationBoardingsData = data;
+            })
+            .catch(error => console.error('Error loading station boardings data:', error));
+
+        fetch('/api/station-daily-boardings-data')
+            .then(response => {
+                if (!response.ok) throw new Error('Failed to load station daily boardings data');
+                return response.json();
+            })
+            .then(data => {
+                stationDailyBoardingsData = data;
+            })
+            .catch(error => console.error('Error loading station daily boardings data:', error));
+
+        function formatNumber(num) {
+            return Math.round(num).toLocaleString();
+        }
+
+        function formatSig(n) {
+            if (n === 0) return '0';
+            const s = Number(n).toPrecision(3);
+            return parseFloat(s).toString();
+        }
+
+        function escapeHtml(str) {
+            return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
+
+        function generatePeopleIcons(boardings) {
+            const rounded = Math.round(boardings / 50000) * 50000;
+            const peopleUnits = rounded / 100000;
+            const fullPeople = Math.floor(peopleUnits);
+            const hasHalfPerson = (peopleUnits % 1) !== 0;
+
+            if (fullPeople === 0 && !hasHalfPerson) {
+                return '<div style="margin: 30px 0; font-size: 1.05em; color: rgba(255,255,255,0.95); font-weight: 700;">No figures displayed</div>' +
+                    '<div style="font-size: 1em; color: rgba(255,255,255,0.8); margin-top: 6px; letter-spacing: 0.5px; display:flex;gap:12px;align-items:center;justify-content:center;">' +
+                        '<img src="/static/icons/person symbol.png" alt="person" style="height:35px;width:auto;display:inline-block;">' +
+                        '<span>= 100,000 boardings</span>' +
+                    '</div>';
+            }
+
+            let html = '<div style="margin: 30px 0; font-size: 1.2em; line-height: 2.2;">';
+            let count = 0;
+
+            for (let i = 0; i < fullPeople; i++) {
+                if (count === 10) {
+                    html += '<br>';
+                    count = 0;
+                }
+                html += '<img src="/static/icons/person symbol.png" alt="person" style="height: 80px; width: 40px; display: inline-block; margin: 2px;">';
+                count++;
+            }
+
+            if (hasHalfPerson) {
+                if (count === 10) {
+                    html += '<br>';
+                    count = 0;
+                }
+                html += '<img src="/static/icons/half person figure.png" alt="half person" style="height: 80px; width: 20px; display: inline-block; margin: 2px;">';
+            }
+
+            html += '</div>';
+            html += '<div style="font-size: 1em; color: rgba(255,255,255,0.8); margin-top: 6px; letter-spacing: 0.5px; display:flex;gap:12px;align-items:center;justify-content:center;">' +
+                        '<img src="/static/icons/person symbol.png" alt="person" style="height:35px;width:auto;display:inline-block;">' +
+                        '<span>= 100,000 boardings</span>' +
+                    '</div>';
+
+            return html;
+        }
+
+        function generatePeopleIconsDaily(boardings) {
+            const rounded = Math.round(boardings / 500) * 500;
+            const peopleUnits = rounded / 1000;
+            const fullPeople = Math.floor(peopleUnits);
+            const hasHalfPerson = (peopleUnits % 1) !== 0;
+
+            if (fullPeople === 0 && !hasHalfPerson) {
+                return '<div style="margin: 30px 0; font-size: 1.05em; color: rgba(255,255,255,0.95); font-weight: 700;">No figures displayed</div>' +
+                    '<div style="font-size: 1em; color: rgba(255,255,255,0.8); margin-top: 6px; letter-spacing: 0.5px; display:flex;gap:12px;align-items:center;justify-content:center;">' +
+                        '<img src="/static/icons/person symbol.png" alt="person" style="height:35px;width:auto;display:inline-block;">' +
+                        '<span>= 1,000 boardings</span>' +
+                    '</div>';
+            }
+
+            let html = '<div style="margin: 30px 0; font-size: 1.2em; line-height: 2.2;">';
+            let count = 0;
+
+            for (let i = 0; i < fullPeople; i++) {
+                if (count === 10) {
+                    html += '<br>';
+                    count = 0;
+                }
+                html += '<img src="/static/icons/person symbol.png" alt="person" style="height: 80px; width: 40px; display: inline-block; margin: 2px;">';
+                count++;
+            }
+
+            if (hasHalfPerson) {
+                if (count === 10) {
+                    html += '<br>';
+                    count = 0;
+                }
+                html += '<img src="/static/icons/half person figure.png" alt="half person" style="height: 80px; width: 20px; display: inline-block; margin: 2px;">';
+            }
+
+            html += '</div>';
+            html += '<div style="font-size: 1em; color: rgba(255,255,255,0.8); margin-top: 6px; letter-spacing: 0.5px; display:flex;gap:12px;align-items:center;justify-content:center;">' +
+                        '<img src="/static/icons/person symbol.png" alt="person" style="height:35px;width:auto;display:inline-block;">' +
+                        '<span>= 1,000 boardings</span>' +
+                    '</div>';
+
+            return html;
+        }
+
+        function updateDailyStationBoardingsDisplay(a, b, dayType) {
+            currentDailyType = dayType;
+
+            var dailyBoardingsAHtml = '';
+            var dailyBoardingsBHtml = '';
+            var dayName = '';
+            var dailyValueA = null;
+            var dailyValueB = null;
+
+            if (dayType === 'weekday') {
+                dayName = 'Weekday';
+            } else if (dayType === 'saturday') {
+                dayName = 'Saturday';
+            } else if (dayType === 'sunday') {
+                dayName = 'Sunday/Holiday';
+            }
+
+            if (stationDailyBoardingsData && stationDailyBoardingsData[a]) {
+                var dayValA = stationDailyBoardingsData[a][dayType];
+                if (dayValA !== undefined && dayValA !== null && !isNaN(dayValA)) {
+                    dailyValueA = dayValA;
+                    dailyBoardingsAHtml = generatePeopleIconsDaily(dailyValueA) +
+                        '<div style="margin-top: 12px; font-size: 34px; font-weight: 800; color: #fff;">' + formatNumber(dailyValueA) + '<br><span style="font-size:0.75em; font-weight:600;">Daily Boardings</span></div>';
+                } else {
+                    dailyBoardingsAHtml = 'No data for ' + dayName;
+                }
+            } else {
+                dailyBoardingsAHtml = 'No data available for station ' + a;
+            }
+
+            if (stationDailyBoardingsData && stationDailyBoardingsData[b]) {
+                var dayValB = stationDailyBoardingsData[b][dayType];
+                if (dayValB !== undefined && dayValB !== null && !isNaN(dayValB)) {
+                    dailyValueB = dayValB;
+                    dailyBoardingsBHtml = generatePeopleIconsDaily(dailyValueB) +
+                        '<div style="margin-top: 12px; font-size: 34px; font-weight: 800; color: #fff;">' + formatNumber(dailyValueB) + '<br><span style="font-size:0.75em; font-weight:600;">Daily Boardings</span></div>';
+                } else {
+                    dailyBoardingsBHtml = 'No data for ' + dayName;
+                }
+            } else {
+                dailyBoardingsBHtml = 'No data available for station ' + b;
+            }
+
+            var dailyComparisonText = '';
+            if (dailyValueA !== null && dailyValueB !== null) {
+                var leftVal = Number(dailyValueA);
+                var rightVal = Number(dailyValueB);
+                if (leftVal === rightVal) {
+                    dailyComparisonText = a + ' and ' + b + ' have equal daily boardings';
+                } else if (leftVal > rightVal) {
+                    var ratio = leftVal / rightVal;
+                    if (ratio > 2) {
+                        dailyComparisonText = a + ' has ' + formatSig(ratio) + 'x more daily boardings than ' + b;
+                    } else {
+                        var pct = (leftVal - rightVal) / rightVal * 100;
+                        dailyComparisonText = a + ' has ' + formatSig(pct) + '% more daily boardings than ' + b;
+                    }
+                } else {
+                    var pct = (rightVal - leftVal) / rightVal * 100;
+                    dailyComparisonText = a + ' has ' + formatSig(pct) + '% less daily boardings than ' + b;
+                }
+            }
+
+            var html = '<div class="half left">' + a +
+                '<div class="stats-box">' + dailyBoardingsAHtml + '</div>' +
+                '</div>' +
+                '<div class="half right">' + b +
+                    '<div class="stats-box">' + dailyBoardingsBHtml + '</div>' +
+                '</div>' +
+                '<div class="vs-badge">VS</div>' +
+                '<div class="divider-line"></div>' +
+                '<div class="annual-boardings-badge">' + dayName + ' Daily Boardings</div>' +
+                (dailyComparisonText ? '<div class="comparison-badge">' + dailyComparisonText + '</div>' : '') +
+                '</div>';
+
+            document.getElementById('daily-station-boardings-display').innerHTML = html;
+        }
+
         document.getElementById('compareStationsBtn').addEventListener('click', function () {
-            var a = document.getElementById('station1').value || 'x';
-            var b = document.getElementById('station2').value || 'y';
-            document.getElementById('compareStationsResult').textContent = 'comparing stations ' + a + ' and ' + b;
+            var a = document.getElementById('station1').value || 'X';
+            var b = document.getElementById('station2').value || 'Y';
+            a = escapeHtml(a);
+            b = escapeHtml(b);
+
+            currentStationA = a;
+            currentStationB = b;
+            currentDailyType = 'weekday';
+
+            var boardingsAHtml = '';
+            var boardingsBHtml = '';
+
+            if (stationBoardingsData[a]) {
+                boardingsAHtml = generatePeopleIcons(stationBoardingsData[a]) +
+                    '<div style="margin-top: 12px; font-size: 34px; font-weight: 800; color: #fff;">' + formatNumber(stationBoardingsData[a]) + '<br><span style="font-size:0.75em; font-weight:600;">Boardings</span></div>';
+            } else {
+                boardingsAHtml = 'Please select station';
+            }
+
+            if (stationBoardingsData[b]) {
+                boardingsBHtml = generatePeopleIcons(stationBoardingsData[b]) +
+                    '<div style="margin-top: 12px; font-size: 34px; font-weight: 800; color: #fff;">' + formatNumber(stationBoardingsData[b]) + '<br><span style="font-size:0.75em; font-weight:600;">Boardings</span></div>';
+            } else {
+                boardingsBHtml = 'Please select station';
+            }
+
+            var comparisonText = '';
+            if (stationBoardingsData[a] && stationBoardingsData[b]) {
+                var leftVal = Number(stationBoardingsData[a]);
+                var rightVal = Number(stationBoardingsData[b]);
+                if (leftVal === rightVal) {
+                    comparisonText = a + ' and ' + b + ' have equal annual boardings';
+                } else if (leftVal > rightVal) {
+                    var ratio = leftVal / rightVal;
+                    if (ratio > 2) {
+                        comparisonText = a + ' has ' + formatSig(ratio) + 'x more annual boardings than ' + b;
+                    } else {
+                        var pct = (leftVal - rightVal) / rightVal * 100;
+                        comparisonText = a + ' has ' + formatSig(pct) + '% more annual boardings than ' + b;
+                    }
+                } else {
+                    var pct = (rightVal - leftVal) / rightVal * 100;
+                    comparisonText = a + ' has ' + formatSig(pct) + '% less annual boardings than ' + b;
+                }
+            }
+
+            var html = '<div class="vs-container">' +
+                '<div class="half left">' + a +
+                    '<div class="stats-box">' + boardingsAHtml + '</div>' +
+                '</div>' +
+                '<div class="half right">' + b +
+                    '<div class="stats-box">' + boardingsBHtml + '</div>' +
+                '</div>' +
+                '<div class="vs-badge">VS</div>' +
+                '<div class="divider-line"></div>' +
+                '<div class="annual-boardings-badge">Annual Boardings</div>' +
+                (comparisonText ? '<div class="comparison-badge">' + comparisonText + '</div>' : '') +
+                '</div>' +
+                '<div class="daily-boardings-selectors">' +
+                    '<button type="button" class="daily-btn daily-btn-active" id="btn-station-daily-weekday">Weekday</button>' +
+                    '<button type="button" class="daily-btn" id="btn-station-daily-sat">Sat</button>' +
+                    '<button type="button" class="daily-btn" id="btn-station-daily-sun">Sun/Hol</button>' +
+                '</div>' +
+                '<div id="daily-station-boardings-display" class="vs-container"></div>';
+
+            document.getElementById('compareStationsResult').innerHTML = html;
+            updateDailyStationBoardingsDisplay(a, b, 'weekday');
         });
 
         // Swap button: swap selected values of the two dropdowns and re-run comparison
@@ -182,6 +430,22 @@
             s2.value = v1;
             const compareBtn = document.getElementById('compareStationsBtn');
             if (compareBtn) compareBtn.click();
+        });
+
+        document.addEventListener('click', function(e) {
+            if (e.target.classList.contains('daily-btn') && e.target.id.startsWith('btn-station-daily-')) {
+                document.querySelectorAll('#compareStationsResult .daily-btn').forEach(btn => btn.classList.remove('daily-btn-active'));
+                e.target.classList.add('daily-btn-active');
+
+                let dayType = 'weekday';
+                if (e.target.id === 'btn-station-daily-sat') {
+                    dayType = 'saturday';
+                } else if (e.target.id === 'btn-station-daily-sun') {
+                    dayType = 'sunday';
+                }
+
+                updateDailyStationBoardingsDisplay(currentStationA, currentStationB, dayType);
+            }
         });
     </script>
 

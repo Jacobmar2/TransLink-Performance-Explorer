@@ -107,9 +107,102 @@ def hours_data():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/metrics-data")
+def metrics_data():
+    """API endpoint to fetch 2024 metrics data"""
+    try:
+        csv_path = os.path.join("data", "tspr2024_bus_yearline.csv")
+        df = pd.read_csv(csv_path)
+        
+        # Filter for 2024 data
+        df_2024 = df[df['CalendarYear'] == 2024]
+        
+        # Create dictionary with line numbers as keys and metrics as values
+        metrics_dict = {}
+        for _, row in df_2024.iterrows():
+            line_name = str(row['Lineno_renamed'])
+            # Convert NaN to None (which becomes null in JSON)
+            boardings_per_revenue_hour = None if pd.isna(row['Average_Boarding_Per_Revenue_Hour']) else float(row['Average_Boarding_Per_Revenue_Hour'])
+            peak_passenger_load = None if pd.isna(row['Average_Peak_Passenger_Load']) else float(row['Average_Peak_Passenger_Load'])
+            peak_load_factor = None if pd.isna(row['Average_Peak_Load_Factor']) else float(row['Average_Peak_Load_Factor'])
+            capacity_utilization = None if pd.isna(row['Average_Capacity_Utilization']) else float(row['Average_Capacity_Utilization'])
+            overcrowded_revenue_hours = None if pd.isna(row['Revenue_Hrs_w_Overcrowding']) else float(row['Revenue_Hrs_w_Overcrowding'])
+            overcrowded_trips_percent = None if pd.isna(row['Perc_Trips_w_Overcrowding']) else float(row['Perc_Trips_w_Overcrowding'])
+            on_time_performance = None if pd.isna(row['On_Time_Performance_Percentage']) else float(row['On_Time_Performance_Percentage'])
+            bus_bunching_percentage = None if pd.isna(row['Bus_Bunching_Percentage']) else float(row['Bus_Bunching_Percentage'])
+            avg_speed_kph = None if pd.isna(row['AVG_speed_km_per_hr']) else float(row['AVG_speed_km_per_hr'])
+            
+            metrics_dict[line_name] = {
+                'boardings_per_revenue_hour': boardings_per_revenue_hour,
+                'peak_passenger_load': peak_passenger_load,
+                'peak_load_factor': peak_load_factor,
+                'capacity_utilization': capacity_utilization,
+                'overcrowded_revenue_hours': overcrowded_revenue_hours,
+                'overcrowded_trips_percent': overcrowded_trips_percent,
+                'on_time_performance': on_time_performance,
+                'bus_bunching_percentage': bus_bunching_percentage,
+                'avg_speed_kph': avg_speed_kph
+            }
+        
+        return jsonify(metrics_dict)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/stations")
 def stations():
     return render_template("stations.html")
+
+
+@app.route("/api/station-boardings-data")
+def station_boardings_data():
+    """API endpoint to fetch 2024 annual station boardings data from CSV"""
+    try:
+        csv_path = os.path.join("data", "tspr2024_skytrain_yearstation.csv")
+        df = pd.read_csv(csv_path)
+
+        # Filter for 2024 data
+        df_2024 = df[df['CalendarYear'] == 2024]
+
+        # Create dictionary with station names as keys and annual boardings as values
+        boardings_dict = {}
+        for _, row in df_2024.iterrows():
+            station_name = str(row['StationName'])
+            boardings = float(row['AnnualStationBrdgs'])
+            boardings_dict[station_name] = boardings
+
+        return jsonify(boardings_dict)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/station-daily-boardings-data")
+def station_daily_boardings_data():
+    """API endpoint to fetch 2024 station daily boardings data (Weekday, Saturday, Sunday/Holiday)"""
+    try:
+        csv_path = os.path.join("data", "tspr2024_skytrain_yearstation.csv")
+        df = pd.read_csv(csv_path)
+
+        # Filter for 2024 data
+        df_2024 = df[df['CalendarYear'] == 2024]
+
+        # Create dictionary with station names as keys and daily boardings data as values
+        daily_boardings_dict = {}
+        for _, row in df_2024.iterrows():
+            station_name = str(row['StationName'])
+            weekday_val = None if pd.isna(row['AvgStationBrdgs_MF']) else float(row['AvgStationBrdgs_MF'])
+            saturday_val = None if pd.isna(row['AvgStationBrdgs_Sat']) else float(row['AvgStationBrdgs_Sat'])
+            sunday_val = None if pd.isna(row['AvgStationBrdgs_SunHol']) else float(row['AvgStationBrdgs_SunHol'])
+
+            daily_boardings_dict[station_name] = {
+                'weekday': weekday_val,
+                'saturday': saturday_val,
+                'sunday': sunday_val
+            }
+
+        return jsonify(daily_boardings_dict)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/greater-less")
