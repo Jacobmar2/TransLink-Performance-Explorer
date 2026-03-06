@@ -5,6 +5,19 @@
     margin: 18px auto 0 auto;
 }
 
+/* Year selector buttons above compare */
+.year-selectors {
+    display: inline-flex;
+    flex-direction: row;
+    gap: 10px;
+    margin: 0 auto;
+    width: 100%;
+}
+
+.year-selectors .year-btn {
+    flex: 1 1 0;
+}
+
 /* Revenue/Service hours selector buttons */
 .hours-selectors {
     display: inline-flex;
@@ -12,7 +25,8 @@
     margin: 18px auto 0 auto;
 }
 
-.daily-btn {
+.daily-btn,
+.year-btn {
     background: #e6ecf0;
     color: #006c9e;
     border: 1.5px solid #006c9e;
@@ -26,7 +40,10 @@
 }
 .daily-btn:hover,
 .daily-btn:focus,
-.daily-btn-active {
+.daily-btn-active,
+.year-btn:hover,
+.year-btn:focus,
+.year-btn-active {
     background: #006c9e;
     color: #fff;
     border-color: #006c9e;
@@ -600,4 +617,202 @@ body {
 
 .vs-compare .stats-box div {
     line-height: 1.4;
+}
+
+.vs-compare .hourly-compare-panel {
+    width: 100%;
+    background: #f4f8fb;
+    color: #0f2f47;
+    border-radius: 12px;
+    padding: 16px 16px 12px 16px;
+    box-sizing: border-box;
+}
+
+.vs-compare .hourly-panel-title {
+    font-size: 28px;
+    font-weight: 800;
+    color: #005985;
+}
+
+.vs-compare .hourly-panel-meta {
+    margin-top: 4px;
+    font-size: 16px;
+    font-weight: 700;
+    color: #3a4e5f;
+}
+
+.vs-compare .hourly-chart-shell {
+    margin-top: 14px;
+    background: #fff;
+    border: 1px solid #d6e2eb;
+    border-radius: 10px;
+    padding: 12px 10px 10px 10px;
+    position: relative;
+}
+
+.vs-compare .hourly-y-axis-label {
+    text-align: left;
+    font-size: 14px;
+    font-weight: 700;
+    color: #2f4558;
+    margin: 0 0 8px 56px;
+}
+
+.vs-compare .hourly-chart-inner {
+    display: flex;
+    gap: 6px;
+}
+
+.vs-compare .hourly-y-ticks {
+    width: 56px;
+    min-width: 56px;
+    height: 500px;
+    position: relative;
+}
+
+.vs-compare .hourly-y-tick {
+    position: absolute;
+    left: 0;
+    transform: translateY(-50%);
+    width: 100%;
+    text-align: right;
+    font-size: 12px;
+    color: #5b6a78;
+    padding-right: 6px;
+    box-sizing: border-box;
+}
+
+.vs-compare .hourly-plot-area {
+    position: relative;
+    flex: 1;
+    height: 500px;
+    border-left: 1px solid #d8e1e8;
+    border-bottom: 1px solid #d8e1e8;
+    padding: 0 6px 0 8px;
+    box-sizing: border-box;
+}
+
+.vs-compare .hourly-grid {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: none;
+}
+
+.vs-compare .hourly-grid-line {
+    position: absolute;
+    left: 0;
+    right: 0;
+    border-top: 1px solid #e8edf2;
+}
+
+.vs-compare .hourly-bars-row {
+    display: grid;
+    grid-template-columns: repeat(24, minmax(18px, 1fr));
+    gap: 4px;
+    align-items: end;
+    height: 100%;
+    position: relative;
+    z-index: 1;
+}
+
+.vs-compare .hourly-hour-group {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    height: 100%;
+    min-width: 0;
+}
+
+.vs-compare .hourly-bars {
+    height: calc(100% - 24px);
+    width: 100%;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 2px;
+}
+
+.vs-compare .hourly-bar {
+    width: 44%;
+    min-height: 2px;
+    border-radius: 3px 3px 0 0;
+    cursor: pointer;
+    transition: opacity 0.12s ease;
+}
+
+.vs-compare .hourly-bar:hover,
+.vs-compare .hourly-bar:focus {
+    opacity: 0.82;
+}
+
+.vs-compare .station-a-bar {
+    background: #0096d6;
+}
+
+.vs-compare .station-b-bar {
+    background: #ef8d1a;
+}
+
+.vs-compare .hourly-hour-label {
+    margin-top: 4px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #4d5e6f;
+}
+
+.vs-compare .hourly-legend {
+    margin-top: 10px;
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 16px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #344b5f;
+}
+
+.vs-compare .legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.vs-compare .legend-swatch {
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+    display: inline-block;
+}
+
+.vs-compare .hourly-hover-detail {
+    margin-top: 10px;
+    background: #ffffff;
+    border: 1px solid #d6e2eb;
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 18px;
+    font-weight: 700;
+    color: #1f3a4f;
+    text-align: left;
+}
+
+.vs-compare .hourly-hover-tooltip {
+    position: absolute;
+    display: none;
+    min-width: 240px;
+    max-width: 360px;
+    background: rgba(0, 32, 47, 0.95);
+    color: #fff;
+    border: 1px solid rgba(255,255,255,0.32);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 14px;
+    line-height: 1.35;
+    pointer-events: none;
+    z-index: 30;
+    box-shadow: 0 6px 12px rgba(0,0,0,0.25);
 }

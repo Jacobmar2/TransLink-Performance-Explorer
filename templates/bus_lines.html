@@ -212,6 +212,11 @@
                 <option>R5</option>
                 <option>R6</option>
             </select>
+            <div class="year-selectors line-year-selectors" data-side="line1" style="margin-top:0.55em;">
+                <button type="button" class="year-btn" data-side="line1" data-year="2022">2022</button>
+                <button type="button" class="year-btn" data-side="line1" data-year="2023">2023</button>
+                <button type="button" class="year-btn year-btn-active" data-side="line1" data-year="2024">2024</button>
+            </div>
         </div>
 
         <div style="display:flex;align-items:center;justify-content:center;min-width:70px;">
@@ -418,6 +423,11 @@
                 <option>R5</option>
                 <option>R6</option>
             </select>
+            <div class="year-selectors line-year-selectors" data-side="line2" style="margin-top:0.55em;">
+                <button type="button" class="year-btn" data-side="line2" data-year="2022">2022</button>
+                <button type="button" class="year-btn" data-side="line2" data-year="2023">2023</button>
+                <button type="button" class="year-btn year-btn-active" data-side="line2" data-year="2024">2024</button>
+            </div>
         </div>
     </div>
 
@@ -431,65 +441,107 @@
     </div>
 
     <script>
-        let boardingsData = {};
-        let dailyBoardingsData = {};
-        let hoursData = {};
-        let metricsData = {};
         let currentDailyType = 'weekday'; // Track the current daily type selected
         let currentHoursType = 'revenue'; // Track the current hours type selected
         let currentMetricType = 'boardings_per_revenue_hour'; // Track the current metric type selected
         let currentLineA = ''; // Track the current line A
         let currentLineB = ''; // Track the current line B
+        let selectedYearLine1 = 2024;
+        let selectedYearLine2 = 2024;
         let dataLoaded = false;
+        let loadingYears = new Set();
 
-        // Load 2024 Annual Boardings data from API on page load
-        fetch('/api/boardings-data')
-            .then(response => {
-                if (!response.ok) throw new Error('Failed to load boardings data');
-                return response.json();
-            })
-            .then(data => {
-                boardingsData = data;
-                console.log('Boardings data loaded successfully');
-            })
-            .catch(error => console.error('Error loading boardings data:', error));
+        const boardingsByYear = {};
+        const dailyBoardingsByYear = {};
+        const hoursByYear = {};
+        const metricsByYear = {};
 
-        // Load daily boardings data from API on page load
-        fetch('/api/daily-boardings-data')
-            .then(response => {
-                if (!response.ok) throw new Error('Failed to load daily boardings data');
-                return response.json();
-            })
-            .then(data => {
-                dailyBoardingsData = data;
+        function setYearButtonState(side, year) {
+            document.querySelectorAll('.year-btn[data-side="' + side + '"]').forEach(btn => btn.classList.remove('year-btn-active'));
+            var activeBtn = document.querySelector('.year-btn[data-side="' + side + '"][data-year="' + String(year) + '"]');
+            if (activeBtn) {
+                activeBtn.classList.add('year-btn-active');
+            }
+        }
+
+        function loadJsonForYear(urlBase, year) {
+            return fetch(urlBase + '?year=' + year)
+                .then(response => {
+                    if (!response.ok) throw new Error('Failed to load ' + urlBase + ' data');
+                    return response.json();
+                });
+        }
+
+        function ensureYearLoaded(year) {
+            if (boardingsByYear[year] && dailyBoardingsByYear[year] && hoursByYear[year] && metricsByYear[year]) {
                 dataLoaded = true;
-                console.log('Daily boardings data loaded successfully');
-            })
-            .catch(error => console.error('Error loading daily boardings data:', error));
+                return Promise.resolve();
+            }
 
-        // Load hours data from API on page load
-        fetch('/api/hours-data')
-            .then(response => {
-                if (!response.ok) throw new Error('Failed to load hours data');
-                return response.json();
-            })
-            .then(data => {
-                hoursData = data;
-                console.log('Hours data loaded successfully');
-            })
-            .catch(error => console.error('Error loading hours data:', error));
+            loadingYears.add(year);
+            dataLoaded = false;
 
-        // Load metrics data from API on page load
-        fetch('/api/metrics-data')
-            .then(response => {
-                if (!response.ok) throw new Error('Failed to load metrics data');
-                return response.json();
-            })
-            .then(data => {
-                metricsData = data;
-                console.log('Metrics data loaded successfully');
-            })
-            .catch(error => console.error('Error loading metrics data:', error));
+            return Promise.all([
+                loadJsonForYear('/api/boardings-data', year),
+                loadJsonForYear('/api/daily-boardings-data', year),
+                loadJsonForYear('/api/hours-data', year),
+                loadJsonForYear('/api/metrics-data', year)
+            ]).then(results => {
+                boardingsByYear[year] = results[0] || {};
+                dailyBoardingsByYear[year] = results[1] || {};
+                hoursByYear[year] = results[2] || {};
+                metricsByYear[year] = results[3] || {};
+                dataLoaded = true;
+                console.log('Bus line data loaded for year ' + year);
+            }).catch(error => {
+                boardingsByYear[year] = {};
+                dailyBoardingsByYear[year] = {};
+                hoursByYear[year] = {};
+                metricsByYear[year] = {};
+                console.error('Error loading year data:', error);
+            }).finally(() => {
+                loadingYears.delete(year);
+            });
+        }
+
+        function getSideYear(side) {
+            return side === 'line1' ? selectedYearLine1 : selectedYearLine2;
+        }
+
+        function getSideLabel(lineName, side) {
+            if (selectedYearLine1 === selectedYearLine2) {
+                return lineName;
+            }
+            return lineName + ' (' + getSideYear(side) + ')';
+        }
+
+        function getBoardingsValue(lineName, side) {
+            const year = getSideYear(side);
+            const yearData = boardingsByYear[year] || {};
+            return yearData[lineName];
+        }
+
+        function getDailyEntry(lineName, side) {
+            const year = getSideYear(side);
+            const yearData = dailyBoardingsByYear[year] || {};
+            return yearData[lineName] || null;
+        }
+
+        function getHoursEntry(lineName, side) {
+            const year = getSideYear(side);
+            const yearData = hoursByYear[year] || {};
+            return yearData[lineName] || null;
+        }
+
+        function getMetricsEntry(lineName, side) {
+            const year = getSideYear(side);
+            const yearData = metricsByYear[year] || {};
+            return yearData[lineName] || null;
+        }
+
+        setYearButtonState('line1', selectedYearLine1);
+        setYearButtonState('line2', selectedYearLine2);
+        ensureYearLoaded(selectedYearLine1);
 
         function formatNumber(num) {
             return Math.round(num).toLocaleString();
@@ -790,7 +842,7 @@
             const otpColor = getOtpColor(numericValue);
 
             return '<div style="display:flex;flex-direction:column;align-items:center;gap:14px;">' +
-                '<div style="position:relative;width:220px;height:220px;border:2px solid rgba(0,0,0,0.22);border-radius:50%;background:conic-gradient(' + otpColor + ' 0deg ' + angle + 'deg,#ffffff ' + angle + 'deg 360deg);"></div>' +
+                '<div style="position:relative;width:220px;height:220px;border:0px solid rgba(0,0,0,0.22);border-radius:50%;background:conic-gradient(' + otpColor + ' 0deg ' + angle + 'deg,#ffffff ' + angle + 'deg 360deg);"></div>' +
                 '<div style="font-size:32px;font-weight:800;color:#fff;line-height:1.2;">On Time Performance: ' + formatSig(numericValue) + '%</div>' +
             '</div>';
         }
@@ -867,6 +919,12 @@
             var b = document.getElementById('line2').value || 'Y';
             a = escapeHtml(a);
             b = escapeHtml(b);
+
+            const aLabel = getSideLabel(a, 'line1');
+            const bLabel = getSideLabel(b, 'line2');
+
+            document.getElementById('compareResult').innerHTML = '<div style="padding:16px;">Loading selected year data...</div>';
+            Promise.all([ensureYearLoaded(selectedYearLine1), ensureYearLoaded(selectedYearLine2)]).then(function () {
             
             // Store the current line selections for use by daily button handlers
             currentLineA = a;
@@ -876,47 +934,49 @@
             // Get boardings data with people visualization
             var boardingsAHtml = '';
             var boardingsBHtml = '';
+            var boardingsAValue = getBoardingsValue(a, 'line1');
+            var boardingsBValue = getBoardingsValue(b, 'line2');
 
-            if (boardingsData[a]) {
-                boardingsAHtml = generatePeopleIcons(boardingsData[a]) +
-                    '<div style="margin-top: 12px; font-size: 34px; font-weight: 800; color: #fff;">' + formatNumber(boardingsData[a]) + '<br><span style="font-size:0.75em; font-weight:600;">Boardings</span></div>';
+            if (boardingsAValue !== undefined && boardingsAValue !== null && !isNaN(boardingsAValue)) {
+                boardingsAHtml = generatePeopleIcons(boardingsAValue) +
+                    '<div style="margin-top: 12px; font-size: 34px; font-weight: 800; color: #fff;">' + formatNumber(boardingsAValue) + '<br><span style="font-size:0.75em; font-weight:600;">Boardings</span></div>';
             } else {
                 boardingsAHtml = 'Please select bus line';
             }
 
-            if (boardingsData[b]) {
-                boardingsBHtml = generatePeopleIcons(boardingsData[b]) +
-                    '<div style="margin-top: 12px; font-size: 34px; font-weight: 800; color: #fff;">' + formatNumber(boardingsData[b]) + '<br><span style="font-size:0.75em; font-weight:600;">Boardings</span></div>';
+            if (boardingsBValue !== undefined && boardingsBValue !== null && !isNaN(boardingsBValue)) {
+                boardingsBHtml = generatePeopleIcons(boardingsBValue) +
+                    '<div style="margin-top: 12px; font-size: 34px; font-weight: 800; color: #fff;">' + formatNumber(boardingsBValue) + '<br><span style="font-size:0.75em; font-weight:600;">Boardings</span></div>';
             } else {
                 boardingsBHtml = 'Please select bus line';
             }
 
             // build comparison text
             var comparisonText = '';
-            if (boardingsData[a] && boardingsData[b]) {
-                var leftVal = Number(boardingsData[a]);
-                var rightVal = Number(boardingsData[b]);
+            if (boardingsAValue !== undefined && boardingsAValue !== null && !isNaN(boardingsAValue) && boardingsBValue !== undefined && boardingsBValue !== null && !isNaN(boardingsBValue)) {
+                var leftVal = Number(boardingsAValue);
+                var rightVal = Number(boardingsBValue);
                 if (leftVal === rightVal) {
-                    comparisonText = a + ' and ' + b + ' have equal annual boardings';
+                    comparisonText = aLabel + ' and ' + bLabel + ' have equal annual boardings';
                 } else if (leftVal > rightVal) {
                     var ratio = leftVal / rightVal;
                     if (ratio > 2) {
-                        comparisonText = a + ' has ' + formatSig(ratio) + 'x more annual boardings than ' + b;
+                        comparisonText = aLabel + ' has ' + formatSig(ratio) + 'x more annual boardings than ' + bLabel;
                     } else {
                         var pct = (leftVal - rightVal) / rightVal * 100;
-                        comparisonText = a + ' has ' + formatSig(pct) + '% more annual\nboardings than ' + b;
+                        comparisonText = aLabel + ' has ' + formatSig(pct) + '% more annual\nboardings than ' + bLabel;
                     }
                 } else {
                     var pct = (rightVal - leftVal) / rightVal * 100;
-                    comparisonText = a + ' has ' + formatSig(pct) + '% less annual\nboardings than ' + b;
+                    comparisonText = aLabel + ' has ' + formatSig(pct) + '% less annual\nboardings than ' + bLabel;
                 }
             }
 
             var html = '<div class="vs-container">' +
-                '<div class="half left">' + a +
+                '<div class="half left">' + aLabel +
                     '<div class="stats-box">' + boardingsAHtml + '</div>' +
                 '</div>' +
-                '<div class="half right">' + b +
+                '<div class="half right">' + bLabel +
                     '<div class="stats-box">' + boardingsBHtml + '</div>' +
                 '</div>' +
                 '<div class="vs-badge">VS</div>' +
@@ -1009,10 +1069,13 @@
             updateOvercrowdDisplay(a, b, 'over_hrs');
             updateOntimeDisplay(a, b, 'ontime_pct');
             updateAvgSpeedDisplay(a, b, 'kph');
+            });
         });
 
         function updateDailyBoardingsDisplay(a, b, dayType) {
             currentDailyType = dayType;
+            const aLabel = getSideLabel(a, 'line1');
+            const bLabel = getSideLabel(b, 'line2');
             
             // Get daily boardings data for the selected day type
             var dailyBoardingsAHtml = '';
@@ -1030,8 +1093,9 @@
             }
             
             // Check if line a has data
-            if (dailyBoardingsData && dailyBoardingsData[a]) {
-                var weekdayVal = dailyBoardingsData[a][dayType];
+            var dailyEntryA = getDailyEntry(a, 'line1');
+            if (dailyEntryA) {
+                var weekdayVal = dailyEntryA[dayType];
                 if (weekdayVal !== undefined && weekdayVal !== null && !isNaN(weekdayVal)) {
                     dailyValueA = weekdayVal;
                     dailyBoardingsAHtml = generatePeopleIconsDaily(dailyValueA) +
@@ -1044,8 +1108,9 @@
             }
 
             // Check if line b has data
-            if (dailyBoardingsData && dailyBoardingsData[b]) {
-                var weekdayVal = dailyBoardingsData[b][dayType];
+            var dailyEntryB = getDailyEntry(b, 'line2');
+            if (dailyEntryB) {
+                var weekdayVal = dailyEntryB[dayType];
                 if (weekdayVal !== undefined && weekdayVal !== null && !isNaN(weekdayVal)) {
                     dailyValueB = weekdayVal;
                     dailyBoardingsBHtml = generatePeopleIconsDaily(dailyValueB) +
@@ -1063,25 +1128,25 @@
                 var leftVal = Number(dailyValueA);
                 var rightVal = Number(dailyValueB);
                 if (leftVal === rightVal) {
-                    dailyComparisonText = a + ' and ' + b + ' have equal daily boardings';
+                    dailyComparisonText = aLabel + ' and ' + bLabel + ' have equal daily boardings';
                 } else if (leftVal > rightVal) {
                     var ratio = leftVal / rightVal;
                     if (ratio > 2) {
-                        dailyComparisonText = a + ' has ' + formatSig(ratio) + 'x more daily boardings than ' + b;
+                        dailyComparisonText = aLabel + ' has ' + formatSig(ratio) + 'x more daily boardings than ' + bLabel;
                     } else {
                         var pct = (leftVal - rightVal) / rightVal * 100;
-                        dailyComparisonText = a + ' has ' + formatSig(pct) + '% more daily\nboardings than ' + b;
+                        dailyComparisonText = aLabel + ' has ' + formatSig(pct) + '% more daily\nboardings than ' + bLabel;
                     }
                 } else {
                     var pct = (rightVal - leftVal) / rightVal * 100;
-                    dailyComparisonText = a + ' has ' + formatSig(pct) + '% less daily\nboardings than ' + b;
+                    dailyComparisonText = aLabel + ' has ' + formatSig(pct) + '% less daily\nboardings than ' + bLabel;
                 }
             }
 
-            var html = '<div class="half left">' + a +
+            var html = '<div class="half left">' + aLabel +
                 '<div class="stats-box">' + dailyBoardingsAHtml + '</div>' +
                 '</div>' +
-                '<div class="half right">' + b +
+                '<div class="half right">' + bLabel +
                     '<div class="stats-box">' + dailyBoardingsBHtml + '</div>' +
                 '</div>' +
                 '<div class="vs-badge">VS</div>' +
@@ -1095,6 +1160,8 @@
 
         function updateHoursDisplay(a, b, hoursType) {
             currentHoursType = hoursType;
+            const aLabel = getSideLabel(a, 'line1');
+            const bLabel = getSideLabel(b, 'line2');
             
             // Get hours data for the selected type
             var hoursAHtml = '';
@@ -1114,8 +1181,9 @@
                 : 'Annual Service Hours = Σ(all operated service hours) over the year = Revenue Hours + non-revenue operating hours.';
             
             // Check if line a has data
-            if (hoursData && hoursData[a]) {
-                var typeVal = hoursData[a][hoursType];
+            var hoursEntryA = getHoursEntry(a, 'line1');
+            if (hoursEntryA) {
+                var typeVal = hoursEntryA[hoursType];
                 if (typeVal !== undefined && typeVal !== null && !isNaN(typeVal)) {
                     hoursValueA = typeVal;
                     hoursAHtml = generateSquareIcons(hoursValueA) +
@@ -1128,8 +1196,9 @@
             }
 
             // Check if line b has data
-            if (hoursData && hoursData[b]) {
-                var typeVal = hoursData[b][hoursType];
+            var hoursEntryB = getHoursEntry(b, 'line2');
+            if (hoursEntryB) {
+                var typeVal = hoursEntryB[hoursType];
                 if (typeVal !== undefined && typeVal !== null && !isNaN(typeVal)) {
                     hoursValueB = typeVal;
                     hoursBHtml = generateSquareIcons(hoursValueB) +
@@ -1147,25 +1216,25 @@
                 var leftVal = Number(hoursValueA);
                 var rightVal = Number(hoursValueB);
                 if (leftVal === rightVal) {
-                    hoursComparisonText = a + ' and ' + b + ' have equal ' + hoursName.toLowerCase() + ' hours';
+                    hoursComparisonText = aLabel + ' and ' + bLabel + ' have equal ' + hoursName.toLowerCase() + ' hours';
                 } else if (leftVal > rightVal) {
                     var ratio = leftVal / rightVal;
                     if (ratio > 2) {
-                        hoursComparisonText = a + ' has ' + formatSig(ratio) + 'x more ' + hoursName.toLowerCase() + ' hours than ' + b;
+                        hoursComparisonText = aLabel + ' has ' + formatSig(ratio) + 'x more ' + hoursName.toLowerCase() + ' hours than ' + bLabel;
                     } else {
                         var pct = (leftVal - rightVal) / rightVal * 100;
-                        hoursComparisonText = a + ' has ' + formatSig(pct) + '% more ' + hoursName.toLowerCase() + '\nhours than ' + b;
+                        hoursComparisonText = aLabel + ' has ' + formatSig(pct) + '% more ' + hoursName.toLowerCase() + '\nhours than ' + bLabel;
                     }
                 } else {
                     var pct = (rightVal - leftVal) / rightVal * 100;
-                    hoursComparisonText = a + ' has ' + formatSig(pct) + '% less ' + hoursName.toLowerCase() + '\nhours than ' + b;
+                    hoursComparisonText = aLabel + ' has ' + formatSig(pct) + '% less ' + hoursName.toLowerCase() + '\nhours than ' + bLabel;
                 }
             }
 
-            var html = '<div class="half left">' + a +
+            var html = '<div class="half left">' + aLabel +
                 '<div class="stats-box">' + hoursAHtml + '</div>' +
                 '</div>' +
-                '<div class="half right">' + b +
+                '<div class="half right">' + bLabel +
                     '<div class="stats-box">' + hoursBHtml + '</div>' +
                 '</div>' +
                 '<div class="vs-badge">VS</div>' +
@@ -1179,6 +1248,8 @@
 
         function updateMetricsDisplay(a, b, metricType) {
             currentMetricType = metricType;
+            const aLabel = getSideLabel(a, 'line1');
+            const bLabel = getSideLabel(b, 'line2');
             
             // Get metrics data for the selected type
             var metricsAHtml = '';
@@ -1198,8 +1269,9 @@
                 : 'Avg Peak Passenger Load = Σ(peak passenger load for each trip) ÷ number of trips.';
             
             // Check if line a has data
-            if (metricsData && metricsData[a]) {
-                var typeVal = metricsData[a][metricType];
+            var metricsEntryA = getMetricsEntry(a, 'line1');
+            if (metricsEntryA) {
+                var typeVal = metricsEntryA[metricType];
                 if (typeVal !== undefined && typeVal !== null && !isNaN(typeVal)) {
                     metricsValueA = typeVal;
                     metricsAHtml = generatePeopleIconsMetrics(metricsValueA) +
@@ -1212,8 +1284,9 @@
             }
 
             // Check if line b has data
-            if (metricsData && metricsData[b]) {
-                var typeVal = metricsData[b][metricType];
+            var metricsEntryB = getMetricsEntry(b, 'line2');
+            if (metricsEntryB) {
+                var typeVal = metricsEntryB[metricType];
                 if (typeVal !== undefined && typeVal !== null && !isNaN(typeVal)) {
                     metricsValueB = typeVal;
                     metricsBHtml = generatePeopleIconsMetrics(metricsValueB) +
@@ -1231,25 +1304,25 @@
                 var leftVal = Number(metricsValueA);
                 var rightVal = Number(metricsValueB);
                 if (leftVal === rightVal) {
-                    metricsComparisonText = a + ' and ' + b + ' have equal ' + metricsName.toLowerCase();
+                    metricsComparisonText = aLabel + ' and ' + bLabel + ' have equal ' + metricsName.toLowerCase();
                 } else if (leftVal > rightVal) {
                     var ratio = leftVal / rightVal;
                     if (ratio > 2) {
-                        metricsComparisonText = a + ' has ' + formatSig(ratio) + 'x more ' + metricsName.toLowerCase() + ' than ' + b;
+                        metricsComparisonText = aLabel + ' has ' + formatSig(ratio) + 'x more ' + metricsName.toLowerCase() + ' than ' + bLabel;
                     } else {
                         var pct = (leftVal - rightVal) / rightVal * 100;
-                        metricsComparisonText = a + ' has ' + formatSig(pct) + '% more ' + metricsName.toLowerCase() + ' than ' + b;
+                        metricsComparisonText = aLabel + ' has ' + formatSig(pct) + '% more ' + metricsName.toLowerCase() + ' than ' + bLabel;
                     }
                 } else {
                     var pct = (rightVal - leftVal) / rightVal * 100;
-                    metricsComparisonText = a + ' has ' + formatSig(pct) + '% less ' + metricsName.toLowerCase() + ' than ' + b;
+                    metricsComparisonText = aLabel + ' has ' + formatSig(pct) + '% less ' + metricsName.toLowerCase() + ' than ' + bLabel;
                 }
             }
 
-            var html = '<div class="half left">' + a +
+            var html = '<div class="half left">' + aLabel +
                 '<div class="stats-box">' + metricsAHtml + '</div>' +
                 '</div>' +
-                '<div class="half right">' + b +
+                '<div class="half right">' + bLabel +
                     '<div class="stats-box">' + metricsBHtml + '</div>' +
                 '</div>' +
                 '<div class="vs-badge">VS</div>' +
@@ -1262,6 +1335,8 @@
         }
 
             function updatePeakDisplay(a, b, peakType) {
+                const aLabel = getSideLabel(a, 'line1');
+                const bLabel = getSideLabel(b, 'line2');
                 var title = (peakType === 'peak_cap') ? 'Capacity Utilization' : 'Peak Load Factor';
                 var metricKey = (peakType === 'peak_cap') ? 'capacity_utilization' : 'peak_load_factor';
                 var definitionText = (peakType === 'peak_cap')
@@ -1274,8 +1349,9 @@
                 var peakAHtml = 'No data available for line ' + a;
                 var peakBHtml = 'No data available for line ' + b;
 
-                if (metricsData && metricsData[a]) {
-                    var valueA = metricsData[a][metricKey];
+                var metricsEntryA = getMetricsEntry(a, 'line1');
+                if (metricsEntryA) {
+                    var valueA = metricsEntryA[metricKey];
                     if (valueA !== undefined && valueA !== null && !isNaN(valueA)) {
                         peakValueA = Number(valueA);
                         peakAHtml = generatePeakBarIndicator(peakValueA, peakType);
@@ -1284,8 +1360,9 @@
                     }
                 }
 
-                if (metricsData && metricsData[b]) {
-                    var valueB = metricsData[b][metricKey];
+                var metricsEntryB = getMetricsEntry(b, 'line2');
+                if (metricsEntryB) {
+                    var valueB = metricsEntryB[metricKey];
                     if (valueB !== undefined && valueB !== null && !isNaN(valueB)) {
                         peakValueB = Number(valueB);
                         peakBHtml = generatePeakBarIndicator(peakValueB, peakType);
@@ -1300,25 +1377,25 @@
                     var rightVal = Number(peakValueB);
                     var metricLabel = title.toLowerCase();
                     if (leftVal === rightVal) {
-                        comparisonText = a + ' and ' + b + ' have equal ' + metricLabel;
+                        comparisonText = aLabel + ' and ' + bLabel + ' have equal ' + metricLabel;
                     } else if (leftVal > rightVal) {
                         var ratio = leftVal / rightVal;
                         if (ratio > 2) {
-                            comparisonText = a + ' has ' + formatSig(ratio) + 'x higher ' + metricLabel + ' than ' + b;
+                            comparisonText = aLabel + ' has ' + formatSig(ratio) + 'x higher ' + metricLabel + ' than ' + bLabel;
                         } else {
                             var pct = (leftVal - rightVal) / rightVal * 100;
-                            comparisonText = a + ' has ' + formatSig(pct) + '% higher ' + metricLabel + ' than ' + b;
+                            comparisonText = aLabel + ' has ' + formatSig(pct) + '% higher ' + metricLabel + ' than ' + bLabel;
                         }
                     } else {
                         var pct = (rightVal - leftVal) / rightVal * 100;
-                        comparisonText = a + ' has ' + formatSig(pct) + '% lower ' + metricLabel + ' than ' + b;
+                        comparisonText = aLabel + ' has ' + formatSig(pct) + '% lower ' + metricLabel + ' than ' + bLabel;
                     }
                 }
 
-                var html = '<div class="half left">' + a +
+                var html = '<div class="half left">' + aLabel +
                     '<div class="stats-box">' + peakAHtml + '</div>' +
                     '</div>' +
-                    '<div class="half right">' + b +
+                    '<div class="half right">' + bLabel +
                     '<div class="stats-box">' + peakBHtml + '</div>' +
                     '</div>' +
                     '<div class="vs-badge">VS</div>' +
@@ -1330,6 +1407,8 @@
             }
 
             function updateOvercrowdDisplay(a, b, overType) {
+                const aLabel = getSideLabel(a, 'line1');
+                const bLabel = getSideLabel(b, 'line2');
                 var title = (overType === 'over_pct') ? '% Overcrowded Trips' : 'Overcrowded Revenue Hours';
                 var metricKey = (overType === 'over_pct') ? 'overcrowded_trips_percent' : 'overcrowded_revenue_hours';
                 var definitionText = (overType === 'over_pct')
@@ -1342,8 +1421,9 @@
                 var overAHtml = 'No data available for line ' + a;
                 var overBHtml = 'No data available for line ' + b;
 
-                if (metricsData && metricsData[a]) {
-                    var valueA = metricsData[a][metricKey];
+                var metricsEntryA = getMetricsEntry(a, 'line1');
+                if (metricsEntryA) {
+                    var valueA = metricsEntryA[metricKey];
                     if (valueA !== undefined && valueA !== null && !isNaN(valueA)) {
                         overValueA = Number(valueA);
                         overAHtml = generateOvercrowdBarIndicator(overValueA, overType);
@@ -1352,8 +1432,9 @@
                     }
                 }
 
-                if (metricsData && metricsData[b]) {
-                    var valueB = metricsData[b][metricKey];
+                var metricsEntryB = getMetricsEntry(b, 'line2');
+                if (metricsEntryB) {
+                    var valueB = metricsEntryB[metricKey];
                     if (valueB !== undefined && valueB !== null && !isNaN(valueB)) {
                         overValueB = Number(valueB);
                         overBHtml = generateOvercrowdBarIndicator(overValueB, overType);
@@ -1368,25 +1449,25 @@
                     var rightVal = Number(overValueB);
                     var metricLabel = title.toLowerCase();
                     if (leftVal === rightVal) {
-                        comparisonText = a + ' and ' + b + ' have equal ' + metricLabel;
+                        comparisonText = aLabel + ' and ' + bLabel + ' have equal ' + metricLabel;
                     } else if (leftVal > rightVal) {
                         var ratio = leftVal / rightVal;
                         if (ratio > 2) {
-                            comparisonText = a + ' has ' + formatSig(ratio) + 'x higher ' + metricLabel + ' than ' + b;
+                            comparisonText = aLabel + ' has ' + formatSig(ratio) + 'x higher ' + metricLabel + ' than ' + bLabel;
                         } else {
                             var pct = (leftVal - rightVal) / rightVal * 100;
-                            comparisonText = a + ' has ' + formatSig(pct) + '% higher ' + metricLabel + ' than ' + b;
+                            comparisonText = aLabel + ' has ' + formatSig(pct) + '% higher ' + metricLabel + ' than ' + bLabel;
                         }
                     } else {
                         var pct = (rightVal - leftVal) / rightVal * 100;
-                        comparisonText = a + ' has ' + formatSig(pct) + '% lower ' + metricLabel + ' than ' + b;
+                        comparisonText = aLabel + ' has ' + formatSig(pct) + '% lower ' + metricLabel + ' than ' + bLabel;
                     }
                 }
 
-                var html = '<div class="half left">' + a +
+                var html = '<div class="half left">' + aLabel +
                     '<div class="stats-box">' + overAHtml + '</div>' +
                     '</div>' +
-                    '<div class="half right">' + b +
+                    '<div class="half right">' + bLabel +
                     '<div class="stats-box">' + overBHtml + '</div>' +
                     '</div>' +
                     '<div class="vs-badge">VS</div>' +
@@ -1398,6 +1479,8 @@
             }
 
             function updateOntimeDisplay(a, b, ontimeType) {
+                const aLabel = getSideLabel(a, 'line1');
+                const bLabel = getSideLabel(b, 'line2');
                 var title = (ontimeType === 'bunching_pct') ? '% Bus Bunching' : '% On Time Performance';
                 var metricKey = (ontimeType === 'bunching_pct') ? 'bus_bunching_percentage' : 'on_time_performance';
 
@@ -1407,8 +1490,9 @@
                 var ontimeAHtml = 'No data available for line ' + a;
                 var ontimeBHtml = 'No data available for line ' + b;
 
-                if (metricsData && metricsData[a]) {
-                    var valueA = metricsData[a][metricKey];
+                var metricsEntryA = getMetricsEntry(a, 'line1');
+                if (metricsEntryA) {
+                    var valueA = metricsEntryA[metricKey];
                     if (valueA !== undefined && valueA !== null && !isNaN(valueA)) {
                         ontimeValueA = Number(valueA);
                         ontimeAHtml = ontimeType === 'bunching_pct'
@@ -1419,8 +1503,9 @@
                     }
                 }
 
-                if (metricsData && metricsData[b]) {
-                    var valueB = metricsData[b][metricKey];
+                var metricsEntryB = getMetricsEntry(b, 'line2');
+                if (metricsEntryB) {
+                    var valueB = metricsEntryB[metricKey];
                     if (valueB !== undefined && valueB !== null && !isNaN(valueB)) {
                         ontimeValueB = Number(valueB);
                         ontimeBHtml = ontimeType === 'bunching_pct'
@@ -1437,25 +1522,25 @@
                     var rightVal = Number(ontimeValueB);
                     var metricLabel = title.toLowerCase();
                     if (leftVal === rightVal) {
-                        comparisonText = a + ' and ' + b + ' have equal ' + metricLabel;
+                        comparisonText = aLabel + ' and ' + bLabel + ' have equal ' + metricLabel;
                     } else if (leftVal > rightVal) {
                         var ratio = leftVal / rightVal;
                         if (ratio > 2) {
-                            comparisonText = a + ' has ' + formatSig(ratio) + 'x higher ' + metricLabel + ' than ' + b;
+                            comparisonText = aLabel + ' has ' + formatSig(ratio) + 'x higher ' + metricLabel + ' than ' + bLabel;
                         } else {
                             var pct = (leftVal - rightVal) / rightVal * 100;
-                            comparisonText = a + ' has ' + formatSig(pct) + '% higher ' + metricLabel + ' than ' + b;
+                            comparisonText = aLabel + ' has ' + formatSig(pct) + '% higher ' + metricLabel + ' than ' + bLabel;
                         }
                     } else {
                         var pct = (rightVal - leftVal) / rightVal * 100;
-                        comparisonText = a + ' has ' + formatSig(pct) + '% lower ' + metricLabel + ' than ' + b;
+                        comparisonText = aLabel + ' has ' + formatSig(pct) + '% lower ' + metricLabel + ' than ' + bLabel;
                     }
                 }
 
-                var html = '<div class="half left">' + a +
+                var html = '<div class="half left">' + aLabel +
                     '<div class="stats-box">' + ontimeAHtml + '</div>' +
                     '</div>' +
-                    '<div class="half right">' + b +
+                    '<div class="half right">' + bLabel +
                     '<div class="stats-box">' + ontimeBHtml + '</div>' +
                     '</div>' +
                     '<div class="vs-badge">VS</div>' +
@@ -1467,6 +1552,8 @@
             }
 
 function updateAvgSpeedDisplay(a, b, speedUnit) {
+            const aLabel = getSideLabel(a, 'line1');
+            const bLabel = getSideLabel(b, 'line2');
             var unitLabel = (speedUnit === 'mph') ? 'MPH' : 'KPH';
 
             var speedValueA = null;
@@ -1475,8 +1562,9 @@ function updateAvgSpeedDisplay(a, b, speedUnit) {
             var speedAHtml = 'No data available for line ' + a;
             var speedBHtml = 'No data available for line ' + b;
 
-            if (metricsData && metricsData[a]) {
-                var valueA = metricsData[a]['avg_speed_kph'];
+            var metricsEntryA = getMetricsEntry(a, 'line1');
+            if (metricsEntryA) {
+                var valueA = metricsEntryA['avg_speed_kph'];
                 if (valueA !== undefined && valueA !== null && !isNaN(valueA)) {
                     speedValueA = Number(valueA);
                     if (speedUnit === 'mph') {
@@ -1488,8 +1576,9 @@ function updateAvgSpeedDisplay(a, b, speedUnit) {
                 }
             }
 
-            if (metricsData && metricsData[b]) {
-                var valueB = metricsData[b]['avg_speed_kph'];
+            var metricsEntryB = getMetricsEntry(b, 'line2');
+            if (metricsEntryB) {
+                var valueB = metricsEntryB['avg_speed_kph'];
                 if (valueB !== undefined && valueB !== null && !isNaN(valueB)) {
                     speedValueB = Number(valueB);
                     if (speedUnit === 'mph') {
@@ -1505,13 +1594,13 @@ function updateAvgSpeedDisplay(a, b, speedUnit) {
             if (speedValueA !== null && speedValueB !== null) {
                 var leftVal = Number(speedValueA);
                 var rightVal = Number(speedValueB);
-                timeComparisonText = buildSpeedTimeComparisonText(a, leftVal, b, rightVal);
+                timeComparisonText = buildSpeedTimeComparisonText(aLabel, leftVal, bLabel, rightVal);
             }
 
-            var html = '<div class="half left">' + a +
+            var html = '<div class="half left">' + aLabel +
                 '<div class="stats-box">' + speedAHtml + '</div>' +
                 '</div>' +
-                '<div class="half right">' + b +
+                '<div class="half right">' + bLabel +
                 '<div class="stats-box">' + speedBHtml + '</div>' +
                 '</div>' +
                 '<div class="vs-badge">VS</div>' +
@@ -1531,11 +1620,44 @@ function updateAvgSpeedDisplay(a, b, speedUnit) {
             const v2 = s2.value;
             s1.value = v2;
             s2.value = v1;
+
+            const y1 = selectedYearLine1;
+            const y2 = selectedYearLine2;
+            selectedYearLine1 = y2;
+            selectedYearLine2 = y1;
+            setYearButtonState('line1', selectedYearLine1);
+            setYearButtonState('line2', selectedYearLine2);
+
             const compareBtn = document.getElementById('compareBtn');
             if (compareBtn) compareBtn.click();
         });
         // Daily boardings selector button group logic
         document.addEventListener('click', function(e) {
+            if (e.target.classList.contains('year-btn')) {
+                var side = e.target.getAttribute('data-side');
+                var yearRaw = e.target.getAttribute('data-year');
+                var selectedYear = Number(yearRaw);
+                if (!Number.isFinite(selectedYear) || !side) return;
+
+                if (side === 'line1') {
+                    selectedYearLine1 = selectedYear;
+                } else if (side === 'line2') {
+                    selectedYearLine2 = selectedYear;
+                } else {
+                    return;
+                }
+
+                setYearButtonState(side, selectedYear);
+                document.getElementById('compareResult').innerHTML = '<div style="padding:16px;">Loading ' + selectedYear + ' data...</div>';
+
+                ensureYearLoaded(selectedYear).then(function() {
+                    const compareBtn = document.getElementById('compareBtn');
+                    if (compareBtn) compareBtn.click();
+                });
+
+                return;
+            }
+
             if (e.target.classList.contains('daily-btn')) {
                 document.querySelectorAll('.daily-btn').forEach(btn => btn.classList.remove('daily-btn-active'));
                 e.target.classList.add('daily-btn-active');
