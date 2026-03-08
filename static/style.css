@@ -725,10 +725,11 @@ body {
     justify-content: flex-end;
     height: 100%;
     min-width: 0;
+    position: relative;
 }
 
 .vs-compare .hourly-bars {
-    height: calc(100% - 24px);
+    height: 100%;
     width: 100%;
     display: flex;
     align-items: flex-end;
@@ -758,14 +759,18 @@ body {
 }
 
 .vs-compare .hourly-hour-label {
-    margin-top: 4px;
+    position: absolute;
+    left: 50%;
+    bottom: -18px;
+    transform: translateX(-50%);
+    margin-top: 0;
     font-size: 12px;
     font-weight: 700;
     color: #4d5e6f;
 }
 
 .vs-compare .hourly-legend {
-    margin-top: 10px;
+    margin-top: 24px;
     display: flex;
     justify-content: center;
     flex-wrap: wrap;

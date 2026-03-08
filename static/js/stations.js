@@ -1,0 +1,841 @@
+let stationBoardingsByYear = {};
+let stationDailyBoardingsByYear = {};
+let stationHourlyByYear = {};
+let stationGeneralStatsData = {};
+let stationImagesData = {};
+let stationRidershipRanksByYear = {};
+let currentStationA = '';
+let currentStationB = '';
+let selectedYearStation1 = 2024;
+let selectedYearStation2 = 2024;
+let currentDailyType = 'weekday';
+let currentHourlyDayType = 'weekday';
+let currentHourlyMetricType = 'boardings';
+let loadingStationYears = new Set();
+
+function setYearButtonState(side, year) {
+    document.querySelectorAll('.year-btn[data-side="' + side + '"]').forEach(btn => btn.classList.remove('year-btn-active'));
+    var activeBtn = document.querySelector('.year-btn[data-side="' + side + '"][data-year="' + String(year) + '"]');
+    if (activeBtn) activeBtn.classList.add('year-btn-active');
+}
+
+function getSideYear(side) {
+    return side === 'station1' ? selectedYearStation1 : selectedYearStation2;
+}
+
+function getStationLabel(stationName, side) {
+    if (selectedYearStation1 === selectedYearStation2) return stationName;
+    return stationName + ' (' + getSideYear(side) + ')';
+}
+
+function getStationBoardings(stationName, side) {
+    const year = getSideYear(side);
+    const yearData = stationBoardingsByYear[year] || {};
+    return yearData[stationName];
+}
+
+function getStationDailyEntry(stationName, side) {
+    const year = getSideYear(side);
+    const yearData = stationDailyBoardingsByYear[year] || {};
+    return yearData[stationName] || null;
+}
+
+function getStationHourlyValues(stationName, side, dayType, metricType) {
+    const year = getSideYear(side);
+    const yearData = stationHourlyByYear[year] || {};
+    const stationData = yearData[stationName];
+    if (!stationData || !stationData[dayType]) return null;
+    const values = stationData[dayType][metricType];
+    if (!Array.isArray(values) || values.length !== 24) return null;
+    return values;
+}
+
+function loadStationYearData(year) {
+    if (stationBoardingsByYear[year] && stationDailyBoardingsByYear[year] && stationHourlyByYear[year]) {
+        return Promise.resolve();
+    }
+
+    loadingStationYears.add(year);
+
+    const boardingsPromise = fetch('/api/station-boardings-data?year=' + year)
+        .then(response => {
+            if (!response.ok) throw new Error('Failed to load station boardings data');
+            return response.json();
+        });
+
+    const dailyPromise = fetch('/api/station-daily-boardings-data?year=' + year)
+        .then(response => {
+            if (!response.ok) throw new Error('Failed to load station daily boardings data');
+            return response.json();
+        });
+
+    const hourlyPromise = fetch('/api/station-hourly-data?year=' + year)
+        .then(response => {
+            if (!response.ok) throw new Error('Failed to load station hourly data');
+            return response.json();
+        });
+
+    return Promise.all([boardingsPromise, dailyPromise, hourlyPromise])
+        .then(results => {
+            stationBoardingsByYear[year] = results[0] || {};
+            stationDailyBoardingsByYear[year] = results[1] || {};
+            stationHourlyByYear[year] = (results[2] && results[2].stations) ? results[2].stations : {};
+        })
+        .catch(error => {
+            stationBoardingsByYear[year] = {};
+            stationDailyBoardingsByYear[year] = {};
+            stationHourlyByYear[year] = {};
+            console.error('Error loading station year data:', error);
+        })
+        .finally(() => {
+            loadingStationYears.delete(year);
+        });
+}
+
+fetch('/api/station-general-stats-data')
+    .then(response => {
+        if (!response.ok) throw new Error('Failed to load station general stats data');
+        return response.json();
+    })
+    .then(data => {
+        stationGeneralStatsData = data;
+    })
+    .catch(error => console.error('Error loading station general stats data:', error));
+
+fetch('/api/station-images-data')
+    .then(response => {
+        if (!response.ok) throw new Error('Failed to load station images data');
+        return response.json();
+    })
+    .then(data => {
+        stationImagesData = data;
+    })
+    .catch(error => console.error('Error loading station images data:', error));
+
+setYearButtonState('station1', selectedYearStation1);
+setYearButtonState('station2', selectedYearStation2);
+loadStationYearData(selectedYearStation1);
+
+function formatNumber(num) {
+    return Math.round(num).toLocaleString();
+}
+
+function formatSig(n) {
+    if (n === 0) return '0';
+    const s = Number(n).toPrecision(3);
+    return parseFloat(s).toString();
+}
+
+function escapeHtml(str) {
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function buildRidershipRanks(year) {
+    const yearData = stationBoardingsByYear[year] || {};
+    const entries = Object.entries(yearData)
+        .filter(([, value]) => value !== undefined && value !== null && !isNaN(value))
+        .sort((a, b) => Number(b[1]) - Number(a[1]));
+
+    stationRidershipRanksByYear[year] = {};
+    for (let i = 0; i < entries.length; i++) {
+        stationRidershipRanksByYear[year][entries[i][0]] = i + 1;
+    }
+}
+
+function generateFareGateSquares(count) {
+    const numeric = Number(count);
+    if (!Number.isFinite(numeric) || numeric <= 0) {
+        return '<div style="margin-top: 12px; font-size: 1.1em; color: rgba(255,255,255,0.9);">No fare gate data</div>';
+    }
+
+    let html = '<div style="margin-top: 12px; line-height: 1.9;">';
+    for (let i = 0; i < numeric; i++) {
+        if (i > 0 && i % 12 === 0) {
+            html += '<br>';
+        }
+        html += '<img src="/static/icons/full square.png" alt="fare gate" style="height:24px;width:24px;display:inline-block;margin:3px;">';
+    }
+    html += '</div>';
+    return html;
+}
+
+function extractLineKeys(lineText) {
+    if (!lineText) return [];
+    const text = String(lineText).toLowerCase();
+    const keys = [];
+
+    if (text.includes('expo')) keys.push('expo');
+    if (text.includes('millennium')) keys.push('millennium');
+    if (text.includes('canada')) keys.push('canada');
+
+    return keys;
+}
+
+function buildLineIcons(lineText) {
+    const lineKeys = extractLineKeys(lineText);
+    if (!lineKeys.length) {
+        return '<span>' + escapeHtml(lineText || 'N/A') + '</span>';
+    }
+
+    const iconMap = {
+        expo: '/static/icons/expo.png',
+        millennium: '/static/icons/millennium.png',
+        canada: '/static/icons/canada.png'
+    };
+
+    let html = '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">';
+    for (const key of lineKeys) {
+        const src = iconMap[key];
+        if (!src) continue;
+        html += '<img src="' + src + '" alt="' + key + ' line" title="' + key + ' line" style="height:44px;width:44px;display:inline-block;border-radius:50%;filter:drop-shadow(0 3px 6px rgba(0,0,0,0.4));">';
+    }
+    html += '</div>';
+    return html;
+}
+
+function valueTextHtml(text, color) {
+    return '<span style="color:' + color + ';">' + escapeHtml(text) + '</span>';
+}
+
+function buildStationGeneralCard(stationName, valueColor, side) {
+    const stats = stationGeneralStatsData ? stationGeneralStatsData[stationName] : null;
+    if (!stats) {
+        return '<div style="font-size:1.02em;color:#fff;line-height:1.8;">No general stats available</div>';
+    }
+
+    const year = getSideYear(side);
+    if (!stationRidershipRanksByYear[year]) {
+        buildRidershipRanks(year);
+    }
+    const stationRanks = stationRidershipRanksByYear[year] || {};
+
+    const lineText = stats.line || 'N/A';
+    const lineIconsHtml = buildLineIcons(lineText);
+    const platformLevel = stats.platform_level || 'N/A';
+    const platformType = stats.platform_type || 'N/A';
+    const platformText = platformLevel + ' / ' + platformType;
+
+    const rank = stationRanks[stationName];
+    const totalStations = Object.keys(stationRanks).length;
+    const rankText = rank ? ('#' + rank + ' of ' + totalStations) : 'N/A';
+
+    const routes = Array.isArray(stats.connecting_routes) ? stats.connecting_routes : [];
+    const routesText = routes.length > 0 ? (routes.length + ': ' + routes.join(', ')) : 'No listed bus connections';
+
+    const fareZoneText = stats.fare_zone || 'N/A';
+    const fareGateCount = stats.faregate_count;
+    const fareGateText = (fareGateCount === null || fareGateCount === undefined) ? 'N/A' : String(fareGateCount);
+
+    return '<div style="font-size:1.22em;color:#fff;line-height:1.9;text-align:left;max-width:100%;">' +
+        '<div><strong>Lines serving it:</strong> ' + valueTextHtml(lineText, valueColor) + lineIconsHtml + '</div>' +
+        '<div><strong>Platform level/type:</strong> ' + valueTextHtml(platformText, valueColor) + '</div>' +
+        '<div><strong>Ridership rank (' + year + '):</strong> ' + valueTextHtml(rankText, valueColor) + '</div>' +
+        '<div><strong># Fare gates:</strong> ' + valueTextHtml(fareGateText, valueColor) + generateFareGateSquares(fareGateCount) + '</div>' +
+        '<div><strong>Bus connections:</strong> ' + valueTextHtml(routesText, valueColor) + '</div>' +
+        '<div><strong>Fare zone:</strong> ' + valueTextHtml(fareZoneText, valueColor) + '</div>' +
+    '</div>';
+}
+
+function updateGeneralStatsDisplay(a, b) {
+    const leftHtml = buildStationGeneralCard(a, '#fed200', 'station1');
+    const rightHtml = buildStationGeneralCard(b, '#0059b3', 'station2');
+    const aLabel = getStationLabel(a, 'station1');
+    const bLabel = getStationLabel(b, 'station2');
+
+    const html = '<div class="half left">' + aLabel +
+        '<div class="stats-box">' + leftHtml + '</div>' +
+        '</div>' +
+        '<div class="half right">' + bLabel +
+        '<div class="stats-box">' + rightHtml + '</div>' +
+        '</div>' +
+        '<div class="vs-badge">VS</div>' +
+        '<div class="divider-line"></div>' +
+        '<div class="annual-boardings-badge">General Stats</div>' +
+        '</div>';
+
+    document.getElementById('general-stats-display').innerHTML = html;
+}
+
+function buildStationImageCard(stationName) {
+    const imageUrl = stationImagesData ? stationImagesData[stationName] : null;
+    if (!imageUrl) {
+        return '<div style="font-size:1.2em;color:#fff;line-height:1.5;padding:40px 10px;">No station image available</div>';
+    }
+
+    return '<img src="' + imageUrl + '" alt="' + escapeHtml(stationName) + '" style="width:100%;max-width:540px;height:420px;object-fit:cover;border-radius:16px;box-shadow:0 8px 18px rgba(0,0,0,0.35);">';
+}
+
+function updateStationImageDisplay(a, b) {
+    const leftImageHtml = buildStationImageCard(a);
+    const rightImageHtml = buildStationImageCard(b);
+
+    const html = '<div class="half left" style="padding-top:26px;justify-content:center;">' +
+        '<div class="stats-box" style="padding-top:18px;padding-bottom:18px;max-width:560px;">' + leftImageHtml + '</div>' +
+        '</div>' +
+        '<div class="half right" style="padding-top:26px;justify-content:center;">' +
+        '<div class="stats-box" style="padding-top:18px;padding-bottom:18px;max-width:560px;">' + rightImageHtml + '</div>' +
+        '</div>';
+
+    document.getElementById('station-image-display').innerHTML = html;
+}
+
+function generatePeopleIcons(boardings) {
+    const rounded = Math.round(boardings / 50000) * 50000;
+    const peopleUnits = rounded / 100000;
+    const fullPeople = Math.floor(peopleUnits);
+    const hasHalfPerson = (peopleUnits % 1) !== 0;
+
+    if (fullPeople === 0 && !hasHalfPerson) {
+        return '<div style="margin: 30px 0; font-size: 1.05em; color: rgba(255,255,255,0.95); font-weight: 700;">No figures displayed</div>' +
+            '<div style="font-size: 1em; color: rgba(255,255,255,0.8); margin-top: 6px; letter-spacing: 0.5px; display:flex;gap:12px;align-items:center;justify-content:center;">' +
+                '<img src="/static/icons/person symbol.png" alt="person" style="height:35px;width:auto;display:inline-block;">' +
+                '<span>= 100,000 boardings</span>' +
+            '</div>';
+    }
+
+    let html = '<div style="margin: 30px 0; font-size: 1.2em; line-height: 2.2;">';
+    let count = 0;
+
+    for (let i = 0; i < fullPeople; i++) {
+        if (count === 10) {
+            html += '<br>';
+            count = 0;
+        }
+        html += '<img src="/static/icons/person symbol.png" alt="person" style="height: 80px; width: 40px; display: inline-block; margin: 2px;">';
+        count++;
+    }
+
+    if (hasHalfPerson) {
+        if (count === 10) {
+            html += '<br>';
+            count = 0;
+        }
+        html += '<img src="/static/icons/half person figure.png" alt="half person" style="height: 80px; width: 20px; display: inline-block; margin: 2px;">';
+    }
+
+    html += '</div>';
+    html += '<div style="font-size: 1em; color: rgba(255,255,255,0.8); margin-top: 6px; letter-spacing: 0.5px; display:flex;gap:12px;align-items:center;justify-content:center;">' +
+                '<img src="/static/icons/person symbol.png" alt="person" style="height:35px;width:auto;display:inline-block;">' +
+                '<span>= 100,000 boardings</span>' +
+            '</div>';
+
+    return html;
+}
+
+function generatePeopleIconsDaily(boardings) {
+    const rounded = Math.round(boardings / 500) * 500;
+    const peopleUnits = rounded / 1000;
+    const fullPeople = Math.floor(peopleUnits);
+    const hasHalfPerson = (peopleUnits % 1) !== 0;
+
+    if (fullPeople === 0 && !hasHalfPerson) {
+        return '<div style="margin: 30px 0; font-size: 1.05em; color: rgba(255,255,255,0.95); font-weight: 700;">No figures displayed</div>' +
+            '<div style="font-size: 1em; color: rgba(255,255,255,0.8); margin-top: 6px; letter-spacing: 0.5px; display:flex;gap:12px;align-items:center;justify-content:center;">' +
+                '<img src="/static/icons/person symbol.png" alt="person" style="height:35px;width:auto;display:inline-block;">' +
+                '<span>= 1,000 boardings</span>' +
+            '</div>';
+    }
+
+    let html = '<div style="margin: 30px 0; font-size: 1.2em; line-height: 2.2;">';
+    let count = 0;
+
+    for (let i = 0; i < fullPeople; i++) {
+        if (count === 10) {
+            html += '<br>';
+            count = 0;
+        }
+        html += '<img src="/static/icons/person symbol.png" alt="person" style="height: 80px; width: 40px; display: inline-block; margin: 2px;">';
+        count++;
+    }
+
+    if (hasHalfPerson) {
+        if (count === 10) {
+            html += '<br>';
+            count = 0;
+        }
+        html += '<img src="/static/icons/half person figure.png" alt="half person" style="height: 80px; width: 20px; display: inline-block; margin: 2px;">';
+    }
+
+    html += '</div>';
+    html += '<div style="font-size: 1em; color: rgba(255,255,255,0.8); margin-top: 6px; letter-spacing: 0.5px; display:flex;gap:12px;align-items:center;justify-content:center;">' +
+                '<img src="/static/icons/person symbol.png" alt="person" style="height:35px;width:auto;display:inline-block;">' +
+                '<span>= 1,000 boardings</span>' +
+            '</div>';
+
+    return html;
+}
+
+function updateDailyStationBoardingsDisplay(a, b, dayType) {
+    currentDailyType = dayType;
+    const aLabel = getStationLabel(a, 'station1');
+    const bLabel = getStationLabel(b, 'station2');
+
+    var dailyBoardingsAHtml = '';
+    var dailyBoardingsBHtml = '';
+    var dayName = '';
+    var dailyValueA = null;
+    var dailyValueB = null;
+
+    if (dayType === 'weekday') {
+        dayName = 'Weekday';
+    } else if (dayType === 'saturday') {
+        dayName = 'Saturday';
+    } else if (dayType === 'sunday') {
+        dayName = 'Sunday/Holiday';
+    }
+
+    var dailyEntryA = getStationDailyEntry(a, 'station1');
+    if (dailyEntryA) {
+        var dayValA = dailyEntryA[dayType];
+        if (dayValA !== undefined && dayValA !== null && !isNaN(dayValA)) {
+            dailyValueA = dayValA;
+            dailyBoardingsAHtml = generatePeopleIconsDaily(dailyValueA) +
+                '<div style="margin-top: 12px; font-size: 34px; font-weight: 800; color: #fff;">' + formatNumber(dailyValueA) + '<br><span style="font-size:0.75em; font-weight:600;">Daily Boardings</span></div>';
+        } else {
+            dailyBoardingsAHtml = 'No data for ' + dayName;
+        }
+    } else {
+        dailyBoardingsAHtml = 'No data available for station ' + a;
+    }
+
+    var dailyEntryB = getStationDailyEntry(b, 'station2');
+    if (dailyEntryB) {
+        var dayValB = dailyEntryB[dayType];
+        if (dayValB !== undefined && dayValB !== null && !isNaN(dayValB)) {
+            dailyValueB = dayValB;
+            dailyBoardingsBHtml = generatePeopleIconsDaily(dailyValueB) +
+                '<div style="margin-top: 12px; font-size: 34px; font-weight: 800; color: #fff;">' + formatNumber(dailyValueB) + '<br><span style="font-size:0.75em; font-weight:600;">Daily Boardings</span></div>';
+        } else {
+            dailyBoardingsBHtml = 'No data for ' + dayName;
+        }
+    } else {
+        dailyBoardingsBHtml = 'No data available for station ' + b;
+    }
+
+    var dailyComparisonText = '';
+    if (dailyValueA !== null && dailyValueB !== null) {
+        var leftVal = Number(dailyValueA);
+        var rightVal = Number(dailyValueB);
+        if (leftVal === rightVal) {
+            dailyComparisonText = aLabel + ' and ' + bLabel + ' have equal daily boardings';
+        } else if (leftVal > rightVal) {
+            var ratio = leftVal / rightVal;
+            if (ratio > 2) {
+                dailyComparisonText = aLabel + ' has ' + formatSig(ratio) + 'x more daily boardings than ' + bLabel;
+            } else {
+                var pct = (leftVal - rightVal) / rightVal * 100;
+                dailyComparisonText = aLabel + ' has ' + formatSig(pct) + '% more daily boardings than ' + bLabel;
+            }
+        } else {
+            var pct = (rightVal - leftVal) / rightVal * 100;
+            dailyComparisonText = aLabel + ' has ' + formatSig(pct) + '% less daily boardings than ' + bLabel;
+        }
+    }
+
+    var html = '<div class="half left">' + aLabel +
+        '<div class="stats-box">' + dailyBoardingsAHtml + '</div>' +
+        '</div>' +
+        '<div class="half right">' + bLabel +
+            '<div class="stats-box">' + dailyBoardingsBHtml + '</div>' +
+        '</div>' +
+        '<div class="vs-badge">VS</div>' +
+        '<div class="divider-line"></div>' +
+        '<div class="annual-boardings-badge">' + dayName + ' Daily Boardings</div>' +
+        (dailyComparisonText ? '<div class="comparison-badge">' + dailyComparisonText + '</div>' : '') +
+        '</div>';
+
+    document.getElementById('daily-station-boardings-display').innerHTML = html;
+}
+
+function getOrderedHourList() {
+    return [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 0, 1, 2, 3];
+}
+
+function getHourlyDayLabel(dayType) {
+    if (dayType === 'weekday') return 'Weekday';
+    if (dayType === 'saturday') return 'Saturday';
+    if (dayType === 'sunday') return 'Sunday/Holiday';
+    return 'Day Type';
+}
+
+function formatHourTick(hour24) {
+    return String(hour24);
+}
+
+function formatHourPeriod(hour24) {
+    const nextHour = (hour24 + 1) % 24;
+
+    function to12HourText(hourValue) {
+        const suffix = hourValue >= 12 ? 'PM' : 'AM';
+        const hour12 = hourValue % 12 === 0 ? 12 : hourValue % 12;
+        return hour12 + ':00 ' + suffix;
+    }
+
+    return to12HourText(hour24) + ' to ' + to12HourText(nextHour);
+}
+
+function getNiceTickStep(maxValue) {
+    const preferredSteps = [10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000];
+    const targetTicks = 6;
+    const minStep = maxValue / targetTicks;
+
+    for (const step of preferredSteps) {
+        if (step >= minStep) return step;
+    }
+
+    const exponent = Math.floor(Math.log10(minStep));
+    const scale = Math.pow(10, exponent);
+    return Math.ceil(minStep / scale) * scale;
+}
+
+function positionHourlyTooltip(tooltipNode, chartShell, clientX, clientY) {
+    if (!tooltipNode || !chartShell) return;
+
+    const shellRect = chartShell.getBoundingClientRect();
+    const tooltipRect = tooltipNode.getBoundingClientRect();
+    const offset = 14;
+
+    let left = clientX - shellRect.left + offset;
+    let top = clientY - shellRect.top + offset;
+
+    if (left + tooltipRect.width > shellRect.width - 8) {
+        left = clientX - shellRect.left - tooltipRect.width - offset;
+    }
+    if (left < 8) left = 8;
+
+    if (top + tooltipRect.height > shellRect.height - 8) {
+        top = shellRect.height - tooltipRect.height - 8;
+    }
+    if (top < 8) top = 8;
+
+    tooltipNode.style.left = left + 'px';
+    tooltipNode.style.top = top + 'px';
+}
+
+function showHourlyTooltip(stationLabel, yearText, metricLabel, value, periodText, event) {
+    const tooltipNode = document.getElementById('hourly-hover-tooltip');
+    const chartShell = document.querySelector('#hourly-station-compare-display .hourly-chart-shell');
+    if (!tooltipNode || !chartShell || !event) return;
+
+    let clientX = event.clientX;
+    let clientY = event.clientY;
+    if ((!Number.isFinite(clientX) || !Number.isFinite(clientY)) && event.target) {
+        const targetRect = event.target.getBoundingClientRect();
+        clientX = targetRect.left + (targetRect.width / 2);
+        clientY = targetRect.top + (targetRect.height / 2);
+    }
+
+    tooltipNode.innerHTML =
+        '<strong>' + escapeHtml(stationLabel) + '</strong><br>' +
+        escapeHtml(String(yearText)) + ' Average Daily ' + metricLabel + ': ' + formatNumber(value) + '<br>' +
+        'Time period: ' + periodText;
+    tooltipNode.style.display = 'block';
+    positionHourlyTooltip(tooltipNode, chartShell, clientX, clientY);
+}
+
+function hideHourlyTooltip() {
+    const tooltipNode = document.getElementById('hourly-hover-tooltip');
+    if (!tooltipNode) return;
+    tooltipNode.style.display = 'none';
+}
+
+function updateHourlyStationComparisonDisplay(a, b, dayType, metricType) {
+    currentHourlyDayType = dayType;
+    currentHourlyMetricType = metricType;
+    const aLabel = getStationLabel(a, 'station1');
+    const bLabel = getStationLabel(b, 'station2');
+    const yearA = getSideYear('station1');
+    const yearB = getSideYear('station2');
+
+    const metricLabel = metricType === 'alightings' ? 'Alightings' : 'Boardings';
+    const dayLabel = getHourlyDayLabel(dayType);
+    const orderedHours = getOrderedHourList();
+
+    const valuesA = getStationHourlyValues(a, 'station1', dayType, metricType) || new Array(24).fill(0);
+    const valuesB = getStationHourlyValues(b, 'station2', dayType, metricType) || new Array(24).fill(0);
+
+    let maxValue = 0;
+    for (const hour of orderedHours) {
+        const vA = Number(valuesA[hour]) || 0;
+        const vB = Number(valuesB[hour]) || 0;
+        maxValue = Math.max(maxValue, vA, vB);
+    }
+    if (maxValue <= 0) maxValue = 1;
+
+    const tickStep = getNiceTickStep(maxValue);
+    const axisMax = Math.max(tickStep, Math.ceil(maxValue / tickStep) * tickStep);
+    const tickCount = Math.floor(axisMax / tickStep);
+    let yTicksHtml = '';
+    let gridHtml = '';
+    for (let i = 0; i <= tickCount; i++) {
+        const tickValue = axisMax - (i * tickStep);
+        const topPercent = (i / tickCount) * 100;
+        yTicksHtml += '<div class="hourly-y-tick" style="top:' + topPercent + '%;">' + formatNumber(tickValue) + '</div>';
+        gridHtml += '<div class="hourly-grid-line" style="top:' + topPercent + '%;"></div>';
+    }
+
+    let groupsHtml = '';
+    for (const hour of orderedHours) {
+        const valueA = Number(valuesA[hour]) || 0;
+        const valueB = Number(valuesB[hour]) || 0;
+        const heightA = (valueA / axisMax) * 100;
+        const heightB = (valueB / axisMax) * 100;
+        const periodText = formatHourPeriod(hour);
+
+        groupsHtml += '<div class="hourly-hour-group">' +
+            '<div class="hourly-bars">' +
+                '<div class="hourly-bar station-a-bar" data-station="' + escapeHtml(aLabel) + '" data-year="' + yearA + '" data-metric="' + metricLabel + '" data-value="' + valueA + '" data-period="' + periodText + '" title="' + escapeHtml(aLabel) + ' - ' + metricLabel + ': ' + formatNumber(valueA) + '&#10;Time period: ' + periodText + '" style="height:' + heightA + '%;"></div>' +
+                '<div class="hourly-bar station-b-bar" data-station="' + escapeHtml(bLabel) + '" data-year="' + yearB + '" data-metric="' + metricLabel + '" data-value="' + valueB + '" data-period="' + periodText + '" title="' + escapeHtml(bLabel) + ' - ' + metricLabel + ': ' + formatNumber(valueB) + '&#10;Time period: ' + periodText + '" style="height:' + heightB + '%;"></div>' +
+            '</div>' +
+            '<div class="hourly-hour-label">' + formatHourTick(hour) + '</div>' +
+        '</div>';
+    }
+
+    const html =
+        '<div class="hourly-compare-panel">' +
+            '<div class="hourly-panel-title">Hourly Station ' + metricLabel + ' Comparison by Day Type</div>' +
+            '<div class="hourly-panel-meta">Day Type: ' + dayLabel + (yearA === yearB ? (' | Year: ' + yearA) : (' | Years: ' + yearA + ' vs ' + yearB)) + '</div>' +
+            '<div class="hourly-chart-shell">' +
+                '<div class="hourly-y-axis-label">Average Daily Count</div>' +
+                '<div id="hourly-hover-tooltip" class="hourly-hover-tooltip" aria-hidden="true"></div>' +
+                '<div class="hourly-chart-inner">' +
+                    '<div class="hourly-y-ticks">' + yTicksHtml + '</div>' +
+                    '<div class="hourly-plot-area">' +
+                        '<div class="hourly-grid">' + gridHtml + '</div>' +
+                        '<div class="hourly-bars-row">' + groupsHtml + '</div>' +
+                    '</div>' +
+                '</div>' +
+                '<div class="hourly-legend">' +
+                    '<span class="legend-item"><span class="legend-swatch station-a-bar"></span>' + escapeHtml(aLabel) + '</span>' +
+                    '<span class="legend-item"><span class="legend-swatch station-b-bar"></span>' + escapeHtml(bLabel) + '</span>' +
+                '</div>' +
+            '</div>' +
+        '</div>';
+
+    document.getElementById('hourly-station-compare-display').innerHTML = html;
+
+    const bars = document.querySelectorAll('#hourly-station-compare-display .hourly-bar');
+    bars.forEach(bar => {
+        bar.addEventListener('mouseenter', function(event) {
+            const stationLabel = this.getAttribute('data-station');
+            const year = this.getAttribute('data-year') || 'Year';
+            const metricName = this.getAttribute('data-metric');
+            const value = Number(this.getAttribute('data-value')) || 0;
+            const periodText = this.getAttribute('data-period') || '';
+            showHourlyTooltip(stationLabel, year, metricName, value, periodText, event);
+        });
+        bar.addEventListener('mousemove', function(event) {
+            const stationLabel = this.getAttribute('data-station');
+            const year = this.getAttribute('data-year') || 'Year';
+            const metricName = this.getAttribute('data-metric');
+            const value = Number(this.getAttribute('data-value')) || 0;
+            const periodText = this.getAttribute('data-period') || '';
+            showHourlyTooltip(stationLabel, year, metricName, value, periodText, event);
+        });
+        bar.addEventListener('focus', function(event) {
+            const stationLabel = this.getAttribute('data-station');
+            const year = this.getAttribute('data-year') || 'Year';
+            const metricName = this.getAttribute('data-metric');
+            const value = Number(this.getAttribute('data-value')) || 0;
+            const periodText = this.getAttribute('data-period') || '';
+            showHourlyTooltip(stationLabel, year, metricName, value, periodText, event);
+        });
+        bar.addEventListener('mouseleave', function() {
+            hideHourlyTooltip();
+        });
+        bar.addEventListener('blur', function() {
+            hideHourlyTooltip();
+        });
+    });
+
+    const chartShell = document.querySelector('#hourly-station-compare-display .hourly-chart-shell');
+    if (chartShell) {
+        chartShell.addEventListener('mouseleave', function() {
+            hideHourlyTooltip();
+        });
+    }
+}
+
+document.getElementById('compareStationsBtn').addEventListener('click', function () {
+    var a = document.getElementById('station1').value || 'X';
+    var b = document.getElementById('station2').value || 'Y';
+    a = escapeHtml(a);
+    b = escapeHtml(b);
+
+    const aLabel = getStationLabel(a, 'station1');
+    const bLabel = getStationLabel(b, 'station2');
+
+    document.getElementById('compareStationsResult').innerHTML = '<div style="padding:16px;">Loading selected year data...</div>';
+    Promise.all([loadStationYearData(selectedYearStation1), loadStationYearData(selectedYearStation2)]).then(function () {
+
+    currentStationA = a;
+    currentStationB = b;
+    currentDailyType = 'weekday';
+    currentHourlyDayType = 'weekday';
+    currentHourlyMetricType = 'boardings';
+
+    var boardingsAHtml = '';
+    var boardingsBHtml = '';
+    var boardingsAValue = getStationBoardings(a, 'station1');
+    var boardingsBValue = getStationBoardings(b, 'station2');
+
+    if (boardingsAValue !== undefined && boardingsAValue !== null && !isNaN(boardingsAValue)) {
+        boardingsAHtml = generatePeopleIcons(boardingsAValue) +
+            '<div style="margin-top: 12px; font-size: 34px; font-weight: 800; color: #fff;">' + formatNumber(boardingsAValue) + '<br><span style="font-size:0.75em; font-weight:600;">Boardings</span></div>';
+    } else {
+        boardingsAHtml = 'Please select station';
+    }
+
+    if (boardingsBValue !== undefined && boardingsBValue !== null && !isNaN(boardingsBValue)) {
+        boardingsBHtml = generatePeopleIcons(boardingsBValue) +
+            '<div style="margin-top: 12px; font-size: 34px; font-weight: 800; color: #fff;">' + formatNumber(boardingsBValue) + '<br><span style="font-size:0.75em; font-weight:600;">Boardings</span></div>';
+    } else {
+        boardingsBHtml = 'Please select station';
+    }
+
+    var comparisonText = '';
+    if (boardingsAValue !== undefined && boardingsAValue !== null && !isNaN(boardingsAValue) && boardingsBValue !== undefined && boardingsBValue !== null && !isNaN(boardingsBValue)) {
+        var leftVal = Number(boardingsAValue);
+        var rightVal = Number(boardingsBValue);
+        if (leftVal === rightVal) {
+            comparisonText = aLabel + ' and ' + bLabel + ' have equal annual boardings';
+        } else if (leftVal > rightVal) {
+            var ratio = leftVal / rightVal;
+            if (ratio > 2) {
+                comparisonText = aLabel + ' has ' + formatSig(ratio) + 'x more annual boardings than ' + bLabel;
+            } else {
+                var pct = (leftVal - rightVal) / rightVal * 100;
+                comparisonText = aLabel + ' has ' + formatSig(pct) + '% more annual boardings than ' + bLabel;
+            }
+        } else {
+            var pct = (rightVal - leftVal) / rightVal * 100;
+            comparisonText = aLabel + ' has ' + formatSig(pct) + '% less annual boardings than ' + bLabel;
+        }
+    }
+
+    var html = '<div id="station-image-display" class="vs-container"></div>' +
+        '<div id="general-stats-display" class="vs-container"></div>' +
+        '<div class="vs-container">' +
+        '<div class="half left">' + aLabel +
+            '<div class="stats-box">' + boardingsAHtml + '</div>' +
+        '</div>' +
+        '<div class="half right">' + bLabel +
+            '<div class="stats-box">' + boardingsBHtml + '</div>' +
+        '</div>' +
+        '<div class="vs-badge">VS</div>' +
+        '<div class="divider-line"></div>' +
+        '<div class="annual-boardings-badge">Annual Boardings</div>' +
+        (comparisonText ? '<div class="comparison-badge">' + comparisonText + '</div>' : '') +
+        '</div>' +
+        '<div class="daily-boardings-selectors">' +
+            '<button type="button" class="daily-btn daily-btn-active" id="btn-station-daily-weekday">Weekday</button>' +
+            '<button type="button" class="daily-btn" id="btn-station-daily-sat">Sat</button>' +
+            '<button type="button" class="daily-btn" id="btn-station-daily-sun">Sun/Hol</button>' +
+        '</div>' +
+        '<div id="daily-station-boardings-display" class="vs-container"></div>' +
+        '<div class="daily-boardings-selectors">' +
+            '<button type="button" class="daily-btn daily-btn-active" id="btn-station-hourly-weekday">Weekday</button>' +
+            '<button type="button" class="daily-btn" id="btn-station-hourly-sat">Sat</button>' +
+            '<button type="button" class="daily-btn" id="btn-station-hourly-sun">Sun/Hol</button>' +
+        '</div>' +
+        '<div class="section-selectors" style="margin-top:10px;margin-left:60px;">' +
+            '<button type="button" class="section-btn section-btn-active" id="btn-station-hourly-boardings">Boardings</button>' +
+            '<button type="button" class="section-btn" id="btn-station-hourly-alightings">Alightings</button>' +
+        '</div>' +
+        '<div id="hourly-station-compare-display" class="vs-container"></div>';
+
+    document.getElementById('compareStationsResult').innerHTML = html;
+    updateStationImageDisplay(a, b);
+    updateGeneralStatsDisplay(a, b);
+    updateDailyStationBoardingsDisplay(a, b, 'weekday');
+    updateHourlyStationComparisonDisplay(a, b, 'weekday', 'boardings');
+    });
+});
+
+// Swap button: swap selected values of the two dropdowns and re-run comparison
+document.getElementById('swapStationsBtn').addEventListener('click', function () {
+    const s1 = document.getElementById('station1');
+    const s2 = document.getElementById('station2');
+    if (!s1 || !s2) return;
+    const v1 = s1.value;
+    const v2 = s2.value;
+    s1.value = v2;
+    s2.value = v1;
+
+    const y1 = selectedYearStation1;
+    const y2 = selectedYearStation2;
+    selectedYearStation1 = y2;
+    selectedYearStation2 = y1;
+    setYearButtonState('station1', selectedYearStation1);
+    setYearButtonState('station2', selectedYearStation2);
+
+    const compareBtn = document.getElementById('compareStationsBtn');
+    if (compareBtn) compareBtn.click();
+});
+
+document.addEventListener('click', function(e) {
+    if (e.target.classList.contains('year-btn')) {
+        var side = e.target.getAttribute('data-side');
+        var selectedYear = Number(e.target.getAttribute('data-year'));
+        if (!side || !Number.isFinite(selectedYear)) return;
+
+        if (side === 'station1') {
+            selectedYearStation1 = selectedYear;
+        } else if (side === 'station2') {
+            selectedYearStation2 = selectedYear;
+        } else {
+            return;
+        }
+
+        setYearButtonState(side, selectedYear);
+        document.getElementById('compareStationsResult').innerHTML = '<div style="padding:16px;">Loading ' + selectedYear + ' data...</div>';
+
+        loadStationYearData(selectedYear).then(function () {
+            const compareBtn = document.getElementById('compareStationsBtn');
+            if (compareBtn) compareBtn.click();
+        });
+        return;
+    }
+
+    if (e.target.classList.contains('daily-btn') && e.target.id.startsWith('btn-station-daily-')) {
+        document.querySelectorAll('#compareStationsResult [id^="btn-station-daily-"]').forEach(btn => btn.classList.remove('daily-btn-active'));
+        e.target.classList.add('daily-btn-active');
+
+        let dayType = 'weekday';
+        if (e.target.id === 'btn-station-daily-sat') {
+            dayType = 'saturday';
+        } else if (e.target.id === 'btn-station-daily-sun') {
+            dayType = 'sunday';
+        }
+
+        updateDailyStationBoardingsDisplay(currentStationA, currentStationB, dayType);
+        return;
+    }
+
+    if (e.target.classList.contains('daily-btn') && e.target.id.startsWith('btn-station-hourly-')) {
+        document.querySelectorAll('#compareStationsResult [id^="btn-station-hourly-"]').forEach(btn => btn.classList.remove('daily-btn-active'));
+        e.target.classList.add('daily-btn-active');
+
+        let dayType = 'weekday';
+        if (e.target.id === 'btn-station-hourly-sat') {
+            dayType = 'saturday';
+        } else if (e.target.id === 'btn-station-hourly-sun') {
+            dayType = 'sunday';
+        }
+
+        updateHourlyStationComparisonDisplay(currentStationA, currentStationB, dayType, currentHourlyMetricType);
+        return;
+    }
+
+    if (e.target.classList.contains('section-btn') && e.target.id.startsWith('btn-station-hourly-')) {
+        document.querySelectorAll('#btn-station-hourly-boardings, #btn-station-hourly-alightings').forEach(btn => btn.classList.remove('section-btn-active'));
+        e.target.classList.add('section-btn-active');
+
+        let metricType = 'boardings';
+        if (e.target.id === 'btn-station-hourly-alightings') {
+            metricType = 'alightings';
+        }
+
+        updateHourlyStationComparisonDisplay(currentStationA, currentStationB, currentHourlyDayType, metricType);
+    }
+});

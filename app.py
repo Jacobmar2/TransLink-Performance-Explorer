@@ -424,9 +424,9 @@ def my_2_years():
     return render_template("my_2_years.html")
 
 
-@app.route("/deep-bus-line-connection")
-def deep_bus_line_connection():
-    return render_template("deep_bus_line_connection.html")
+@app.route("/deep-bus-line-comparison")
+def deep_bus_line_comparison():
+    return render_template("deep_bus_line_comparison.html")
 
 
 if __name__ == "__main__":
