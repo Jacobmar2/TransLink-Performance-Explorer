@@ -821,3 +821,9 @@ body {
     z-index: 30;
     box-shadow: 0 6px 12px rgba(0,0,0,0.25);
 }
+
+.about-notes {
+    text-align: left;     /* override for notes */
+    display: inline-block; /* keeps it centered within page while text is left-aligned */
+    max-width: 700px;     /* optional (prevents super wide text) */
+}
