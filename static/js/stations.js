@@ -19,6 +19,24 @@ function setYearButtonState(side, year) {
     if (activeBtn) activeBtn.classList.add('year-btn-active');
 }
 
+function syncStationDropdownWidths() {
+    const sideToSelectId = {
+        station1: 'station1',
+        station2: 'station2'
+    };
+
+    Object.keys(sideToSelectId).forEach(function(side) {
+        const yearSelectors = document.querySelector('.line-year-selectors[data-side="' + side + '"]');
+        const selectNode = document.getElementById(sideToSelectId[side]);
+        if (!yearSelectors || !selectNode) return;
+
+        const targetWidth = Math.max(yearSelectors.offsetWidth, yearSelectors.scrollWidth) + 2;
+        if (targetWidth > 0) {
+            selectNode.style.width = targetWidth + 'px';
+        }
+    });
+}
+
 function getSideYear(side) {
     return side === 'station1' ? selectedYearStation1 : selectedYearStation2;
 }
@@ -114,7 +132,10 @@ fetch('/api/station-images-data')
 
 setYearButtonState('station1', selectedYearStation1);
 setYearButtonState('station2', selectedYearStation2);
+syncStationDropdownWidths();
 loadStationYearData(selectedYearStation1);
+window.addEventListener('resize', syncStationDropdownWidths);
+window.addEventListener('load', syncStationDropdownWidths);
 
 function formatNumber(num) {
     return Math.round(num).toLocaleString();
@@ -551,8 +572,16 @@ function updateHourlyStationComparisonDisplay(a, b, dayType, metricType) {
     const dayLabel = getHourlyDayLabel(dayType);
     const orderedHours = getOrderedHourList();
 
-    const valuesA = getStationHourlyValues(a, 'station1', dayType, metricType) || new Array(24).fill(0);
-    const valuesB = getStationHourlyValues(b, 'station2', dayType, metricType) || new Array(24).fill(0);
+    const missingHourlyYears = new Set([2018, 2019]);
+    const noHourlyDataA = missingHourlyYears.has(yearA);
+    const noHourlyDataB = missingHourlyYears.has(yearB);
+
+    const valuesA = noHourlyDataA ? new Array(24).fill(0) : (getStationHourlyValues(a, 'station1', dayType, metricType) || new Array(24).fill(0));
+    const valuesB = noHourlyDataB ? new Array(24).fill(0) : (getStationHourlyValues(b, 'station2', dayType, metricType) || new Array(24).fill(0));
+
+    const noHourlyDataNote = (noHourlyDataA || noHourlyDataB)
+        ? '<div class="hourly-panel-meta" style="margin-top:8px;font-weight:700;color:#ff3b30;">no data for 2018/2019 is found</div>'
+        : '';
 
     let maxValue = 0;
     for (const hour of orderedHours) {
@@ -595,6 +624,7 @@ function updateHourlyStationComparisonDisplay(a, b, dayType, metricType) {
         '<div class="hourly-compare-panel">' +
             '<div class="hourly-panel-title">Hourly Station ' + metricLabel + ' Comparison by Day Type</div>' +
             '<div class="hourly-panel-meta">Day Type: ' + dayLabel + (yearA === yearB ? (' | Year: ' + yearA) : (' | Years: ' + yearA + ' vs ' + yearB)) + '</div>' +
+            noHourlyDataNote +
             '<div class="hourly-chart-shell">' +
                 '<div class="hourly-y-axis-label">Average Daily Count</div>' +
                 '<div id="hourly-hover-tooltip" class="hourly-hover-tooltip" aria-hidden="true"></div>' +

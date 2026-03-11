@@ -63,6 +63,8 @@ function getActiveFeatureLabel() {
 
 function getInputUnitSuffix(feature) {
     const percentFeatures = [
+        'capacity_utilization',
+        'overcrowded_revenue_hours',
         'peak_load_factor',
         'overcrowded_trips',
         'on_time_performance',
@@ -157,6 +159,12 @@ function getMetricValueFromData(feature, entityKey, datasets) {
         if (feature === 'boardings_per_revenue_hour') {
             return datasets.busMetrics[name] ? datasets.busMetrics[name].boardings_per_revenue_hour : null;
         }
+        if (feature === 'capacity_utilization') {
+            return datasets.busMetrics[name] ? datasets.busMetrics[name].capacity_utilization : null;
+        }
+        if (feature === 'overcrowded_revenue_hours') {
+            return datasets.busMetrics[name] ? datasets.busMetrics[name].overcrowded_revenue_hours : null;
+        }
         if (feature === 'peak_passenger_load') {
             return datasets.busMetrics[name] ? datasets.busMetrics[name].peak_passenger_load : null;
         }
@@ -209,6 +217,8 @@ function getEligibleEntityKeys(scope, feature, datasets) {
     const isBusOnlyFeature = [
         'revenue_hours',
         'boardings_per_revenue_hour',
+        'capacity_utilization',
+        'overcrowded_revenue_hours',
         'peak_passenger_load',
         'peak_load_factor',
         'overcrowded_trips',
@@ -416,7 +426,18 @@ function getGroupsForScope(scope) {
 
 function updateEntityDropdownForScope(scope) {
     const scopedGroups = getGroupsForScope(scope);
+    const previousReferenceValue = referenceDropdown.value;
+
     fillEntityDropdown(referenceDropdown, scopedGroups, 'Select bus line or station');
+
+    // Keep current selection if it is still present after scope change.
+    if (previousReferenceValue) {
+        const stillExists = Array.from(referenceDropdown.options).some(opt => opt.value === previousReferenceValue);
+        if (stillExists) {
+            referenceDropdown.value = previousReferenceValue;
+        }
+    }
+
     resultsStatus.textContent = '';
 }
 
@@ -450,7 +471,7 @@ function setEntityScope(scope) {
 
 function load2024EntityOptions() {
     Promise.all([
-        fetch('/api/boardings-data?year=2024'),
+        fetch('/api/bus-line-options?year=2024'),
         fetch('/api/station-boardings-data?year=2024')
     ])
         .then(async responses => {
@@ -458,12 +479,8 @@ function load2024EntityOptions() {
                 throw new Error('Unable to load 2024 entity data');
             }
 
-            const busData = await responses[0].json();
+            const busOptions = await responses[0].json();
             const stationData = await responses[1].json();
-
-            const busLines = Object.keys(busData)
-                .map(value => String(value))
-                .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
 
             const stations = Object.keys(stationData)
                 .map(value => String(value))
@@ -472,7 +489,7 @@ function load2024EntityOptions() {
             const groups = [
                 {
                     label: 'Bus Lines',
-                    items: busLines.map(line => ({ value: 'bus:' + line, label: 'Bus line ' + line }))
+                    items: busOptions.map(option => ({ value: 'bus:' + option.value, label: option.label }))
                 },
                 {
                     label: 'SkyTrain Stations',

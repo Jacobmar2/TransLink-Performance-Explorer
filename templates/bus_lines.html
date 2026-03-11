@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -12,7 +12,7 @@
     </div>
 
     <div class="select-row" style="display:flex;gap:5em;justify-content:center;flex-wrap:wrap;margin:1.2em 0;">
-        <div style="min-width:300px;">
+        <div style="width:300px;min-width:400px;max-width:600px;">
             <label for="line1"><strong>Line 1</strong></label>
             <select id="line1" name="line1" style="width:100%;padding:0.8em;border-radius:0.5em;">
                 <option value="">Select line</option>
@@ -213,6 +213,8 @@
                 <option>R6</option>
             </select>
             <div class="year-selectors line-year-selectors" data-side="line1" style="margin-top:0.55em;">
+                <button type="button" class="year-btn" data-side="line1" data-year="2018">2018</button>
+                <button type="button" class="year-btn" data-side="line1" data-year="2019">2019</button>
                 <button type="button" class="year-btn" data-side="line1" data-year="2022">2022</button>
                 <button type="button" class="year-btn" data-side="line1" data-year="2023">2023</button>
                 <button type="button" class="year-btn year-btn-active" data-side="line1" data-year="2024">2024</button>
@@ -223,7 +225,7 @@
             <button id="swapBtn" aria-label="Swap lines" title="Swap lines" style="height:40px;width:40px;border-radius:20px;border:none;background:#006c9e;color:#fff;font-size:18px;cursor:pointer;margin:0 8px;">⇄</button>
         </div>
 
-        <div style="min-width:300px;">
+        <div style="width:300px;min-width:400px;max-width:600px;margin-left:-32px;">
             <label for="line2"><strong>Line 2</strong></label>
             <select id="line2" name="line2" style="width:100%;padding:0.8em;border-radius:0.5em;">
                 <option value="">Select line</option>
@@ -424,6 +426,8 @@
                 <option>R6</option>
             </select>
             <div class="year-selectors line-year-selectors" data-side="line2" style="margin-top:0.55em;">
+                <button type="button" class="year-btn" data-side="line2" data-year="2018">2018</button>
+                <button type="button" class="year-btn" data-side="line2" data-year="2019">2019</button>
                 <button type="button" class="year-btn" data-side="line2" data-year="2022">2022</button>
                 <button type="button" class="year-btn" data-side="line2" data-year="2023">2023</button>
                 <button type="button" class="year-btn year-btn-active" data-side="line2" data-year="2024">2024</button>

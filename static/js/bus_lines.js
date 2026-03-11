@@ -21,6 +21,25 @@ function setYearButtonState(side, year) {
     }
 }
 
+function syncBusDropdownWidths() {
+    const sideToSelectId = {
+        line1: 'line1',
+        line2: 'line2'
+    };
+
+    Object.keys(sideToSelectId).forEach(function(side) {
+        const yearSelectors = document.querySelector('.line-year-selectors[data-side="' + side + '"]');
+        const selectNode = document.getElementById(sideToSelectId[side]);
+        if (!yearSelectors || !selectNode) return;
+
+        const measured = yearSelectors.getBoundingClientRect().width;
+        const targetWidth = Math.max(measured, yearSelectors.scrollWidth) + 4;
+        if (targetWidth > 0) {
+            selectNode.style.width = Math.ceil(targetWidth) + 'px';
+        }
+    });
+}
+
 function loadJsonForYear(urlBase, year) {
     return fetch(urlBase + '?year=' + year)
         .then(response => {
@@ -98,7 +117,10 @@ function getMetricsEntry(lineName, side) {
 
 setYearButtonState('line1', selectedYearLine1);
 setYearButtonState('line2', selectedYearLine2);
+syncBusDropdownWidths();
 ensureYearLoaded(selectedYearLine1);
+window.addEventListener('resize', syncBusDropdownWidths);
+window.addEventListener('load', syncBusDropdownWidths);
 
 function formatNumber(num) {
     return Math.round(num).toLocaleString();

@@ -28,25 +28,172 @@ def bus_lines():
     return render_template("bus_lines.html")
 
 
+BUS_YEARLINE_2024_PATH = os.path.join("data", "tspr2024_bus_yearline.csv")
+BUS_KEYINDICATORS_PATH = os.path.join("data", "tspr2022_bus_keyindicators_year.csv")
+BUS_OPEN_ARCHIVE_PATH = os.path.join("data", "TSPR_OpenData_Archive_8554786340162954844.csv")
+
+
+def _pick_col(columns, candidates):
+    for col in candidates:
+        if col in columns:
+            return col
+    return None
+
+
+def _build_bus_standard_df(df):
+    year_col = _pick_col(df.columns, ['CalendarYear', 'Year'])
+    line_col = _pick_col(df.columns, ['Lineno_renamed', 'line_no'])
+    if not year_col or not line_col:
+        return pd.DataFrame(columns=[
+            'year', 'line', 'annual_boardings', 'weekday', 'saturday', 'sunday',
+            'revenue_hours', 'service_hours', 'boardings_per_revenue_hour',
+            'peak_passenger_load', 'peak_load_factor', 'capacity_utilization',
+            'overcrowded_revenue_hours', 'overcrowded_trips_percent',
+            'on_time_performance', 'bus_bunching_percentage', 'avg_speed_kph'
+        ])
+
+    def col_or_na(candidates):
+        selected = _pick_col(df.columns, candidates)
+        if selected:
+            return df[selected]
+        return pd.Series([pd.NA] * len(df), index=df.index)
+
+    standard_df = pd.DataFrame({
+        'year': col_or_na(['CalendarYear', 'Year']),
+        'line': col_or_na(['Lineno_renamed', 'line_no']),
+        'annual_boardings': col_or_na(['AnnualBoardings', 'Annual_Boardings']),
+        'weekday': col_or_na(['AVG_Daily_Boardings_MF', 'Avg Daily Brdgs MF']),
+        'saturday': col_or_na(['AVG_Daily_Boardings_Sat', 'Avg Daily Brdgs Sat']),
+        'sunday': col_or_na(['AVG_Daily_Boardings_SunHol', 'Avg Daily Brdgs SunHol']),
+        'revenue_hours': col_or_na(['Annual_Revenue_Hours']),
+        'service_hours': col_or_na(['Annual_Service_Hours']),
+        'boardings_per_revenue_hour': col_or_na(['Average_Boarding_Per_Revenue_Hour']),
+        'peak_passenger_load': col_or_na(['Average_Peak_Passenger_Load', 'Average_Passenger_Load_Bi_Directional']),
+        'peak_load_factor': col_or_na(['Average_Peak_Load_Factor']),
+        'capacity_utilization': col_or_na(['Average_Capacity_Utilization', 'Total_Capacity_Utilization']),
+        'overcrowded_revenue_hours': col_or_na(['Revenue_Hrs_w_Overcrowding', 'Percentage_of_Revenue_Hours_with_Overcrowding', 'Annual_Revenue_Hours_with_Overcrowding']),
+        'overcrowded_trips_percent': col_or_na(['Perc_Trips_w_Overcrowding']),
+        'on_time_performance': col_or_na(['On_Time_Performance_Percentage']),
+        'bus_bunching_percentage': col_or_na(['Bus_Bunching_Percentage']),
+        'avg_speed_kph': col_or_na(['AVG_speed_km_per_hr'])
+    })
+
+    standard_df['year'] = pd.to_numeric(standard_df['year'], errors='coerce')
+    standard_df = standard_df[standard_df['year'].notna()].copy()
+    standard_df['year'] = standard_df['year'].astype(int)
+    standard_df['line'] = standard_df['line'].astype(str)
+    return standard_df
+
+
+def _load_bus_data_for_year(year):
+    df_2024 = _build_bus_standard_df(pd.read_csv(BUS_YEARLINE_2024_PATH))
+    df_key = _build_bus_standard_df(pd.read_csv(BUS_KEYINDICATORS_PATH))
+
+    rows_2024 = df_2024[df_2024['year'] == year]
+
+    # Product rule: for 2022, only use tspr2024_bus_yearline.csv.
+    if year == 2022:
+        combined = rows_2024.copy()
+    else:
+        rows_key = df_key[df_key['year'] == year]
+        # Keep 2024 rows first so they win on duplicate line IDs.
+        combined = pd.concat([rows_2024, rows_key], ignore_index=True)
+
+    if combined.empty:
+        return combined
+
+    combined = combined.drop_duplicates(subset=['line'], keep='first')
+    return combined
+
+
+def _normalize_bus_line_code(raw_code):
+    code = str(raw_code).strip()
+    if re.fullmatch(r'\d+', code):
+        return str(int(code))
+    return code
+
+
+def _format_bus_line_display_code(code):
+    if re.fullmatch(r'\d+', code):
+        return code.zfill(3)
+    return code
+
+
+def _bus_line_sort_key(code):
+    text = str(code).strip()
+
+    if re.fullmatch(r'\d+', text):
+        return (0, int(text), text)
+
+    # Keep split-number codes near their numeric family (e.g., 005/006, 015/050).
+    split_match = re.match(r'^(\d+)[^\d].*$', text)
+    if split_match:
+        return (0, int(split_match.group(1)), text)
+
+    # Place alpha routes (e.g., R1) after numeric-coded lines.
+    return (1, text)
+
+
 @app.route("/api/boardings-data")
 def boardings_data():
     """API endpoint to fetch annual boardings data by year from CSV"""
     try:
-        year = request.args.get('year', default=2024, type=int)
-        csv_path = os.path.join("data", "tspr2024_bus_yearline.csv")
-        df = pd.read_csv(csv_path)
-        
-        # Filter for requested year
-        df_year = df[df['CalendarYear'] == year]
+        year = request.args.get('year', default=2022, type=int)
+        df_year = _load_bus_data_for_year(year)
         
         # Create dictionary with line numbers as keys and annual boardings as values
         boardings_dict = {}
         for _, row in df_year.iterrows():
-            line_name = str(row['Lineno_renamed'])
-            boardings = float(row['AnnualBoardings'])
+            line_name = str(row['line'])
+            boardings = None if pd.isna(row['annual_boardings']) else float(row['annual_boardings'])
             boardings_dict[line_name] = boardings
         
         return jsonify(boardings_dict)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/bus-line-options")
+def bus_line_options():
+    """API endpoint to fetch bus line dropdown options with display names."""
+    try:
+        year = request.args.get('year', default=2024, type=int)
+
+        valid_lines_df = _load_bus_data_for_year(year)
+        valid_lines = set(valid_lines_df['line'].astype(str).tolist())
+        if not valid_lines:
+            return jsonify([])
+
+        df = pd.read_csv(BUS_OPEN_ARCHIVE_PATH, dtype=str)
+        year_col = _pick_col(df.columns, ['TSPR_Year', 'CalendarYear', 'Year'])
+        line_col = _pick_col(df.columns, ['Line', 'Lineno_renamed', 'line_no'])
+        name_col = _pick_col(df.columns, ['Line_Name'])
+
+        if not year_col or not line_col or not name_col:
+            return jsonify([])
+
+        df_year = df[pd.to_numeric(df[year_col], errors='coerce') == year]
+
+        options = []
+        seen = set()
+        for _, row in df_year.iterrows():
+            normalized_code = _normalize_bus_line_code(row[line_col])
+            if normalized_code in seen or normalized_code not in valid_lines:
+                continue
+
+            line_name = str(row[name_col]).strip()
+            display_code = _format_bus_line_display_code(normalized_code)
+            label = f"{display_code} - {line_name}" if line_name else display_code
+
+            options.append({
+                'value': normalized_code,
+                'label': label
+            })
+            seen.add(normalized_code)
+
+        options.sort(key=lambda item: _bus_line_sort_key(item['value']))
+
+        return jsonify(options)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -55,21 +202,17 @@ def boardings_data():
 def daily_boardings_data():
     """API endpoint to fetch daily boardings data by year (Weekday, Saturday, Sunday/Holiday)"""
     try:
-        year = request.args.get('year', default=2024, type=int)
-        csv_path = os.path.join("data", "tspr2024_bus_yearline.csv")
-        df = pd.read_csv(csv_path)
-        
-        # Filter for requested year
-        df_year = df[df['CalendarYear'] == year]
+        year = request.args.get('year', default=2022, type=int)
+        df_year = _load_bus_data_for_year(year)
         
         # Create dictionary with line numbers as keys and daily boardings data as values
         daily_boardings_dict = {}
         for _, row in df_year.iterrows():
-            line_name = str(row['Lineno_renamed'])
+            line_name = str(row['line'])
             # Convert NaN to None (which becomes null in JSON)
-            weekday_val = None if pd.isna(row['AVG_Daily_Boardings_MF']) else float(row['AVG_Daily_Boardings_MF'])
-            saturday_val = None if pd.isna(row['AVG_Daily_Boardings_Sat']) else float(row['AVG_Daily_Boardings_Sat'])
-            sunday_val = None if pd.isna(row['AVG_Daily_Boardings_SunHol']) else float(row['AVG_Daily_Boardings_SunHol'])
+            weekday_val = None if pd.isna(row['weekday']) else float(row['weekday'])
+            saturday_val = None if pd.isna(row['saturday']) else float(row['saturday'])
+            sunday_val = None if pd.isna(row['sunday']) else float(row['sunday'])
             
             daily_boardings_dict[line_name] = {
                 'weekday': weekday_val,
@@ -86,20 +229,16 @@ def daily_boardings_data():
 def hours_data():
     """API endpoint to fetch revenue and service hours data by year"""
     try:
-        year = request.args.get('year', default=2024, type=int)
-        csv_path = os.path.join("data", "tspr2024_bus_yearline.csv")
-        df = pd.read_csv(csv_path)
-        
-        # Filter for requested year
-        df_year = df[df['CalendarYear'] == year]
+        year = request.args.get('year', default=2022, type=int)
+        df_year = _load_bus_data_for_year(year)
         
         # Create dictionary with line numbers as keys and hours data as values
         hours_dict = {}
         for _, row in df_year.iterrows():
-            line_name = str(row['Lineno_renamed'])
+            line_name = str(row['line'])
             # Convert NaN to None (which becomes null in JSON)
-            revenue_hours = None if pd.isna(row['Annual_Revenue_Hours']) else float(row['Annual_Revenue_Hours'])
-            service_hours = None if pd.isna(row['Annual_Service_Hours']) else float(row['Annual_Service_Hours'])
+            revenue_hours = None if pd.isna(row['revenue_hours']) else float(row['revenue_hours'])
+            service_hours = None if pd.isna(row['service_hours']) else float(row['service_hours'])
             
             hours_dict[line_name] = {
                 'revenue': revenue_hours,
@@ -115,27 +254,23 @@ def hours_data():
 def metrics_data():
     """API endpoint to fetch metrics data by year"""
     try:
-        year = request.args.get('year', default=2024, type=int)
-        csv_path = os.path.join("data", "tspr2024_bus_yearline.csv")
-        df = pd.read_csv(csv_path)
-        
-        # Filter for requested year
-        df_year = df[df['CalendarYear'] == year]
+        year = request.args.get('year', default=2022, type=int)
+        df_year = _load_bus_data_for_year(year)
         
         # Create dictionary with line numbers as keys and metrics as values
         metrics_dict = {}
         for _, row in df_year.iterrows():
-            line_name = str(row['Lineno_renamed'])
+            line_name = str(row['line'])
             # Convert NaN to None (which becomes null in JSON)
-            boardings_per_revenue_hour = None if pd.isna(row['Average_Boarding_Per_Revenue_Hour']) else float(row['Average_Boarding_Per_Revenue_Hour'])
-            peak_passenger_load = None if pd.isna(row['Average_Peak_Passenger_Load']) else float(row['Average_Peak_Passenger_Load'])
-            peak_load_factor = None if pd.isna(row['Average_Peak_Load_Factor']) else float(row['Average_Peak_Load_Factor'])
-            capacity_utilization = None if pd.isna(row['Average_Capacity_Utilization']) else float(row['Average_Capacity_Utilization'])
-            overcrowded_revenue_hours = None if pd.isna(row['Revenue_Hrs_w_Overcrowding']) else float(row['Revenue_Hrs_w_Overcrowding'])
-            overcrowded_trips_percent = None if pd.isna(row['Perc_Trips_w_Overcrowding']) else float(row['Perc_Trips_w_Overcrowding'])
-            on_time_performance = None if pd.isna(row['On_Time_Performance_Percentage']) else float(row['On_Time_Performance_Percentage'])
-            bus_bunching_percentage = None if pd.isna(row['Bus_Bunching_Percentage']) else float(row['Bus_Bunching_Percentage'])
-            avg_speed_kph = None if pd.isna(row['AVG_speed_km_per_hr']) else float(row['AVG_speed_km_per_hr'])
+            boardings_per_revenue_hour = None if pd.isna(row['boardings_per_revenue_hour']) else float(row['boardings_per_revenue_hour'])
+            peak_passenger_load = None if pd.isna(row['peak_passenger_load']) else float(row['peak_passenger_load'])
+            peak_load_factor = None if pd.isna(row['peak_load_factor']) else float(row['peak_load_factor'])
+            capacity_utilization = None if pd.isna(row['capacity_utilization']) else float(row['capacity_utilization'])
+            overcrowded_revenue_hours = None if pd.isna(row['overcrowded_revenue_hours']) else float(row['overcrowded_revenue_hours'])
+            overcrowded_trips_percent = None if pd.isna(row['overcrowded_trips_percent']) else float(row['overcrowded_trips_percent'])
+            on_time_performance = None if pd.isna(row['on_time_performance']) else float(row['on_time_performance'])
+            bus_bunching_percentage = None if pd.isna(row['bus_bunching_percentage']) else float(row['bus_bunching_percentage'])
+            avg_speed_kph = None if pd.isna(row['avg_speed_kph']) else float(row['avg_speed_kph'])
             
             metrics_dict[line_name] = {
                 'boardings_per_revenue_hour': boardings_per_revenue_hour,
@@ -164,17 +299,24 @@ def station_boardings_data():
     """API endpoint to fetch annual station boardings data by year from CSV"""
     try:
         year = request.args.get('year', default=2024, type=int)
+        boardings_dict = {}
+
+        # Base file (wide format, includes modern years)
         csv_path = os.path.join("data", "tspr2024_skytrain_yearstation.csv")
         df = pd.read_csv(csv_path)
-
-        # Filter for requested year
         df_year = df[df['CalendarYear'] == year]
-
-        # Create dictionary with station names as keys and annual boardings as values
-        boardings_dict = {}
         for _, row in df_year.iterrows():
             station_name = str(row['StationName'])
-            boardings = float(row['AnnualStationBrdgs'])
+            boardings = None if pd.isna(row['AnnualStationBrdgs']) else float(row['AnnualStationBrdgs'])
+            boardings_dict[station_name] = boardings
+
+        # Legacy file (stacked format for 2018/2019/2022 annual boardings)
+        legacy_csv_path = os.path.join("data", "tspr2022_rail_skytrain_boardings_stationyear.csv")
+        legacy_df = pd.read_csv(legacy_csv_path)
+        legacy_year = legacy_df[legacy_df['Calendar_Year'] == year]
+        for _, row in legacy_year.iterrows():
+            station_name = str(row['Station_Name'])
+            boardings = None if pd.isna(row['Annual_Station_Boardings']) else float(row['Annual_Station_Boardings'])
             boardings_dict[station_name] = boardings
 
         return jsonify(boardings_dict)
@@ -187,14 +329,12 @@ def station_daily_boardings_data():
     """API endpoint to fetch station daily boardings data by year (Weekday, Saturday, Sunday/Holiday)"""
     try:
         year = request.args.get('year', default=2024, type=int)
+        daily_boardings_dict = {}
+
+        # Base file (wide format, includes modern years)
         csv_path = os.path.join("data", "tspr2024_skytrain_yearstation.csv")
         df = pd.read_csv(csv_path)
-
-        # Filter for requested year
         df_year = df[df['CalendarYear'] == year]
-
-        # Create dictionary with station names as keys and daily boardings data as values
-        daily_boardings_dict = {}
         for _, row in df_year.iterrows():
             station_name = str(row['StationName'])
             weekday_val = None if pd.isna(row['AvgStationBrdgs_MF']) else float(row['AvgStationBrdgs_MF'])
@@ -206,6 +346,32 @@ def station_daily_boardings_data():
                 'saturday': saturday_val,
                 'sunday': sunday_val
             }
+
+        # Legacy file (stacked day type format for 2018/2019/2022 daily boardings)
+        legacy_csv_path = os.path.join("data", "tspr2022_rail_skytrain_avgdailyboardings_stationyeardaytype(1).csv")
+        legacy_df = pd.read_csv(legacy_csv_path)
+        legacy_year = legacy_df[legacy_df['Calendar_Year'] == year]
+        day_type_map = {
+            'MF': 'weekday',
+            'Sat': 'saturday',
+            'Sun/Hol': 'sunday'
+        }
+
+        for _, row in legacy_year.iterrows():
+            station_name = str(row['Station_Name'])
+            day_key = day_type_map.get(str(row['Day_Type']).strip())
+            if not day_key:
+                continue
+
+            if station_name not in daily_boardings_dict:
+                daily_boardings_dict[station_name] = {
+                    'weekday': None,
+                    'saturday': None,
+                    'sunday': None
+                }
+
+            val = None if pd.isna(row['Average_Daily_Station_Boardings']) else float(row['Average_Daily_Station_Boardings'])
+            daily_boardings_dict[station_name][day_key] = val
 
         return jsonify(daily_boardings_dict)
     except Exception as e:
@@ -227,8 +393,12 @@ def station_hourly_data():
         if not available_years:
             return jsonify({"year": None, "stations": {}})
 
-        if year is not None and year in available_years:
-            target_year = year
+        if year is not None:
+            if year in available_years:
+                target_year = year
+            else:
+                # Explicit request for a year with no hourly source data.
+                return jsonify({"year": year, "stations": {}})
         else:
             target_year = 2024 if 2024 in available_years else available_years[-1]
         df = df[df['CalendarYear'] == target_year]
