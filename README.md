@@ -3,7 +3,8 @@
 Live Project: Coming soon
 
 ## What is TransLink-Performance-Explorer?
-TransLink Performance Analyzer reads data from CSV files to make comparisons and infographics of bus lines/SkyTrain stations you choose to compare.
+TransLink Performance Explorer is a web application designed to help users analyze and visualize transit 
+performance data. It allows users to easily explore and compare performance metrics between each other as well as create custom visualizations. It utilizes the TSPR CSV files provided by TransLink as its data source.
 
 ## Features
 
