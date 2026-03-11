@@ -346,6 +346,14 @@ button:hover {
 
 
 /* Back button inherits .button-card styling */
+.compass-button {
+    background-color: #009cde;
+}
+
+.compass-button:hover {
+    background-color: #007bb5;
+}
+
 .back-button {
     margin-bottom: 2em;
 }
