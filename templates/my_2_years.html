@@ -11,7 +11,89 @@
         <h2>My 2 Years</h2>
     </div>
 
-    <!-- Add content for my 2 years here -->
+    <div class="select-row" style="display:flex;gap:2em;justify-content:center;flex-wrap:wrap;margin:1.2em 0;">
+        <div style="width:300px;min-width:340px;max-width:600px;">
+            <label for="yearGroup1"><strong>Year 1</strong></label>
+            <div id="yearGroup1" class="year-selectors line-year-selectors" data-side="year1" style="margin-top:0.55em;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));column-gap:10px;row-gap:4px;width:100%;">
+                <button type="button" class="year-btn" data-side="year1" data-year="2018">2018</button>
+                <button type="button" class="year-btn" data-side="year1" data-year="2019">2019</button>
+                <button type="button" class="year-btn" data-side="year1" data-year="2020">2020</button>
+                <button type="button" class="year-btn" data-side="year1" data-year="2021">2021</button>
+                <button type="button" class="year-btn" data-side="year1" data-year="2022">2022</button>
+                <button type="button" class="year-btn" data-side="year1" data-year="2023">2023</button>
+                <button type="button" class="year-btn year-btn-active" data-side="year1" data-year="2024">2024</button>
+            </div>
+        </div>
+
+        <div style="display:flex;align-items:center;justify-content:center;min-width:70px;">
+            <button id="swapYearsBtn" aria-label="Swap years" title="Swap years" style="height:40px;width:40px;border-radius:20px;border:none;background:#006c9e;color:#fff;font-size:18px;cursor:pointer;margin:0 8px;">⇄</button>
+        </div>
+
+        <div style="width:300px;min-width:340px;max-width:600px;">
+            <label for="yearGroup2"><strong>Year 2</strong></label>
+            <div id="yearGroup2" class="year-selectors line-year-selectors" data-side="year2" style="margin-top:0.55em;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));column-gap:10px;row-gap:4px;width:100%;">
+                <button type="button" class="year-btn" data-side="year2" data-year="2018">2018</button>
+                <button type="button" class="year-btn" data-side="year2" data-year="2019">2019</button>
+                <button type="button" class="year-btn" data-side="year2" data-year="2020">2020</button>
+                <button type="button" class="year-btn" data-side="year2" data-year="2021">2021</button>
+                <button type="button" class="year-btn" data-side="year2" data-year="2022">2022</button>
+                <button type="button" class="year-btn" data-side="year2" data-year="2023">2023</button>
+                <button type="button" class="year-btn year-btn-active" data-side="year2" data-year="2024">2024</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="daily-boardings-selectors" id="entityScopeButtons" style="margin-top:0.9em;">
+        <button type="button" class="daily-btn" data-scope="bus">Bus only</button>
+        <button type="button" class="daily-btn" data-scope="station">Station only</button>
+        <button type="button" class="daily-btn daily-btn-active" data-scope="both">Bus and Station</button>
+    </div>
+
+    <div style="display:flex;flex-direction:column;align-items:center;margin-top:1em;gap:0.5em;">
+        <div style="width:260px;text-align:center;">
+            <button id="compareYearsBtn" class="button-card-2" style="width:100%;">Compare</button>
+        </div>
+        <div id="compareYearsResult" class="vs-compare" style="text-align:center;margin-top:0.5em;font-weight:bold;color:#006c9e;word-wrap:break-word;"></div>
+    </div>
+
+    <script>
+        function setActiveYear(side, year) {
+            document.querySelectorAll('.year-btn[data-side="' + side + '"]').forEach(btn => btn.classList.remove('year-btn-active'));
+            const target = document.querySelector('.year-btn[data-side="' + side + '"][data-year="' + year + '"]');
+            if (target) target.classList.add('year-btn-active');
+        }
+
+        function getActiveYear(side) {
+            const active = document.querySelector('.year-btn[data-side="' + side + '"].year-btn-active');
+            return active ? active.dataset.year : '';
+        }
+
+        document.addEventListener('click', function (e) {
+            if (e.target.classList.contains('year-btn')) {
+                setActiveYear(e.target.dataset.side, e.target.dataset.year);
+            }
+
+            if (e.target.closest('#entityScopeButtons .daily-btn')) {
+                document.querySelectorAll('#entityScopeButtons .daily-btn').forEach(btn => btn.classList.remove('daily-btn-active'));
+                e.target.closest('#entityScopeButtons .daily-btn').classList.add('daily-btn-active');
+            }
+        });
+
+        document.getElementById('swapYearsBtn').addEventListener('click', function () {
+            const year1 = getActiveYear('year1');
+            const year2 = getActiveYear('year2');
+            if (year1 && year2) {
+                setActiveYear('year1', year2);
+                setActiveYear('year2', year1);
+            }
+        });
+
+        document.getElementById('compareYearsBtn').addEventListener('click', function () {
+            const year1 = getActiveYear('year1');
+            const year2 = getActiveYear('year2');
+            document.getElementById('compareYearsResult').textContent = year1 && year2 ? (year1 + ' vs ' + year2) : 'Please select both years.';
+        });
+    </script>
 
     <a href="/" class="button-card back-button">
         &laquo; Back to Home / Upload Page
