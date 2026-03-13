@@ -358,6 +358,10 @@ button:hover {
     margin-bottom: 2em;
 }
 
+.back-button[href="/"] {
+    margin-top: 10em;
+}
+
 body {
     background: #e6ecf0;
     font-family: Arial, sans-serif;
@@ -756,6 +760,164 @@ body {
 .vs-compare .hourly-bar:hover,
 .vs-compare .hourly-bar:focus {
     opacity: 0.82;
+}
+
+.deep-bus-note {
+    margin-top: 0.1em;
+    margin-bottom: 0.8em;
+    color: #0f3850;
+    font-weight: 700;
+}
+
+.deep-bus-controls-wrap {
+    width: min(95vw, 1200px);
+    display: grid;
+    grid-template-columns: minmax(300px, 1fr) auto minmax(300px, 1fr);
+    gap: 14px;
+    margin-top: 0.2em;
+    align-items: start;
+}
+
+.deep-bus-swap-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    padding-top: 52px;
+    gap: 8px;
+}
+
+.deep-bus-swap-btn {
+    height: 40px;
+    width: 40px;
+    border-radius: 20px;
+    border: none;
+    background: #006c9e;
+    color: #fff;
+    font-size: 18px;
+    font-weight: 700;
+    cursor: pointer;
+    margin: 0;
+    padding: 0;
+}
+
+.deep-bus-swap-btn:hover,
+.deep-bus-swap-btn:focus {
+    background: #0087c0;
+    color: #fff;
+}
+
+.deep-bus-equal-btn {
+    height: 40px;
+    width: 40px;
+    border-radius: 20px;
+    border: none;
+    background: #006c9e;
+    color: #fff;
+    font-size: 20px;
+    font-weight: 800;
+    cursor: pointer;
+    margin: 86px 0 0 0;
+    padding: 0;
+    line-height: 1;
+}
+
+.deep-bus-equal-btn:hover,
+.deep-bus-equal-btn:focus {
+    background: #0087c0;
+    color: #fff;
+}
+
+.deep-bus-side-panel {
+    background: #ffffff;
+    border: 1px solid #d7e3ec;
+    border-radius: 12px;
+    padding: 16px;
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.08);
+}
+
+.deep-bus-line-select {
+    width: 100%;
+    padding: 0.8em;
+    border-radius: 0.5em;
+    margin-top: 0.45em;
+    border: 1px solid #b7c8d8;
+}
+
+.deep-layer-group {
+    margin-top: 12px;
+}
+
+.deep-layer-title {
+    font-weight: 700;
+    color: #23445a;
+    margin-bottom: 7px;
+}
+
+.deep-layer-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    justify-content: flex-start;
+    align-items: center;
+}
+
+.deep-option-btn {
+    --deep-accent: #006c9e;
+    background: #ffffff;
+    color: var(--deep-accent);
+    border: 1.5px solid var(--deep-accent);
+    border-radius: 6px;
+    padding: 7px 12px;
+    font-size: 0.95em;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.18s, color 0.18s, border 0.18s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0;
+}
+
+.deep-day-btn {
+    --deep-accent: #006c9e;
+}
+
+.deep-season-btn {
+    --deep-accent: #9a4d00;
+    color: #9a4d00;
+    border-color: #9a4d00;
+}
+
+.deep-time-btn {
+    --deep-accent: #0a8c4a;
+}
+
+.deep-option-btn:hover,
+.deep-option-btn:focus,
+.deep-option-btn-active {
+    background: var(--deep-accent);
+    color: #fff;
+    border-color: var(--deep-accent);
+}
+
+.deep-day-btn,
+.deep-season-btn {
+    min-width: 110px;
+    padding-left: 20px;
+    padding-right: 20px;
+}
+
+@media (max-width: 900px) {
+    .deep-bus-controls-wrap {
+        grid-template-columns: 1fr;
+    }
+
+    .deep-bus-swap-wrap {
+        order: 2;
+        padding-top: 2px;
+        padding-bottom: 2px;
+    }
 }
 
 .vs-compare .station-a-bar {

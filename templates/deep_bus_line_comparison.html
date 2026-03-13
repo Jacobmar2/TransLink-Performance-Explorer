@@ -11,7 +11,97 @@
         <h2>Deep Bus Line Comparison</h2>
     </div>
 
-    <!-- Add content for deep bus line comparison here -->
+    <p class="deep-bus-note">2023 data</p>
+
+    <div class="deep-bus-controls-wrap">
+        <div class="deep-bus-side-panel" data-side="left">
+            <label for="deepLine1"><strong>Line 1</strong></label>
+            <select id="deepLine1" name="deepLine1" class="deep-bus-line-select">
+                <option value="">Loading 2023 lines...</option>
+            </select>
+
+            <div class="deep-layer-group">
+                <div class="deep-layer-title">By day of the week</div>
+                <div class="deep-layer-buttons">
+                    <button type="button" class="deep-option-btn deep-day-btn deep-option-btn-active" data-group="left-day" data-value="MF">MF</button>
+                    <button type="button" class="deep-option-btn deep-day-btn" data-group="left-day" data-value="Sat">Sat</button>
+                    <button type="button" class="deep-option-btn deep-day-btn" data-group="left-day" data-value="Sun">Sun</button>
+                </div>
+            </div>
+
+            <div class="deep-layer-group">
+                <div class="deep-layer-title">Season</div>
+                <div class="deep-layer-buttons">
+                    <button type="button" class="deep-option-btn deep-season-btn deep-option-btn-active" data-group="left-season" data-value="Fall">Fall</button>
+                    <button type="button" class="deep-option-btn deep-season-btn" data-group="left-season" data-value="Summer">Summer</button>
+                </div>
+            </div>
+
+            <div class="deep-layer-group">
+                <div class="deep-layer-title">Time Range</div>
+                <div class="deep-layer-buttons">
+                    <button type="button" class="deep-option-btn deep-time-btn deep-option-btn-active" data-group="left-time" data-value="4-6">4-6</button>
+                    <button type="button" class="deep-option-btn deep-time-btn" data-group="left-time" data-value="6-9">6-9</button>
+                    <button type="button" class="deep-option-btn deep-time-btn" data-group="left-time" data-value="9-15">9-15</button>
+                    <button type="button" class="deep-option-btn deep-time-btn" data-group="left-time" data-value="15-18">15-18</button>
+                    <button type="button" class="deep-option-btn deep-time-btn" data-group="left-time" data-value="18-21">18-21</button>
+                    <button type="button" class="deep-option-btn deep-time-btn" data-group="left-time" data-value="21-24">21-24</button>
+                    <button type="button" class="deep-option-btn deep-time-btn" data-group="left-time" data-value="24-4">24-4</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="deep-bus-swap-wrap">
+            <button id="deepSwapBtn" type="button" class="deep-bus-swap-btn" aria-label="Swap lines" title="Swap lines">⇄</button>
+            <button id="deepMatchRightBtn" type="button" class="deep-bus-equal-btn" aria-label="Match right controls to left" title="Match right controls to left">=</button>
+        </div>
+
+        <div class="deep-bus-side-panel" data-side="right">
+            <label for="deepLine2"><strong>Line 2</strong></label>
+            <select id="deepLine2" name="deepLine2" class="deep-bus-line-select">
+                <option value="">Loading 2023 lines...</option>
+            </select>
+
+            <div class="deep-layer-group">
+                <div class="deep-layer-title">By day of the week</div>
+                <div class="deep-layer-buttons">
+                    <button type="button" class="deep-option-btn deep-day-btn deep-option-btn-active" data-group="right-day" data-value="MF">MF</button>
+                    <button type="button" class="deep-option-btn deep-day-btn" data-group="right-day" data-value="Sat">Sat</button>
+                    <button type="button" class="deep-option-btn deep-day-btn" data-group="right-day" data-value="Sun">Sun</button>
+                </div>
+            </div>
+
+            <div class="deep-layer-group">
+                <div class="deep-layer-title">Season</div>
+                <div class="deep-layer-buttons">
+                    <button type="button" class="deep-option-btn deep-season-btn deep-option-btn-active" data-group="right-season" data-value="Fall">Fall</button>
+                    <button type="button" class="deep-option-btn deep-season-btn" data-group="right-season" data-value="Summer">Summer</button>
+                </div>
+            </div>
+
+            <div class="deep-layer-group">
+                <div class="deep-layer-title">Time Range</div>
+                <div class="deep-layer-buttons">
+                    <button type="button" class="deep-option-btn deep-time-btn deep-option-btn-active" data-group="right-time" data-value="4-6">4-6</button>
+                    <button type="button" class="deep-option-btn deep-time-btn" data-group="right-time" data-value="6-9">6-9</button>
+                    <button type="button" class="deep-option-btn deep-time-btn" data-group="right-time" data-value="9-15">9-15</button>
+                    <button type="button" class="deep-option-btn deep-time-btn" data-group="right-time" data-value="15-18">15-18</button>
+                    <button type="button" class="deep-option-btn deep-time-btn" data-group="right-time" data-value="18-21">18-21</button>
+                    <button type="button" class="deep-option-btn deep-time-btn" data-group="right-time" data-value="21-24">21-24</button>
+                    <button type="button" class="deep-option-btn deep-time-btn" data-group="right-time" data-value="24-4">24-4</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;align-items:center;margin-top:1em;gap:0.5em;">
+        <div style="width:260px;text-align:center;">
+            <button id="deepCompareBtn" class="button-card-2" style="width:100%;">Compare</button>
+        </div>
+        <div id="deepCompareResult" class="vs-compare" style="text-align:center;margin-top:0.5em;font-weight:bold;color:#006c9e;word-wrap:break-word;"></div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/deep_bus_line_comparison.js') }}"></script>
 
     <a href="/" class="button-card back-button">
         &laquo; Back to Home / Upload Page

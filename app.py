@@ -5,6 +5,7 @@ import csv
 import re
 from collections import Counter, OrderedDict
 from datetime import datetime, timedelta
+from functools import lru_cache
 
 app = Flask(__name__)
 app.config["UPLOAD_FOLDER"] = "uploads"
@@ -31,6 +32,12 @@ def bus_lines():
 BUS_YEARLINE_2024_PATH = os.path.join("data", "tspr2024_bus_yearline.csv")
 BUS_KEYINDICATORS_PATH = os.path.join("data", "tspr2022_bus_keyindicators_year.csv")
 BUS_OPEN_ARCHIVE_PATH = os.path.join("data", "TSPR_OpenData_Archive_8554786340162954844.csv")
+BUS_COVID_2020_TOTAL_PATH = os.path.join("data", "covid years", "tspr-2020---total-bus-boardings-by-route.csv")
+BUS_COVID_2020_DAILY_PATH = os.path.join("data", "covid years", "tspr-2020---avg-daily-bus-boardings-by-route-and-day-type.csv")
+BUS_COVID_2021_TOTAL_PATH = os.path.join("data", "covid years", "tspr-fall-2021-total-bus-boardings-by-route.csv")
+BUS_COVID_2021_DAILY_PATH = os.path.join("data", "covid years", "tspr-fall-2021-avg-daily-bus-boardings-by-route-and-day-type.csv")
+BUS_DEEP_2023_PATH = os.path.join("data", "tspr2023_bus_yearlinedaytypeseasontimerange(2).csv")
+BUS_DEEP_2023_PEAK_PATH = os.path.join("data", "tspr2023_bus_peakload_yearlinedaytypeseasontimerangedirection.csv")
 
 
 def _pick_col(columns, candidates):
@@ -85,6 +92,547 @@ def _build_bus_standard_df(df):
     return standard_df
 
 
+STATION_YEAR_2024_PATH = os.path.join("data", "tspr2024_skytrain_yearstation.csv")
+STATION_BOARDINGS_2022_PATH = os.path.join("data", "tspr2022_rail_skytrain_boardings_stationyear.csv")
+STATION_DAILY_2022_PATH = os.path.join("data", "tspr2022_rail_skytrain_avgdailyboardings_stationyeardaytype(1).csv")
+STATION_COVID_2020_TOTAL_PATH = os.path.join("data", "covid years", "tspr-2020---total-skytrain-and-wce-boardings-by-station.csv")
+STATION_COVID_2020_DAILY_PATH = os.path.join("data", "covid years", "tspr-2020--avg-daily-skytrain-and-wce-boardings-by-mode-line-station-and-day-type.csv")
+STATION_COVID_2021_TOTAL_PATH = os.path.join("data", "covid years", "tspr-fall-2021-skytrain-and-wce-total-boardings-by-station.csv")
+STATION_COVID_2021_DAILY_PATH = os.path.join("data", "covid years", "tspr-fall-2021-avg-daily-skytrain-and-wce-boardings-by-mode-station-and-day-type.csv")
+
+
+def _safe_float(value):
+    if pd.isna(value):
+        return None
+    try:
+        numeric_value = float(value)
+        if pd.isna(numeric_value):
+            return None
+        return numeric_value
+    except (TypeError, ValueError):
+        return None
+
+
+def _normalize_station_name(raw_name):
+    text = str(raw_name)
+    text = text.replace('\u2013', '-').replace('\u2014', '-').replace('\u2212', '-')
+    text = re.sub(r'\s+', ' ', text).strip()
+    return text
+
+
+def _get_active_feature_value(entity_type, row, feature):
+    if entity_type == 'bus':
+        feature_map = {
+            'annual_boardings': 'annual_boardings',
+            'weekday_boardings': 'weekday',
+            'sat_boardings': 'saturday',
+            'sun_hol_boardings': 'sunday',
+            'revenue_hours': 'revenue_hours',
+            'boardings_per_revenue_hour': 'boardings_per_revenue_hour',
+            'capacity_utilization': 'capacity_utilization',
+            'overcrowded_revenue_hours': 'overcrowded_revenue_hours',
+            'peak_passenger_load': 'peak_passenger_load',
+            'peak_load_factor': 'peak_load_factor',
+            'overcrowded_trips': 'overcrowded_trips_percent',
+            'on_time_performance': 'on_time_performance',
+            'bus_bunching': 'bus_bunching_percentage',
+            'avg_speed': 'avg_speed_kph'
+        }
+        column_name = feature_map.get(feature)
+        if not column_name:
+            return None
+        return _safe_float(row.get(column_name))
+
+    if entity_type == 'station':
+        feature_map = {
+            'annual_boardings': 'annual_boardings',
+            'weekday_boardings': 'weekday',
+            'sat_boardings': 'saturday',
+            'sun_hol_boardings': 'sunday'
+        }
+        column_name = feature_map.get(feature)
+        if not column_name:
+            return None
+        return _safe_float(row.get(column_name))
+
+    return None
+
+
+def _load_station_standard_rows_for_year(year):
+    # Merge order defines precedence: later source overrides earlier source for duplicate station-year values.
+    merged_rows = OrderedDict()
+
+    def ensure_station_row(station_key):
+        if station_key not in merged_rows:
+            merged_rows[station_key] = {
+                'name': station_key,
+                'annual_boardings': None,
+                'weekday': None,
+                'saturday': None,
+                'sunday': None
+            }
+        return merged_rows[station_key]
+
+    # Source 1: 2024 wide file
+    df_2024 = pd.read_csv(STATION_YEAR_2024_PATH)
+    df_2024_year = df_2024[pd.to_numeric(df_2024['CalendarYear'], errors='coerce') == year]
+    for _, row in df_2024_year.iterrows():
+        station_name = _normalize_station_name(row['StationName'])
+        merged_rows[station_name] = {
+            'name': station_name,
+            'annual_boardings': _safe_float(row.get('AnnualStationBrdgs')),
+            'weekday': _safe_float(row.get('AvgStationBrdgs_MF')),
+            'saturday': _safe_float(row.get('AvgStationBrdgs_Sat')),
+            'sunday': _safe_float(row.get('AvgStationBrdgs_SunHol'))
+        }
+
+    # Source 2 (later): 2022 legacy annual file (overrides annual_boardings where overlapping)
+    legacy_annual = pd.read_csv(STATION_BOARDINGS_2022_PATH)
+    legacy_annual_year = legacy_annual[pd.to_numeric(legacy_annual['Calendar_Year'], errors='coerce') == year]
+    for _, row in legacy_annual_year.iterrows():
+        station_name = _normalize_station_name(row['Station_Name'])
+        station_row = ensure_station_row(station_name)
+        station_row['annual_boardings'] = _safe_float(row.get('Annual_Station_Boardings'))
+
+    # Source 3 (later): 2022 legacy daily file (overrides daily values where overlapping)
+    legacy_daily = pd.read_csv(STATION_DAILY_2022_PATH)
+    legacy_daily_year = legacy_daily[pd.to_numeric(legacy_daily['Calendar_Year'], errors='coerce') == year]
+    day_map = {
+        'MF': 'weekday',
+        'Sat': 'saturday',
+        'Sun/Hol': 'sunday'
+    }
+    for _, row in legacy_daily_year.iterrows():
+        station_name = _normalize_station_name(row['Station_Name'])
+        station_row = ensure_station_row(station_name)
+
+        mapped_day = day_map.get(str(row.get('Day_Type')).strip())
+        if not mapped_day:
+            continue
+        station_row[mapped_day] = _safe_float(row.get('Average_Daily_Station_Boardings'))
+
+    covid_total_path = STATION_COVID_2020_TOTAL_PATH if year == 2020 else STATION_COVID_2021_TOTAL_PATH if year == 2021 else None
+    covid_daily_path = STATION_COVID_2020_DAILY_PATH if year == 2020 else STATION_COVID_2021_DAILY_PATH if year == 2021 else None
+
+    if covid_total_path and os.path.exists(covid_total_path):
+        covid_total_df = pd.read_csv(covid_total_path)
+        mode_col = _pick_col(covid_total_df.columns, ['Mode/Line'])
+        station_col = _pick_col(covid_total_df.columns, ['Station'])
+        total_col = _pick_col(covid_total_df.columns, ['TotalBoardings'])
+
+        if mode_col and station_col and total_col:
+            for _, row in covid_total_df.iterrows():
+                mode_value = str(row.get(mode_col, '')).strip().lower()
+                if 'west coast express' in mode_value:
+                    continue
+
+                station_name = _normalize_station_name(row.get(station_col))
+                station_row = ensure_station_row(station_name)
+                station_row['annual_boardings'] = _safe_float(row.get(total_col))
+
+    if covid_daily_path and os.path.exists(covid_daily_path):
+        covid_daily_df = pd.read_csv(covid_daily_path)
+        mode_col = _pick_col(covid_daily_df.columns, ['Mode/Line'])
+        station_col = _pick_col(covid_daily_df.columns, ['Station'])
+        day_col = _pick_col(covid_daily_df.columns, ['DayType'])
+        daily_col = _pick_col(covid_daily_df.columns, ['AvgDailyBoardings'])
+        covid_day_map = {
+            'Mon-Fri': 'weekday',
+            'Sat': 'saturday',
+            'Sun/Hol': 'sunday'
+        }
+
+        if mode_col and station_col and day_col and daily_col:
+            for _, row in covid_daily_df.iterrows():
+                mode_value = str(row.get(mode_col, '')).strip().lower()
+                if 'west coast express' in mode_value:
+                    continue
+
+                mapped_day = covid_day_map.get(str(row.get(day_col)).strip())
+                if not mapped_day:
+                    continue
+
+                station_name = _normalize_station_name(row.get(station_col))
+                station_row = ensure_station_row(station_name)
+                station_row[mapped_day] = _safe_float(row.get(daily_col))
+
+    return merged_rows
+
+
+def _load_bus_standard_rows_for_year(year):
+    # Merge order defines precedence: later source overrides earlier source for duplicate line-year values.
+    merged_rows = OrderedDict()
+
+    bus_sources = [
+        _build_bus_standard_df(pd.read_csv(BUS_YEARLINE_2024_PATH)),
+        _build_bus_standard_df(pd.read_csv(BUS_KEYINDICATORS_PATH))
+    ]
+
+    for source_df in bus_sources:
+        source_rows = source_df[source_df['year'] == year]
+        for _, row in source_rows.iterrows():
+            line_name = _normalize_bus_line_code(row['line'])
+            merged_rows[line_name] = {
+                'name': line_name,
+                'annual_boardings': _safe_float(row.get('annual_boardings')),
+                'weekday': _safe_float(row.get('weekday')),
+                'saturday': _safe_float(row.get('saturday')),
+                'sunday': _safe_float(row.get('sunday')),
+                'revenue_hours': _safe_float(row.get('revenue_hours')),
+                'boardings_per_revenue_hour': _safe_float(row.get('boardings_per_revenue_hour')),
+                'capacity_utilization': _safe_float(row.get('capacity_utilization')),
+                'overcrowded_revenue_hours': _safe_float(row.get('overcrowded_revenue_hours')),
+                'peak_passenger_load': _safe_float(row.get('peak_passenger_load')),
+                'peak_load_factor': _safe_float(row.get('peak_load_factor')),
+                'overcrowded_trips_percent': _safe_float(row.get('overcrowded_trips_percent')),
+                'on_time_performance': _safe_float(row.get('on_time_performance')),
+                'bus_bunching_percentage': _safe_float(row.get('bus_bunching_percentage')),
+                'avg_speed_kph': _safe_float(row.get('avg_speed_kph'))
+            }
+
+    covid_total_path = BUS_COVID_2020_TOTAL_PATH if year == 2020 else BUS_COVID_2021_TOTAL_PATH if year == 2021 else None
+    covid_daily_path = BUS_COVID_2020_DAILY_PATH if year == 2020 else BUS_COVID_2021_DAILY_PATH if year == 2021 else None
+
+    if covid_total_path and os.path.exists(covid_total_path):
+        covid_total_df = pd.read_csv(covid_total_path)
+        route_col = _pick_col(covid_total_df.columns, ['Route'])
+        total_col = _pick_col(covid_total_df.columns, ['Total', 'TotalBoardingsFall'])
+
+        if route_col and total_col:
+            for _, row in covid_total_df.iterrows():
+                line_name = _normalize_bus_line_code(row.get(route_col))
+                if line_name not in merged_rows:
+                    merged_rows[line_name] = {
+                        'name': line_name,
+                        'annual_boardings': None,
+                        'weekday': None,
+                        'saturday': None,
+                        'sunday': None,
+                        'revenue_hours': None,
+                        'boardings_per_revenue_hour': None,
+                        'capacity_utilization': None,
+                        'overcrowded_revenue_hours': None,
+                        'peak_passenger_load': None,
+                        'peak_load_factor': None,
+                        'overcrowded_trips_percent': None,
+                        'on_time_performance': None,
+                        'bus_bunching_percentage': None,
+                        'avg_speed_kph': None
+                    }
+                merged_rows[line_name]['annual_boardings'] = _safe_float(row.get(total_col))
+
+    if covid_daily_path and os.path.exists(covid_daily_path):
+        covid_daily_df = pd.read_csv(covid_daily_path)
+        route_col = _pick_col(covid_daily_df.columns, ['Route'])
+        day_col = _pick_col(covid_daily_df.columns, ['DayType'])
+        daily_col = _pick_col(covid_daily_df.columns, ['AvgDailyBoardings'])
+        day_map = {
+            'Mon-Fri': 'weekday',
+            'Sat': 'saturday',
+            'Sun/Hol': 'sunday'
+        }
+
+        if route_col and day_col and daily_col:
+            for _, row in covid_daily_df.iterrows():
+                mapped_day = day_map.get(str(row.get(day_col)).strip())
+                if not mapped_day:
+                    continue
+
+                line_name = _normalize_bus_line_code(row.get(route_col))
+                if line_name not in merged_rows:
+                    merged_rows[line_name] = {
+                        'name': line_name,
+                        'annual_boardings': None,
+                        'weekday': None,
+                        'saturday': None,
+                        'sunday': None,
+                        'revenue_hours': None,
+                        'boardings_per_revenue_hour': None,
+                        'capacity_utilization': None,
+                        'overcrowded_revenue_hours': None,
+                        'peak_passenger_load': None,
+                        'peak_load_factor': None,
+                        'overcrowded_trips_percent': None,
+                        'on_time_performance': None,
+                        'bus_bunching_percentage': None,
+                        'avg_speed_kph': None
+                    }
+                merged_rows[line_name][mapped_day] = _safe_float(row.get(daily_col))
+
+    return merged_rows
+
+
+def _build_compare_values_for_year(year, feature, scope):
+    values = {}
+    bus_only_features = {
+        'revenue_hours',
+        'boardings_per_revenue_hour',
+        'capacity_utilization',
+        'overcrowded_revenue_hours',
+        'peak_passenger_load',
+        'peak_load_factor',
+        'overcrowded_trips',
+        'on_time_performance',
+        'bus_bunching',
+        'avg_speed'
+    }
+
+    include_bus = scope in {'bus', 'both'}
+    include_station = scope in {'station', 'both'} and feature not in bus_only_features
+
+    if include_bus:
+        bus_rows = _load_bus_standard_rows_for_year(year)
+        for line_name, row in bus_rows.items():
+            metric_value = _get_active_feature_value('bus', row, feature)
+            if metric_value is None:
+                continue
+            values[f'bus:{line_name}'] = {
+                'name': f'Bus line {line_name}',
+                'value': metric_value
+            }
+
+    if include_station:
+        station_rows = _load_station_standard_rows_for_year(year)
+        for station_name, row in station_rows.items():
+            metric_value = _get_active_feature_value('station', row, feature)
+            if metric_value is None:
+                continue
+            values[f'station:{station_name}'] = {
+                'name': station_name,
+                'value': metric_value
+            }
+
+    return values
+
+
+BUS_DETAIL_METRICS = [
+    ('annual_boardings', 'Annual boardings'),
+    ('weekday_boardings', 'Weekday boardings'),
+    ('sat_boardings', 'Sat boardings'),
+    ('sun_hol_boardings', 'Sun/Hol boardings'),
+    ('revenue_hours', 'Revenue hours'),
+    ('boardings_per_revenue_hour', 'Boardings/revenue hours'),
+    ('capacity_utilization', '% capacity utilization'),
+    ('overcrowded_revenue_hours', '% overcrowded revenue hours'),
+    ('peak_passenger_load', 'Peak passenger load'),
+    ('peak_load_factor', 'Peak load factor'),
+    ('overcrowded_trips', '% overcrowded trips'),
+    ('on_time_performance', '% on time performance'),
+    ('bus_bunching', '% bus bunching'),
+    ('avg_speed', 'Avg speed')
+]
+
+STATION_DETAIL_METRICS = [
+    ('annual_boardings', 'Annual boardings'),
+    ('weekday_boardings', 'Weekday boardings'),
+    ('sat_boardings', 'Sat boardings'),
+    ('sun_hol_boardings', 'Sun/Hol boardings')
+]
+
+
+def _compute_pct_change(value_year_1, value_year_2):
+    if value_year_1 is None or value_year_2 is None:
+        return None
+    if value_year_1 == 0:
+        return None
+    return ((value_year_2 - value_year_1) / value_year_1) * 100.0
+
+
+@app.route('/api/my-2-years-entity-options')
+def my_2_years_entity_options():
+    try:
+        year1 = request.args.get('year1', type=int)
+        year2 = request.args.get('year2', type=int)
+
+        if year1 is None or year2 is None:
+            return jsonify({'error': 'year1 and year2 are required'}), 400
+
+        bus_rows_year1 = _load_bus_standard_rows_for_year(year1)
+        bus_rows_year2 = _load_bus_standard_rows_for_year(year2)
+        station_rows_year1 = _load_station_standard_rows_for_year(year1)
+        station_rows_year2 = _load_station_standard_rows_for_year(year2)
+
+        bus_codes = sorted(
+            set(bus_rows_year1.keys()) | set(bus_rows_year2.keys()),
+            key=_bus_line_sort_key
+        )
+        station_names = sorted(
+            set(station_rows_year1.keys()) | set(station_rows_year2.keys()),
+            key=lambda x: x.lower()
+        )
+
+        return jsonify({
+            'groups': [
+                {
+                    'label': 'Bus Lines',
+                    'items': [
+                        {
+                            'value': f'bus:{code}',
+                            'label': f"{_format_bus_line_display_code(code)} - Bus line"
+                        }
+                        for code in bus_codes
+                    ]
+                },
+                {
+                    'label': 'SkyTrain Stations',
+                    'items': [
+                        {
+                            'value': f'station:{name}',
+                            'label': name
+                        }
+                        for name in station_names
+                    ]
+                }
+            ]
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/my-2-years-entity-metrics')
+def my_2_years_entity_metrics():
+    try:
+        year1 = request.args.get('year1', type=int)
+        year2 = request.args.get('year2', type=int)
+        entity = request.args.get('entity', default='', type=str)
+
+        if year1 is None or year2 is None:
+            return jsonify({'error': 'year1 and year2 are required'}), 400
+
+        if ':' not in entity:
+            return jsonify({'error': 'entity must be in format type:key'}), 400
+
+        entity_type, entity_key_raw = entity.split(':', 1)
+        entity_type = entity_type.strip().lower()
+        entity_key_raw = entity_key_raw.strip()
+
+        if entity_type not in {'bus', 'station'}:
+            return jsonify({'error': 'entity type must be bus or station'}), 400
+
+        if entity_type == 'bus':
+            entity_key = _normalize_bus_line_code(entity_key_raw)
+            row_year_1 = _load_bus_standard_rows_for_year(year1).get(entity_key, {})
+            row_year_2 = _load_bus_standard_rows_for_year(year2).get(entity_key, {})
+            metric_defs = BUS_DETAIL_METRICS
+            display_name = f'Bus line {entity_key}'
+        else:
+            entity_key = _normalize_station_name(entity_key_raw)
+            row_year_1 = _load_station_standard_rows_for_year(year1).get(entity_key, {})
+            row_year_2 = _load_station_standard_rows_for_year(year2).get(entity_key, {})
+            metric_defs = STATION_DETAIL_METRICS
+            display_name = entity_key
+
+        metric_rows = []
+        for metric_key, metric_label in metric_defs:
+            stat_year_1 = _get_active_feature_value(entity_type, row_year_1, metric_key)
+            stat_year_2 = _get_active_feature_value(entity_type, row_year_2, metric_key)
+            metric_rows.append({
+                'name': display_name,
+                'metric': metric_label,
+                'stat_year_1': stat_year_1,
+                'stat_year_2': stat_year_2,
+                'pct_change': _compute_pct_change(stat_year_1, stat_year_2)
+            })
+
+        return jsonify({
+            'entity': f'{entity_type}:{entity_key}',
+            'name': display_name,
+            'entity_type': entity_type,
+            'year1': year1,
+            'year2': year2,
+            'rows': metric_rows
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route("/api/my-2-years-compare")
+def my_2_years_compare():
+    try:
+        year1 = request.args.get('year1', type=int)
+        year2 = request.args.get('year2', type=int)
+        feature = request.args.get('feature', default='annual_boardings', type=str)
+        scope = request.args.get('scope', default='both', type=str)
+        top_n = request.args.get('top_n', default=3, type=int)
+
+        if year1 is None or year2 is None:
+            return jsonify({'error': 'year1 and year2 are required'}), 400
+
+        if scope not in {'bus', 'station', 'both'}:
+            scope = 'both'
+
+        top_n = max(1, min(10, top_n))
+
+        values_year1 = _build_compare_values_for_year(year1, feature, scope)
+        values_year2 = _build_compare_values_for_year(year2, feature, scope)
+
+        common_keys = sorted(set(values_year1.keys()) & set(values_year2.keys()))
+
+        rows = []
+        for key in common_keys:
+            value_year1 = values_year1[key]['value']
+            value_year2 = values_year2[key]['value']
+
+            if value_year1 is None or value_year2 is None:
+                continue
+
+            # Avoid undefined/infinite percentage changes.
+            if value_year1 == 0:
+                continue
+
+            pct_change = ((value_year2 - value_year1) / value_year1) * 100.0
+            rows.append({
+                'name': values_year1[key]['name'],
+                'stat_year_1': value_year1,
+                'stat_year_2': value_year2,
+                'pct_change': pct_change
+            })
+
+        positive_candidates = sorted([r for r in rows if r['pct_change'] > 0], key=lambda r: r['pct_change'], reverse=True)
+        positive_smallest_first = sorted([r for r in rows if r['pct_change'] > 0], key=lambda r: r['pct_change'])
+        negative_candidates = sorted([r for r in rows if r['pct_change'] < 0], key=lambda r: r['pct_change'])
+        negative_smallest_first = sorted([r for r in rows if r['pct_change'] < 0], key=lambda r: r['pct_change'], reverse=True)
+        zero_candidates = sorted([r for r in rows if r['pct_change'] == 0], key=lambda r: r['name'])
+
+        def _fill_to_target(primary, secondary, zeros, target):
+            picked_names = set()
+            result = []
+
+            def extend_from(source_rows):
+                for item in source_rows:
+                    if len(result) >= target:
+                        break
+                    if item['name'] in picked_names:
+                        continue
+                    result.append(item)
+                    picked_names.add(item['name'])
+
+            extend_from(primary)
+            extend_from(secondary)
+            extend_from(zeros)
+            return result
+
+        # Primary intent for each table, then backfill from opposite sign (closest to zero) to keep length at X.
+        positive_rows = _fill_to_target(positive_candidates, negative_smallest_first, zero_candidates, top_n)
+        negative_rows = _fill_to_target(negative_candidates, positive_smallest_first, zero_candidates, top_n)
+
+        used_smallest_change_fallback = len(negative_candidates) < top_n
+
+        return jsonify({
+            'year1': year1,
+            'year2': year2,
+            'feature': feature,
+            'scope': scope,
+            'top_n': top_n,
+            'total_compared': len(rows),
+            'used_smallest_change_fallback': used_smallest_change_fallback,
+            'positive': positive_rows,
+            'negative': negative_rows
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 def _load_bus_data_for_year(year):
     df_2024 = _build_bus_standard_df(pd.read_csv(BUS_YEARLINE_2024_PATH))
     df_key = _build_bus_standard_df(pd.read_csv(BUS_KEYINDICATORS_PATH))
@@ -134,6 +682,215 @@ def _bus_line_sort_key(code):
     return (1, text)
 
 
+DEEP_TIME_RANGE_TO_START = {
+    '4-6': 4,
+    '6-9': 6,
+    '9-15': 9,
+    '15-18': 15,
+    '18-21': 18,
+    '21-24': 21,
+    '24-4': 24
+}
+
+DEEP_TIME_RANGE_TO_HOURS = {
+    '4-6': 2,
+    '6-9': 3,
+    '9-15': 6,
+    '15-18': 3,
+    '18-21': 3,
+    '21-24': 3,
+    '24-4': 4
+}
+
+
+def _normalize_deep_day(raw_day):
+    normalized = str(raw_day or '').strip().lower()
+    if normalized in {'mf', 'mon-fri', 'weekday'}:
+        return 'MF'
+    if normalized in {'sat', 'saturday'}:
+        return 'SAT'
+    if normalized in {'sun', 'sun/hol', 'sunday', 'sunday/holiday'}:
+        return 'SUN'
+    return None
+
+
+def _normalize_deep_season(raw_season):
+    normalized = str(raw_season or '').strip().lower()
+    if normalized == 'fall':
+        return 'Fall'
+    if normalized == 'summer':
+        return 'Summer'
+    return None
+
+
+def _normalize_deep_start_hour(raw_hour):
+    text = str(raw_hour or '').strip()
+    if text in DEEP_TIME_RANGE_TO_START:
+        return DEEP_TIME_RANGE_TO_START[text]
+    match = re.search(r'\d+', text)
+    if not match:
+        return None
+    return int(match.group(0))
+
+
+def _mean_or_none(df, col_name):
+    if col_name not in df.columns or df.empty:
+        return None
+    values = pd.to_numeric(df[col_name], errors='coerce').dropna()
+    if values.empty:
+        return None
+    return float(values.mean())
+
+
+@lru_cache(maxsize=1)
+def _load_deep_2023_base_df():
+    if not os.path.exists(BUS_DEEP_2023_PATH):
+        return pd.DataFrame()
+
+    df = pd.read_csv(BUS_DEEP_2023_PATH)
+    if df.empty:
+        return df
+
+    year_col = _pick_col(df.columns, ['SeasonYear', 'CalendarYear', 'Year'])
+    line_col = _pick_col(df.columns, ['Lineno_renamed', 'line_no', 'Line'])
+    day_col = _pick_col(df.columns, ['DayType', 'Day_Type'])
+    season_col = _pick_col(df.columns, ['Season'])
+    hour_col = _pick_col(df.columns, ['Hour_Range', 'HourRange'])
+
+    if not year_col or not line_col or not day_col or not season_col or not hour_col:
+        return pd.DataFrame()
+
+    df = df.copy()
+    df['year_norm'] = pd.to_numeric(df[year_col], errors='coerce')
+    df['line_norm'] = df[line_col].apply(_normalize_bus_line_code)
+    df['day_norm'] = df[day_col].apply(_normalize_deep_day)
+    df['season_norm'] = df[season_col].apply(_normalize_deep_season)
+    df['hour_start_norm'] = df[hour_col].apply(_normalize_deep_start_hour)
+    return df
+
+
+@lru_cache(maxsize=1)
+def _load_deep_2023_peak_df():
+    if not os.path.exists(BUS_DEEP_2023_PEAK_PATH):
+        return pd.DataFrame()
+
+    df = pd.read_csv(BUS_DEEP_2023_PEAK_PATH)
+    if df.empty:
+        return df
+
+    year_col = _pick_col(df.columns, ['SeasonYear', 'CalendarYear', 'Year'])
+    line_col = _pick_col(df.columns, ['Lineno_renamed', 'line_no', 'Line'])
+    day_col = _pick_col(df.columns, ['DayType', 'Day_Type'])
+    season_col = _pick_col(df.columns, ['Season'])
+    hour_col = _pick_col(df.columns, ['HourRange', 'Hour_Range'])
+    direction_col = _pick_col(df.columns, ['direction_updated', 'Direction'])
+
+    if not year_col or not line_col or not day_col or not season_col or not hour_col or not direction_col:
+        return pd.DataFrame()
+
+    df = df.copy()
+    df['year_norm'] = pd.to_numeric(df[year_col], errors='coerce')
+    df['line_norm'] = df[line_col].apply(_normalize_bus_line_code)
+    df['day_norm'] = df[day_col].apply(_normalize_deep_day)
+    df['season_norm'] = df[season_col].apply(_normalize_deep_season)
+    df['hour_start_norm'] = df[hour_col].apply(_normalize_deep_start_hour)
+    df['direction_norm'] = df[direction_col].astype(str).str.strip().str.upper()
+    return df
+
+
+def _build_deep_side_payload(base_df, peak_df, line_code, day_norm, season_norm, hour_start, time_range):
+    section_rows = base_df[
+        (base_df['year_norm'] == 2023) &
+        (base_df['line_norm'] == line_code) &
+        (base_df['day_norm'] == day_norm) &
+        (base_df['season_norm'] == season_norm) &
+        (base_df['hour_start_norm'] == hour_start)
+    ] if not base_df.empty else pd.DataFrame()
+
+    peak_rows = peak_df[
+        (peak_df['year_norm'] == 2023) &
+        (peak_df['line_norm'] == line_code) &
+        (peak_df['day_norm'] == day_norm) &
+        (peak_df['season_norm'] == season_norm) &
+        (peak_df['hour_start_norm'] == hour_start)
+    ] if not peak_df.empty else pd.DataFrame()
+
+    direction_metrics = {}
+    available_directions = []
+    if not peak_rows.empty and 'direction_norm' in peak_rows.columns:
+        for direction_name, group in peak_rows.groupby('direction_norm'):
+            direction_name = str(direction_name).strip().upper()
+            if not direction_name:
+                continue
+            available_directions.append(direction_name)
+            direction_metrics[direction_name] = {
+                'peak_passenger_load': _mean_or_none(group, 'Average_Peak_Passenger_Load'),
+                'peak_load_factor': _mean_or_none(group, 'Average_Peak_Load_Factor')
+            }
+
+    available_directions.sort()
+
+    return {
+        'line': line_code,
+        'day': day_norm,
+        'season': season_norm,
+        'time_range': time_range,
+        'time_span_hours': DEEP_TIME_RANGE_TO_HOURS.get(time_range),
+        'revenue_hours': _mean_or_none(section_rows, 'Annual_Revenue_Hours'),
+        'service_hours': _mean_or_none(section_rows, 'Annual_Service_Hours'),
+        'trips_per_clock_hour_per_direction': _mean_or_none(section_rows, 'Average_Trips_Per_Clock_Hour_Per_Direction'),
+        'boardings_per_revenue_hour': _mean_or_none(section_rows, 'Average_Boardings_Per_Revenue_Hour'),
+        'boardings_per_trip': _mean_or_none(section_rows, 'Average_Boardings_Per_Trip'),
+        'available_directions': available_directions,
+        'direction_metrics': direction_metrics
+    }
+
+
+@app.route('/api/deep-bus-line-compare-2023')
+def deep_bus_line_compare_2023():
+    try:
+        line1 = _normalize_bus_line_code(request.args.get('line1', default='', type=str))
+        line2 = _normalize_bus_line_code(request.args.get('line2', default='', type=str))
+
+        day1 = _normalize_deep_day(request.args.get('day1', default='', type=str))
+        day2 = _normalize_deep_day(request.args.get('day2', default='', type=str))
+        season1 = _normalize_deep_season(request.args.get('season1', default='', type=str))
+        season2 = _normalize_deep_season(request.args.get('season2', default='', type=str))
+
+        time1 = request.args.get('time1', default='', type=str).strip()
+        time2 = request.args.get('time2', default='', type=str).strip()
+        start1 = _normalize_deep_start_hour(time1)
+        start2 = _normalize_deep_start_hour(time2)
+
+        if not line1 or not line2:
+            return jsonify({'error': 'line1 and line2 are required'}), 400
+        if not day1 or not day2:
+            return jsonify({'error': 'day1 and day2 are required'}), 400
+        if not season1 or not season2:
+            return jsonify({'error': 'season1 and season2 are required'}), 400
+        if time1 not in DEEP_TIME_RANGE_TO_START or time2 not in DEEP_TIME_RANGE_TO_START:
+            return jsonify({'error': 'time1 and time2 must be one of: 4-6, 6-9, 9-15, 15-18, 18-21, 21-24, 24-4'}), 400
+        if start1 is None or start2 is None:
+            return jsonify({'error': 'Invalid time range values'}), 400
+
+        base_df = _load_deep_2023_base_df()
+        peak_df = _load_deep_2023_peak_df()
+
+        if base_df.empty and peak_df.empty:
+            return jsonify({'error': 'Deep comparison 2023 source files are unavailable'}), 500
+
+        left_payload = _build_deep_side_payload(base_df, peak_df, line1, day1, season1, start1, time1)
+        right_payload = _build_deep_side_payload(base_df, peak_df, line2, day2, season2, start2, time2)
+
+        return jsonify({
+            'year': 2023,
+            'left': left_payload,
+            'right': right_payload
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route("/api/boardings-data")
 def boardings_data():
     """API endpoint to fetch annual boardings data by year from CSV"""
@@ -160,36 +917,66 @@ def bus_line_options():
         year = request.args.get('year', default=2024, type=int)
 
         valid_lines_df = _load_bus_data_for_year(year)
-        valid_lines = set(valid_lines_df['line'].astype(str).tolist())
+        valid_lines = {
+            _normalize_bus_line_code(code)
+            for code in valid_lines_df['line'].astype(str).tolist()
+        }
+
+        # Ensure deep-comparison year data can still populate dropdowns
+        # even when open-archive labels are unavailable.
+        if year == 2023:
+            deep_2023_path = os.path.join("data", "tspr2023_bus_yearlinedaytypeseasontimerange(2).csv")
+            if os.path.exists(deep_2023_path):
+                deep_df = pd.read_csv(deep_2023_path, dtype=str)
+                deep_year_col = _pick_col(deep_df.columns, ['SeasonYear', 'CalendarYear', 'Year'])
+                deep_line_col = _pick_col(deep_df.columns, ['Lineno_renamed', 'line_no', 'Line'])
+
+                if deep_year_col and deep_line_col:
+                    deep_df_year = deep_df[pd.to_numeric(deep_df[deep_year_col], errors='coerce') == year]
+                    valid_lines.update(
+                        _normalize_bus_line_code(code)
+                        for code in deep_df_year[deep_line_col].dropna().astype(str).tolist()
+                    )
+
         if not valid_lines:
             return jsonify([])
 
-        df = pd.read_csv(BUS_OPEN_ARCHIVE_PATH, dtype=str)
-        year_col = _pick_col(df.columns, ['TSPR_Year', 'CalendarYear', 'Year'])
-        line_col = _pick_col(df.columns, ['Line', 'Lineno_renamed', 'line_no'])
-        name_col = _pick_col(df.columns, ['Line_Name'])
-
-        if not year_col or not line_col or not name_col:
-            return jsonify([])
-
-        df_year = df[pd.to_numeric(df[year_col], errors='coerce') == year]
-
         options = []
         seen = set()
-        for _, row in df_year.iterrows():
-            normalized_code = _normalize_bus_line_code(row[line_col])
-            if normalized_code in seen or normalized_code not in valid_lines:
-                continue
 
-            line_name = str(row[name_col]).strip()
-            display_code = _format_bus_line_display_code(normalized_code)
-            label = f"{display_code} - {line_name}" if line_name else display_code
+        if os.path.exists(BUS_OPEN_ARCHIVE_PATH):
+            df = pd.read_csv(BUS_OPEN_ARCHIVE_PATH, dtype=str)
+            year_col = _pick_col(df.columns, ['TSPR_Year', 'CalendarYear', 'Year'])
+            line_col = _pick_col(df.columns, ['Line', 'Lineno_renamed', 'line_no'])
+            name_col = _pick_col(df.columns, ['Line_Name'])
 
-            options.append({
-                'value': normalized_code,
-                'label': label
-            })
-            seen.add(normalized_code)
+            if year_col and line_col and name_col:
+                df_year = df[pd.to_numeric(df[year_col], errors='coerce') == year]
+
+                for _, row in df_year.iterrows():
+                    normalized_code = _normalize_bus_line_code(row[line_col])
+                    if normalized_code in seen or normalized_code not in valid_lines:
+                        continue
+
+                    line_name = str(row[name_col]).strip()
+                    display_code = _format_bus_line_display_code(normalized_code)
+                    label = f"{display_code} - {line_name}" if line_name else display_code
+
+                    options.append({
+                        'value': normalized_code,
+                        'label': label
+                    })
+                    seen.add(normalized_code)
+
+        if not options:
+            fallback_codes = sorted(valid_lines, key=_bus_line_sort_key)
+            options = [
+                {
+                    'value': code,
+                    'label': _format_bus_line_display_code(code)
+                }
+                for code in fallback_codes
+            ]
 
         options.sort(key=lambda item: _bus_line_sort_key(item['value']))
 

@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <title>My 2 Years</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/similar_to.css') }}">
 </head>
 <body>
 
@@ -43,57 +44,136 @@
         </div>
     </div>
 
-    <div class="daily-boardings-selectors" id="entityScopeButtons" style="margin-top:0.9em;">
-        <button type="button" class="daily-btn" data-scope="bus">Bus only</button>
-        <button type="button" class="daily-btn" data-scope="station">Station only</button>
-        <button type="button" class="daily-btn daily-btn-active" data-scope="both">Bus and Station</button>
+    <div class="similar-controls" style="margin-top:0.7em;">
+        <div class="reference-card">
+            <div class="slider-row">
+                <label for="rankSpanSlider" style="font-weight:700;color:#0f3850;">Ranks of biggest change</label>
+                <div class="rank-count-pill" id="rankCountLabel">3</div>
+            </div>
+            <input id="rankSpanSlider" type="range" min="1" max="10" step="1" value="3" aria-label="Ranks of biggest change">
+            <div class="slider-ticks" aria-hidden="true">
+                <span>1</span>
+                <span>2</span>
+                <span>3</span>
+                <span>4</span>
+                <span>5</span>
+                <span>6</span>
+                <span>7</span>
+                <span>8</span>
+                <span>9</span>
+                <span>10</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="filter-section" style="margin-top:0.2em;">
+        <div class="daily-boardings-selectors filter-buttons" id="entityScopeButtons">
+            <button type="button" class="daily-btn" data-scope="bus">Bus only</button>
+            <button type="button" class="daily-btn" data-scope="station">Station only</button>
+            <button type="button" class="daily-btn daily-btn-active" data-scope="both">Bus and Station</button>
+        </div>
+
+        <div class="daily-boardings-selectors filter-buttons" id="comparisonFeatureButtons">
+            <button type="button" class="daily-btn daily-btn-active" data-feature="annual_boardings" data-label="Annual boardings">Annual boardings</button>
+            <button type="button" class="daily-btn" data-feature="weekday_boardings" data-label="Weekday boardings">Weekday boardings</button>
+            <button type="button" class="daily-btn" data-feature="sat_boardings" data-label="Sat boardings">Sat boardings</button>
+            <button type="button" class="daily-btn" data-feature="sun_hol_boardings" data-label="Sun/Hol boardings">Sun/Hol boardings</button>
+
+            <button type="button" class="daily-btn" data-feature="revenue_hours" data-bus-only="true" data-label="Revenue hours">Revenue hours</button>
+            <button type="button" class="daily-btn" data-feature="boardings_per_revenue_hour" data-bus-only="true" data-label="Boardings/revenue hours">Boardings/revenue hours</button>
+            <button type="button" class="daily-btn" data-feature="capacity_utilization" data-bus-only="true" data-label="% capacity utilization">% capacity utilization</button>
+            <button type="button" class="daily-btn" data-feature="overcrowded_revenue_hours" data-bus-only="true" data-label="% overcrowded revenue hours">% overcrowded revenue hours</button>
+            <button type="button" class="daily-btn" data-feature="peak_passenger_load" data-bus-only="true" data-label="Peak passenger load">
+                Peak passenger load
+                <span class="feature-tooltip" tabindex="0" aria-label="Peak passenger load definition">i
+                    <span class="feature-tooltip-text">Average number of passengers on the bus during the busiest part of the route.</span>
+                </span>
+            </button>
+            <button type="button" class="daily-btn" data-feature="peak_load_factor" data-bus-only="true" data-label="Peak load factor">
+                Peak load factor
+                <span class="feature-tooltip" tabindex="0" aria-label="Peak load factor definition">i
+                    <span class="feature-tooltip-text">Average share of bus capacity used during peak conditions.</span>
+                </span>
+            </button>
+            <button type="button" class="daily-btn" data-feature="overcrowded_trips" data-bus-only="true" data-label="% overcrowded trips">% overcrowded trips</button>
+            <button type="button" class="daily-btn" data-feature="on_time_performance" data-bus-only="true" data-label="% on time performance">% on time performance</button>
+            <button type="button" class="daily-btn" data-feature="bus_bunching" data-bus-only="true" data-label="% bus bunching">% bus bunching</button>
+            <button type="button" class="daily-btn" data-feature="avg_speed" data-bus-only="true" data-label="Avg speed">Avg speed</button>
+        </div>
     </div>
 
     <div style="display:flex;flex-direction:column;align-items:center;margin-top:1em;gap:0.5em;">
         <div style="width:260px;text-align:center;">
             <button id="compareYearsBtn" class="button-card-2" style="width:100%;">Compare</button>
         </div>
-        <div id="compareYearsResult" class="vs-compare" style="text-align:center;margin-top:0.5em;font-weight:bold;color:#006c9e;word-wrap:break-word;"></div>
+        <div id="compareYearsResult" class="results-status" style="text-align:center;margin-top:0.2em;font-weight:bold;color:#006c9e;word-wrap:break-word;"></div>
     </div>
 
-    <script>
-        function setActiveYear(side, year) {
-            document.querySelectorAll('.year-btn[data-side="' + side + '"]').forEach(btn => btn.classList.remove('year-btn-active'));
-            const target = document.querySelector('.year-btn[data-side="' + side + '"][data-year="' + year + '"]');
-            if (target) target.classList.add('year-btn-active');
-        }
+    <div id="yearsCompareTables" style="width:min(95vw,1100px);display:none;margin-top:0.4em;">
+        <div style="color:#0f3850;font-weight:700;text-align:center;margin-bottom:0.35em;" id="positiveTableTitle"></div>
+        <div class="results-table-wrap" style="width:min(94vw,1000px);margin:0.2em auto 0.9em auto;">
+            <table class="results-table" id="positiveResultsTable">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th id="positiveYear1Header">Stat in Year 1</th>
+                        <th id="positiveYear2Header">Stat in Year 2</th>
+                        <th id="positivePercentHeader">% Change (from Year 1 to Year 2)</th>
+                    </tr>
+                </thead>
+                <tbody id="positiveResultsBody">
+                    <tr><td colspan="4">No results yet. Select filters and click Compare.</td></tr>
+                </tbody>
+            </table>
+        </div>
 
-        function getActiveYear(side) {
-            const active = document.querySelector('.year-btn[data-side="' + side + '"].year-btn-active');
-            return active ? active.dataset.year : '';
-        }
+        <div style="color:#0f3850;font-weight:700;text-align:center;margin-bottom:0.35em;" id="negativeTableTitle"></div>
+        <div class="results-table-wrap" style="width:min(94vw,1000px);margin:0.2em auto 1.1em auto;">
+            <table class="results-table" id="negativeResultsTable">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th id="negativeYear1Header">Stat in Year 1</th>
+                        <th id="negativeYear2Header">Stat in Year 2</th>
+                        <th id="negativePercentHeader">% Change (from Year 1 to Year 2)</th>
+                    </tr>
+                </thead>
+                <tbody id="negativeResultsBody">
+                    <tr><td colspan="4">No results yet. Select filters and click Compare.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
 
-        document.addEventListener('click', function (e) {
-            if (e.target.classList.contains('year-btn')) {
-                setActiveYear(e.target.dataset.side, e.target.dataset.year);
-            }
+    <div class="similar-controls" style="margin-top:0.7em;">
+        <div class="reference-card">
+            <label class="reference-label" for="detailEntityDropdown">Individual Bus/Station details</label>
+            <select id="detailEntityDropdown" name="detailEntity" style="width:100%;padding:0.8em;border-radius:0.5em;">
+                <option value="">Loading options...</option>
+            </select>
+        </div>
+    </div>
 
-            if (e.target.closest('#entityScopeButtons .daily-btn')) {
-                document.querySelectorAll('#entityScopeButtons .daily-btn').forEach(btn => btn.classList.remove('daily-btn-active'));
-                e.target.closest('#entityScopeButtons .daily-btn').classList.add('daily-btn-active');
-            }
-        });
+    <div id="detailMetricsWrap" style="width:min(95vw,1100px);display:none;margin-top:0.35em;">
+        <div class="results-table-wrap" style="width:min(94vw,1000px);margin:0.2em auto 1.1em auto;">
+            <table class="results-table" id="detailMetricsTable">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Metric</th>
+                        <th id="detailYear1Header">Stat in Year 1</th>
+                        <th id="detailYear2Header">Stat in Year 2</th>
+                        <th id="detailPercentHeader">% Change (from Year 1 to Year 2)</th>
+                    </tr>
+                </thead>
+                <tbody id="detailMetricsBody">
+                    <tr><td colspan="5">Select a bus line or station to view detailed metrics.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
 
-        document.getElementById('swapYearsBtn').addEventListener('click', function () {
-            const year1 = getActiveYear('year1');
-            const year2 = getActiveYear('year2');
-            if (year1 && year2) {
-                setActiveYear('year1', year2);
-                setActiveYear('year2', year1);
-            }
-        });
-
-        document.getElementById('compareYearsBtn').addEventListener('click', function () {
-            const year1 = getActiveYear('year1');
-            const year2 = getActiveYear('year2');
-            document.getElementById('compareYearsResult').textContent = year1 && year2 ? (year1 + ' vs ' + year2) : 'Please select both years.';
-        });
-    </script>
+    <script src="{{ url_for('static', filename='js/my_2_years.js') }}"></script>
 
     <a href="/" class="button-card back-button">
         &laquo; Back to Home / Upload Page

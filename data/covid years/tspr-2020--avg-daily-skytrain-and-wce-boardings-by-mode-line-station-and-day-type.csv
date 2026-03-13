@@ -1,0 +1,171 @@
+﻿Mode/Line,DayType,Station,AvgDailyBoardings
+Canada Line,Mon-Fri,Aberdeen Station,1700
+Canada Line,Mon-Fri,Bridgeport Station,3400
+Canada Line,Mon-Fri,Broadway–City Hall Station,6000
+Canada Line,Mon-Fri,King Edward Station,2900
+Canada Line,Mon-Fri,Langara–49th Avenue Station,3100
+Canada Line,Mon-Fri,Lansdowne Station,1600
+Canada Line,Mon-Fri,Marine Drive Station,5100
+Canada Line,Mon-Fri,Oakridge–41st Avenue Station,3400
+Canada Line,Mon-Fri,Olympic Village Station,1900
+Canada Line,Mon-Fri,Richmond–Brighouse Station,4600
+Canada Line,Mon-Fri,Sea Island Station,500
+Canada Line,Mon-Fri,Templeton Station,900
+Canada Line,Mon-Fri,Vancouver City Centre Station,6000
+Canada Line,Mon-Fri,Waterfront Station,4700
+Canada Line,Mon-Fri,Yaletown–Roundhouse Station,4300
+Canada Line,Mon-Fri,YVR–Airport Station,1200
+Canada Line,Sat,Aberdeen Station,1900
+Canada Line,Sat,Bridgeport Station,2500
+Canada Line,Sat,Broadway–City Hall Station,4600
+Canada Line,Sat,King Edward Station,2300
+Canada Line,Sat,Langara–49th Avenue Station,2500
+Canada Line,Sat,Lansdowne Station,1600
+Canada Line,Sat,Marine Drive Station,4400
+Canada Line,Sat,Oakridge–41st Avenue Station,2900
+Canada Line,Sat,Olympic Village Station,1400
+Canada Line,Sat,Richmond–Brighouse Station,4000
+Canada Line,Sat,Sea Island Station,300
+Canada Line,Sat,Templeton Station,1000
+Canada Line,Sat,Vancouver City Centre Station,5400
+Canada Line,Sat,Waterfront Station,3400
+Canada Line,Sat,Yaletown–Roundhouse Station,3700
+Canada Line,Sat,YVR–Airport Station,900
+Canada Line,Sun/Hol,Aberdeen Station,1400
+Canada Line,Sun/Hol,Bridgeport Station,2200
+Canada Line,Sun/Hol,Broadway–City Hall Station,3400
+Canada Line,Sun/Hol,King Edward Station,1700
+Canada Line,Sun/Hol,Langara–49th Avenue Station,1900
+Canada Line,Sun/Hol,Lansdowne Station,1200
+Canada Line,Sun/Hol,Marine Drive Station,3500
+Canada Line,Sun/Hol,Oakridge–41st Avenue Station,2200
+Canada Line,Sun/Hol,Olympic Village Station,1000
+Canada Line,Sun/Hol,Richmond–Brighouse Station,3000
+Canada Line,Sun/Hol,Sea Island Station,200
+Canada Line,Sun/Hol,Templeton Station,1000
+Canada Line,Sun/Hol,Vancouver City Centre Station,4000
+Canada Line,Sun/Hol,Waterfront Station,2600
+Canada Line,Sun/Hol,Yaletown–Roundhouse Station,2800
+Canada Line,Sun/Hol,YVR–Airport Station,1200
+Expo/Millennium Lines,Mon-Fri,22nd Street Station,5600
+Expo/Millennium Lines,Mon-Fri,29th Avenue Station,3500
+Expo/Millennium Lines,Mon-Fri,Braid Station,2400
+Expo/Millennium Lines,Mon-Fri,Brentwood Town Centre Station,2400
+Expo/Millennium Lines,Mon-Fri,Burquitlam Station,1900
+Expo/Millennium Lines,Mon-Fri,Burrard Station,8600
+Expo/Millennium Lines,Mon-Fri,Columbia Station,2400
+Expo/Millennium Lines,Mon-Fri,Commercial–Broadway Station,11100
+Expo/Millennium Lines,Mon-Fri,Coquitlam Central Station,2300
+Expo/Millennium Lines,Mon-Fri,Edmonds Station,5700
+Expo/Millennium Lines,Mon-Fri,Gateway Station,3200
+Expo/Millennium Lines,Mon-Fri,Gilmore Station,1700
+Expo/Millennium Lines,Mon-Fri,Granville Station,7400
+Expo/Millennium Lines,Mon-Fri,Holdom Station,1400
+Expo/Millennium Lines,Mon-Fri,Inlet Centre Station,1000
+Expo/Millennium Lines,Mon-Fri,Joyce–Collingwood Station,7800
+Expo/Millennium Lines,Mon-Fri,King George Station,6600
+Expo/Millennium Lines,Mon-Fri,Lafarge Lake-Douglas Station,900
+Expo/Millennium Lines,Mon-Fri,Lake City Way Station,600
+Expo/Millennium Lines,Mon-Fri,Lincoln Station,1700
+Expo/Millennium Lines,Mon-Fri,Lougheed Town Centre Station,5500
+Expo/Millennium Lines,Mon-Fri,Main Street–Science World Station,5200
+Expo/Millennium Lines,Mon-Fri,Metrotown Station,11000
+Expo/Millennium Lines,Mon-Fri,Moody Centre Station,1200
+Expo/Millennium Lines,Mon-Fri,Nanaimo Station,3200
+Expo/Millennium Lines,Mon-Fri,New Westminster Station,7100
+Expo/Millennium Lines,Mon-Fri,Patterson Station,2100
+Expo/Millennium Lines,Mon-Fri,Production Way–University Station,2100
+Expo/Millennium Lines,Mon-Fri,Renfrew Station,1600
+Expo/Millennium Lines,Mon-Fri,Royal Oak Station,2800
+Expo/Millennium Lines,Mon-Fri,Rupert Station,1600
+Expo/Millennium Lines,Mon-Fri,Sapperton Station,1500
+Expo/Millennium Lines,Mon-Fri,Scott Road Station,5100
+Expo/Millennium Lines,Mon-Fri,Sperling–Burnaby Lake Station,900
+Expo/Millennium Lines,Mon-Fri,Stadium–Chinatown Station,5600
+Expo/Millennium Lines,Mon-Fri,Surrey Central Station,6900
+Expo/Millennium Lines,Mon-Fri,VCC–Clark Station,1200
+Expo/Millennium Lines,Mon-Fri,Waterfront Station,5500
+Expo/Millennium Lines,Sat,22nd Street Station,3900
+Expo/Millennium Lines,Sat,29th Avenue Station,2900
+Expo/Millennium Lines,Sat,Braid Station,1600
+Expo/Millennium Lines,Sat,Brentwood Town Centre Station,1700
+Expo/Millennium Lines,Sat,Burquitlam Station,1600
+Expo/Millennium Lines,Sat,Burrard Station,5800
+Expo/Millennium Lines,Sat,Columbia Station,1800
+Expo/Millennium Lines,Sat,Commercial–Broadway Station,8900
+Expo/Millennium Lines,Sat,Coquitlam Central Station,1800
+Expo/Millennium Lines,Sat,Edmonds Station,4100
+Expo/Millennium Lines,Sat,Gateway Station,2400
+Expo/Millennium Lines,Sat,Gilmore Station,1100
+Expo/Millennium Lines,Sat,Granville Station,6800
+Expo/Millennium Lines,Sat,Holdom Station,1000
+Expo/Millennium Lines,Sat,Inlet Centre Station,700
+Expo/Millennium Lines,Sat,Joyce–Collingwood Station,6900
+Expo/Millennium Lines,Sat,King George Station,4800
+Expo/Millennium Lines,Sat,Lafarge Lake-Douglas Station,600
+Expo/Millennium Lines,Sat,Lake City Way Station,300
+Expo/Millennium Lines,Sat,Lincoln Station,1600
+Expo/Millennium Lines,Sat,Lougheed Town Centre Station,4300
+Expo/Millennium Lines,Sat,Main Street–Science World Station,4600
+Expo/Millennium Lines,Sat,Metrotown Station,11100
+Expo/Millennium Lines,Sat,Moody Centre Station,900
+Expo/Millennium Lines,Sat,Nanaimo Station,2700
+Expo/Millennium Lines,Sat,New Westminster Station,6000
+Expo/Millennium Lines,Sat,Patterson Station,1800
+Expo/Millennium Lines,Sat,Production Way–University Station,1100
+Expo/Millennium Lines,Sat,Renfrew Station,1300
+Expo/Millennium Lines,Sat,Royal Oak Station,2000
+Expo/Millennium Lines,Sat,Rupert Station,1400
+Expo/Millennium Lines,Sat,Sapperton Station,900
+Expo/Millennium Lines,Sat,Scott Road Station,3900
+Expo/Millennium Lines,Sat,Sperling–Burnaby Lake Station,600
+Expo/Millennium Lines,Sat,Stadium–Chinatown Station,4800
+Expo/Millennium Lines,Sat,Surrey Central Station,5800
+Expo/Millennium Lines,Sat,VCC–Clark Station,700
+Expo/Millennium Lines,Sat,Waterfront Station,4400
+Expo/Millennium Lines,Sun/Hol,22nd Street Station,3000
+Expo/Millennium Lines,Sun/Hol,29th Avenue Station,2300
+Expo/Millennium Lines,Sun/Hol,Braid Station,1100
+Expo/Millennium Lines,Sun/Hol,Brentwood Town Centre Station,1200
+Expo/Millennium Lines,Sun/Hol,Burquitlam Station,1200
+Expo/Millennium Lines,Sun/Hol,Burrard Station,4400
+Expo/Millennium Lines,Sun/Hol,Columbia Station,1300
+Expo/Millennium Lines,Sun/Hol,Commercial–Broadway Station,6400
+Expo/Millennium Lines,Sun/Hol,Coquitlam Central Station,1300
+Expo/Millennium Lines,Sun/Hol,Edmonds Station,3100
+Expo/Millennium Lines,Sun/Hol,Gateway Station,1800
+Expo/Millennium Lines,Sun/Hol,Gilmore Station,700
+Expo/Millennium Lines,Sun/Hol,Granville Station,4900
+Expo/Millennium Lines,Sun/Hol,Holdom Station,700
+Expo/Millennium Lines,Sun/Hol,Inlet Centre Station,500
+Expo/Millennium Lines,Sun/Hol,Joyce–Collingwood Station,5400
+Expo/Millennium Lines,Sun/Hol,King George Station,3700
+Expo/Millennium Lines,Sun/Hol,Lafarge Lake-Douglas Station,500
+Expo/Millennium Lines,Sun/Hol,Lake City Way Station,200
+Expo/Millennium Lines,Sun/Hol,Lincoln Station,1200
+Expo/Millennium Lines,Sun/Hol,Lougheed Town Centre Station,3000
+Expo/Millennium Lines,Sun/Hol,Main Street–Science World Station,3400
+Expo/Millennium Lines,Sun/Hol,Metrotown Station,8600
+Expo/Millennium Lines,Sun/Hol,Moody Centre Station,600
+Expo/Millennium Lines,Sun/Hol,Nanaimo Station,2100
+Expo/Millennium Lines,Sun/Hol,New Westminster Station,4300
+Expo/Millennium Lines,Sun/Hol,Patterson Station,1300
+Expo/Millennium Lines,Sun/Hol,Production Way–University Station,700
+Expo/Millennium Lines,Sun/Hol,Renfrew Station,1000
+Expo/Millennium Lines,Sun/Hol,Royal Oak Station,1400
+Expo/Millennium Lines,Sun/Hol,Rupert Station,1100
+Expo/Millennium Lines,Sun/Hol,Sapperton Station,600
+Expo/Millennium Lines,Sun/Hol,Scott Road Station,3100
+Expo/Millennium Lines,Sun/Hol,Sperling–Burnaby Lake Station,500
+Expo/Millennium Lines,Sun/Hol,Stadium–Chinatown Station,3600
+Expo/Millennium Lines,Sun/Hol,Surrey Central Station,4500
+Expo/Millennium Lines,Sun/Hol,VCC–Clark Station,500
+Expo/Millennium Lines,Sun/Hol,Waterfront Station,3200
+West Coast Express,Mon-Fri,Coquitlam Central Station ,200
+West Coast Express,Mon-Fri,Maple Meadows Station,100
+West Coast Express,Mon-Fri,Mission City Station,200
+West Coast Express,Mon-Fri,Moody Centre Station,200
+West Coast Express,Mon-Fri,Pitt Meadows Station,100
+West Coast Express,Mon-Fri,Port Coquitlam Station,200
+West Coast Express,Mon-Fri,Port Haney Station,100
+West Coast Express,Mon-Fri,Waterfront Station,800
