@@ -25,6 +25,10 @@ performance data. It allows users to easily explore and compare performance metr
 
 ● Fun minigame: Bus line/SkyTrain station trivia: which bus line has more riders/the most amount of riders? Other questions: Which has more overcrowding? Higher speed?
 
+## Preview
+
+![alt text](static/images/image.png)
+
 ## Notes
 
 ● Image credit for My 2 Stations goes to Wikimedia Commons, where all images are licensed under Creative Commons. Images are found from the station's main Wikipedia page.
