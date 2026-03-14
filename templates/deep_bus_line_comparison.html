@@ -11,7 +11,7 @@
         <h2>Deep Bus Line Comparison</h2>
     </div>
 
-    <p class="deep-bus-note">2023 data</p>
+    <p class="deep-bus-note">Left and right years can be selected independently</p>
 
     <div class="deep-bus-controls-wrap">
         <div class="deep-bus-side-panel" data-side="left">
@@ -19,6 +19,15 @@
             <select id="deepLine1" name="deepLine1" class="deep-bus-line-select">
                 <option value="">Loading 2023 lines...</option>
             </select>
+
+            <div class="deep-layer-group">
+                <div class="deep-layer-title">Year</div>
+                <div class="deep-layer-buttons">
+                    <button type="button" class="deep-option-btn deep-year-btn" data-group="left-year" data-value="2019">2019</button>
+                    <button type="button" class="deep-option-btn deep-year-btn" data-group="left-year" data-value="2022">2022</button>
+                    <button type="button" class="deep-option-btn deep-year-btn deep-option-btn-active" data-group="left-year" data-value="2023">2023</button>
+                </div>
+            </div>
 
             <div class="deep-layer-group">
                 <div class="deep-layer-title">By day of the week</div>
@@ -61,6 +70,15 @@
             <select id="deepLine2" name="deepLine2" class="deep-bus-line-select">
                 <option value="">Loading 2023 lines...</option>
             </select>
+
+            <div class="deep-layer-group">
+                <div class="deep-layer-title">Year</div>
+                <div class="deep-layer-buttons">
+                    <button type="button" class="deep-option-btn deep-year-btn" data-group="right-year" data-value="2019">2019</button>
+                    <button type="button" class="deep-option-btn deep-year-btn" data-group="right-year" data-value="2022">2022</button>
+                    <button type="button" class="deep-option-btn deep-year-btn deep-option-btn-active" data-group="right-year" data-value="2023">2023</button>
+                </div>
+            </div>
 
             <div class="deep-layer-group">
                 <div class="deep-layer-title">By day of the week</div>

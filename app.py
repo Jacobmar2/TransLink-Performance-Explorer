@@ -38,6 +38,7 @@ BUS_COVID_2021_TOTAL_PATH = os.path.join("data", "covid years", "tspr-fall-2021-
 BUS_COVID_2021_DAILY_PATH = os.path.join("data", "covid years", "tspr-fall-2021-avg-daily-bus-boardings-by-route-and-day-type.csv")
 BUS_DEEP_2023_PATH = os.path.join("data", "tspr2023_bus_yearlinedaytypeseasontimerange(2).csv")
 BUS_DEEP_2023_PEAK_PATH = os.path.join("data", "tspr2023_bus_peakload_yearlinedaytypeseasontimerangedirection.csv")
+BUS_DEEP_LEGACY_PATH = os.path.join("data", "TSPR2022_Bus_KeyIndicators_YearLinenoDaytypeSeasonTimerange.csv")
 
 
 def _pick_col(columns, candidates):
@@ -702,6 +703,17 @@ DEEP_TIME_RANGE_TO_HOURS = {
     '24-4': 4
 }
 
+DEEP_TIME_PAIR_TO_BUCKET = {
+    (4, 6): '4-6',
+    (6, 9): '6-9',
+    (9, 15): '9-15',
+    (15, 18): '15-18',
+    (18, 21): '18-21',
+    (21, 24): '21-24',
+    (24, 4): '24-4',
+    (0, 4): '24-4'
+}
+
 
 def _normalize_deep_day(raw_day):
     normalized = str(raw_day or '').strip().lower()
@@ -733,6 +745,20 @@ def _normalize_deep_start_hour(raw_hour):
     return int(match.group(0))
 
 
+def _normalize_deep_time_bucket(raw_time):
+    text = str(raw_time or '').strip()
+    if text in DEEP_TIME_RANGE_TO_START:
+        return text
+
+    match = re.match(r'^\s*(\d{1,2})\s*:\s*\d{2}\s*-\s*(\d{1,2})\s*:\s*\d{2}\s*$', text)
+    if not match:
+        return None
+
+    start = int(match.group(1))
+    end = int(match.group(2))
+    return DEEP_TIME_PAIR_TO_BUCKET.get((start, end))
+
+
 def _mean_or_none(df, col_name):
     if col_name not in df.columns or df.empty:
         return None
@@ -740,6 +766,24 @@ def _mean_or_none(df, col_name):
     if values.empty:
         return None
     return float(values.mean())
+
+
+def _mean_list_or_none(values):
+    if not values:
+        return None
+    numeric_values = pd.to_numeric(pd.Series(values), errors='coerce').dropna()
+    if numeric_values.empty:
+        return None
+    return float(numeric_values.mean())
+
+
+def _normalize_peak_load_factor_percent(value):
+    numeric_value = _safe_float(value)
+    if numeric_value is None:
+        return None
+    if abs(numeric_value) <= 2:
+        return numeric_value * 100.0
+    return numeric_value
 
 
 @lru_cache(maxsize=1)
@@ -798,9 +842,36 @@ def _load_deep_2023_peak_df():
     return df
 
 
-def _build_deep_side_payload(base_df, peak_df, line_code, day_norm, season_norm, hour_start, time_range):
+@lru_cache(maxsize=1)
+def _load_deep_legacy_df():
+    if not os.path.exists(BUS_DEEP_LEGACY_PATH):
+        return pd.DataFrame()
+
+    df = pd.read_csv(BUS_DEEP_LEGACY_PATH)
+    if df.empty:
+        return df
+
+    year_col = _pick_col(df.columns, ['Year'])
+    line_col = _pick_col(df.columns, ['line_no', 'Lineno_renamed', 'Line'])
+    day_col = _pick_col(df.columns, ['DayType', 'Day_Type'])
+    season_col = _pick_col(df.columns, ['sheet', 'Season'])
+    time_col = _pick_col(df.columns, ['Time_Range', 'Hour_Range', 'HourRange'])
+
+    if not year_col or not line_col or not day_col or not season_col or not time_col:
+        return pd.DataFrame()
+
+    df = df.copy()
+    df['year_norm'] = pd.to_numeric(df[year_col], errors='coerce')
+    df['line_norm'] = df[line_col].apply(_normalize_bus_line_code)
+    df['day_norm'] = df[day_col].apply(_normalize_deep_day)
+    df['season_norm'] = df[season_col].apply(_normalize_deep_season)
+    df['time_bucket_norm'] = df[time_col].apply(_normalize_deep_time_bucket)
+    return df
+
+
+def _build_deep_side_payload_modern(base_df, peak_df, year, line_code, day_norm, season_norm, hour_start, time_range):
     section_rows = base_df[
-        (base_df['year_norm'] == 2023) &
+        (base_df['year_norm'] == year) &
         (base_df['line_norm'] == line_code) &
         (base_df['day_norm'] == day_norm) &
         (base_df['season_norm'] == season_norm) &
@@ -808,7 +879,7 @@ def _build_deep_side_payload(base_df, peak_df, line_code, day_norm, season_norm,
     ] if not base_df.empty else pd.DataFrame()
 
     peak_rows = peak_df[
-        (peak_df['year_norm'] == 2023) &
+        (peak_df['year_norm'] == year) &
         (peak_df['line_norm'] == line_code) &
         (peak_df['day_norm'] == day_norm) &
         (peak_df['season_norm'] == season_norm) &
@@ -846,9 +917,72 @@ def _build_deep_side_payload(base_df, peak_df, line_code, day_norm, season_norm,
     }
 
 
+def _build_deep_side_payload_legacy(legacy_df, year, line_code, day_norm, season_norm, time_range):
+    section_rows = legacy_df[
+        (legacy_df['year_norm'] == year) &
+        (legacy_df['line_norm'] == line_code) &
+        (legacy_df['day_norm'] == day_norm) &
+        (legacy_df['season_norm'] == season_norm) &
+        (legacy_df['time_bucket_norm'] == time_range)
+    ] if not legacy_df.empty else pd.DataFrame()
+
+    direction_values = {}
+
+    if not section_rows.empty:
+        for _, row in section_rows.iterrows():
+            east_dir = str(row.get('direction_name_EastNorth', '')).strip().upper()
+            west_dir = str(row.get('direction_name_WestSouth', '')).strip().upper()
+
+            east_peak_passenger = _safe_float(row.get('Average_Peak_Passenger_Load_EastNorth'))
+            east_peak_factor = _normalize_peak_load_factor_percent(row.get('Average_Peak_Load_Factor_Percentage_EastNorth'))
+            west_peak_passenger = _safe_float(row.get('Average_Peak_Passenger_Load_WestSouth'))
+            west_peak_factor = _normalize_peak_load_factor_percent(row.get('Average_Peak_Load_Factor_Percentage_WestSouth'))
+
+            if east_dir and east_dir not in {'NULL', 'NAN'}:
+                direction_values.setdefault(east_dir, {'peak_passenger_load': [], 'peak_load_factor': []})
+                if east_peak_passenger is not None:
+                    direction_values[east_dir]['peak_passenger_load'].append(east_peak_passenger)
+                if east_peak_factor is not None:
+                    direction_values[east_dir]['peak_load_factor'].append(east_peak_factor)
+
+            if west_dir and west_dir not in {'NULL', 'NAN'}:
+                direction_values.setdefault(west_dir, {'peak_passenger_load': [], 'peak_load_factor': []})
+                if west_peak_passenger is not None:
+                    direction_values[west_dir]['peak_passenger_load'].append(west_peak_passenger)
+                if west_peak_factor is not None:
+                    direction_values[west_dir]['peak_load_factor'].append(west_peak_factor)
+
+    available_directions = sorted(direction_values.keys())
+    direction_metrics = {
+        direction_name: {
+            'peak_passenger_load': _mean_list_or_none(metrics['peak_passenger_load']),
+            'peak_load_factor': _mean_list_or_none(metrics['peak_load_factor'])
+        }
+        for direction_name, metrics in direction_values.items()
+    }
+
+    return {
+        'line': line_code,
+        'day': day_norm,
+        'season': season_norm,
+        'time_range': time_range,
+        'time_span_hours': DEEP_TIME_RANGE_TO_HOURS.get(time_range),
+        'revenue_hours': _mean_or_none(section_rows, 'Revenue_Hours'),
+        'service_hours': _mean_or_none(section_rows, 'Service_Hours'),
+        'trips_per_clock_hour_per_direction': _mean_or_none(section_rows, 'Average_Trips_Per_Clock_Hour_Per_Direction'),
+        'boardings_per_revenue_hour': _mean_or_none(section_rows, 'Average_Boardings_Per_Revenue_Hour'),
+        'boardings_per_trip': _mean_or_none(section_rows, 'Average_Boardings_Per_Trip'),
+        'available_directions': available_directions,
+        'direction_metrics': direction_metrics
+    }
+
+
 @app.route('/api/deep-bus-line-compare-2023')
 def deep_bus_line_compare_2023():
     try:
+        fallback_year = request.args.get('year', default=2023, type=int)
+        year1 = request.args.get('year1', default=fallback_year, type=int)
+        year2 = request.args.get('year2', default=fallback_year, type=int)
         line1 = _normalize_bus_line_code(request.args.get('line1', default='', type=str))
         line2 = _normalize_bus_line_code(request.args.get('line2', default='', type=str))
 
@@ -864,6 +998,8 @@ def deep_bus_line_compare_2023():
 
         if not line1 or not line2:
             return jsonify({'error': 'line1 and line2 are required'}), 400
+        if year1 not in {2019, 2022, 2023} or year2 not in {2019, 2022, 2023}:
+            return jsonify({'error': 'year1 and year2 must be one of: 2019, 2022, 2023'}), 400
         if not day1 or not day2:
             return jsonify({'error': 'day1 and day2 are required'}), 400
         if not season1 or not season2:
@@ -875,15 +1011,26 @@ def deep_bus_line_compare_2023():
 
         base_df = _load_deep_2023_base_df()
         peak_df = _load_deep_2023_peak_df()
+        legacy_df = _load_deep_legacy_df()
 
-        if base_df.empty and peak_df.empty:
-            return jsonify({'error': 'Deep comparison 2023 source files are unavailable'}), 500
+        if (year1 in {2022, 2023} or year2 in {2022, 2023}) and base_df.empty and peak_df.empty:
+            return jsonify({'error': 'Deep comparison source files are unavailable for selected year(s)'}), 500
+        if (year1 == 2019 or year2 == 2019) and legacy_df.empty:
+            return jsonify({'error': 'Legacy deep comparison source file is unavailable'}), 500
 
-        left_payload = _build_deep_side_payload(base_df, peak_df, line1, day1, season1, start1, time1)
-        right_payload = _build_deep_side_payload(base_df, peak_df, line2, day2, season2, start2, time2)
+        if year1 in {2022, 2023}:
+            left_payload = _build_deep_side_payload_modern(base_df, peak_df, year1, line1, day1, season1, start1, time1)
+        else:
+            left_payload = _build_deep_side_payload_legacy(legacy_df, year1, line1, day1, season1, time1)
+
+        if year2 in {2022, 2023}:
+            right_payload = _build_deep_side_payload_modern(base_df, peak_df, year2, line2, day2, season2, start2, time2)
+        else:
+            right_payload = _build_deep_side_payload_legacy(legacy_df, year2, line2, day2, season2, time2)
 
         return jsonify({
-            'year': 2023,
+            'year_left': year1,
+            'year_right': year2,
             'left': left_payload,
             'right': right_payload
         })
@@ -924,7 +1071,7 @@ def bus_line_options():
 
         # Ensure deep-comparison year data can still populate dropdowns
         # even when open-archive labels are unavailable.
-        if year == 2023:
+        if year in {2022, 2023}:
             deep_2023_path = os.path.join("data", "tspr2023_bus_yearlinedaytypeseasontimerange(2).csv")
             if os.path.exists(deep_2023_path):
                 deep_df = pd.read_csv(deep_2023_path, dtype=str)
@@ -937,6 +1084,18 @@ def bus_line_options():
                         _normalize_bus_line_code(code)
                         for code in deep_df_year[deep_line_col].dropna().astype(str).tolist()
                     )
+
+        if year == 2019 and os.path.exists(BUS_DEEP_LEGACY_PATH):
+            deep_legacy_df = pd.read_csv(BUS_DEEP_LEGACY_PATH, dtype=str)
+            deep_year_col = _pick_col(deep_legacy_df.columns, ['Year'])
+            deep_line_col = _pick_col(deep_legacy_df.columns, ['line_no', 'Lineno_renamed', 'Line'])
+
+            if deep_year_col and deep_line_col:
+                deep_df_year = deep_legacy_df[pd.to_numeric(deep_legacy_df[deep_year_col], errors='coerce') == year]
+                valid_lines.update(
+                    _normalize_bus_line_code(code)
+                    for code in deep_df_year[deep_line_col].dropna().astype(str).tolist()
+                )
 
         if not valid_lines:
             return jsonify([])
@@ -1344,6 +1503,7 @@ def station_images_data():
             "New Westminster Station": "https://upload.wikimedia.org/wikipedia/commons/2/28/New_Westminster_platform_level_%282%29.jpg",
             "Oakridge-41st Avenue Station": "https://upload.wikimedia.org/wikipedia/commons/6/6d/Oakridge-41st_Avenue_Station.JPG",
             "Olympic Village Station": "https://upload.wikimedia.org/wikipedia/commons/c/c4/Olympic_Village_station_entrance%2C_May_2019_%281%29.jpg",
+            "Patterson Station": "https://upload.wikimedia.org/wikipedia/commons/c/c4/Patterson_station%2C_August_2018.jpg",
             "Production Way-University Station": "https://upload.wikimedia.org/wikipedia/commons/4/45/Production_Way%E2%80%93University_station_platform.jpg",
             "Renfrew Station": "https://upload.wikimedia.org/wikipedia/commons/7/7c/MLine-Renfrew.jpg",
             "Royal Oak Station": "https://upload.wikimedia.org/wikipedia/commons/5/52/Royal_Oak_station%2C_March_2019.jpg",

@@ -769,6 +769,19 @@ body {
     font-weight: 700;
 }
 
+.deep-year-controls-wrap {
+    width: min(95vw, 1200px);
+    margin: 0.2em auto 0.45em auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+}
+
+.deep-year-btn {
+    --deep-accent: #0059b3;
+}
+
 .deep-bus-controls-wrap {
     width: min(95vw, 1200px);
     display: grid;
@@ -891,6 +904,10 @@ body {
 
 .deep-time-btn {
     --deep-accent: #0a8c4a;
+}
+
+.deep-option-btn.deep-year-btn {
+    --deep-accent: #0059b3;
 }
 
 .deep-option-btn:hover,

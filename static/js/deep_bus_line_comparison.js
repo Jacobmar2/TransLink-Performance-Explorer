@@ -56,6 +56,37 @@ function fillDeepLineSelect(selectEl, options) {
     });
 }
 
+function loadDeepLineOptionsForSide(side, year) {
+    const selectId = side === 'left' ? 'deepLine1' : 'deepLine2';
+    const selectEl = document.getElementById(selectId);
+    if (!selectEl) return;
+
+    const previousValue = selectEl.value;
+    const loading = [{ value: '', label: 'Loading ' + year + ' lines...' }];
+    fillDeepLineSelect(selectEl, loading);
+
+    fetch('/api/bus-line-options?year=' + encodeURIComponent(String(year)))
+        .then(function(response) {
+            if (!response.ok) {
+                throw new Error('Could not load ' + year + ' bus line options');
+            }
+            return response.json();
+        })
+        .then(function(options) {
+            const normalized = Array.isArray(options) ? options : [];
+            fillDeepLineSelect(selectEl, normalized);
+
+            const optionValues = new Set(normalized.map(function(option) { return String(option.value || ''); }));
+            if (optionValues.has(previousValue)) {
+                selectEl.value = previousValue;
+            }
+        })
+        .catch(function() {
+            const fallback = [{ value: '', label: 'Unable to load lines' }];
+            fillDeepLineSelect(selectEl, fallback);
+        });
+}
+
 function setDeepGroupActive(groupName, clickedBtn) {
     document.querySelectorAll('.deep-option-btn[data-group="' + groupName + '"]').forEach(function(btn) {
         btn.classList.remove('deep-option-btn-active');
@@ -81,9 +112,11 @@ function swapDeepSelectedLines() {
     if (!leftSelect || !rightSelect) return;
 
     const leftValue = leftSelect.value;
+    const leftYear = getActiveDeepValue('left-year');
     const leftDay = getActiveDeepValue('left-day');
     const leftSeason = getActiveDeepValue('left-season');
     const leftTime = getActiveDeepValue('left-time');
+    const rightYear = getActiveDeepValue('right-year');
     const rightDay = getActiveDeepValue('right-day');
     const rightSeason = getActiveDeepValue('right-season');
     const rightTime = getActiveDeepValue('right-time');
@@ -91,28 +124,39 @@ function swapDeepSelectedLines() {
     leftSelect.value = rightSelect.value;
     rightSelect.value = leftValue;
 
+    setDeepGroupActiveByValue('left-year', rightYear);
     setDeepGroupActiveByValue('left-day', rightDay);
     setDeepGroupActiveByValue('left-season', rightSeason);
     setDeepGroupActiveByValue('left-time', rightTime);
+    setDeepGroupActiveByValue('right-year', leftYear);
     setDeepGroupActiveByValue('right-day', leftDay);
     setDeepGroupActiveByValue('right-season', leftSeason);
     setDeepGroupActiveByValue('right-time', leftTime);
+
+    loadDeepLineOptionsForSide('left', rightYear || 2023);
+    loadDeepLineOptionsForSide('right', leftYear || 2023);
 }
 
 function matchDeepRightButtonsToLeft() {
+    const leftYear = getActiveDeepValue('left-year');
     const leftDay = getActiveDeepValue('left-day');
     const leftSeason = getActiveDeepValue('left-season');
     const leftTime = getActiveDeepValue('left-time');
 
+    setDeepGroupActiveByValue('right-year', leftYear);
     setDeepGroupActiveByValue('right-day', leftDay);
     setDeepGroupActiveByValue('right-season', leftSeason);
     setDeepGroupActiveByValue('right-time', leftTime);
+
+    loadDeepLineOptionsForSide('right', leftYear || 2023);
 }
 
 function getCurrentDeepSelections() {
     return {
         line1: (document.getElementById('deepLine1') || {}).value || '',
         line2: (document.getElementById('deepLine2') || {}).value || '',
+        year1: getActiveDeepValue('left-year'),
+        year2: getActiveDeepValue('right-year'),
         day1: getActiveDeepValue('left-day'),
         day2: getActiveDeepValue('right-day'),
         season1: getActiveDeepValue('left-season'),
@@ -203,6 +247,7 @@ function buildLargeMetricText(valueText, labelText) {
 }
 
 function getPeakLoadColor(value) {
+    if (value > 100) return '#8b0000';
     if (value < 40) return '#10d010';
     if (value < 60) return '#ffd400';
     if (value <= 75) return '#ff8c00';
@@ -252,7 +297,7 @@ function buildComparisonText(leftValue, rightValue, leftLabel, rightLabel, metri
         if (leftNum > rightNum) {
             return leftLabel + ' has ' + formatSig(ratio) + 'x more ' + safeMetricLabel + ' than ' + rightLabel;
         }
-        return rightLabel + ' has ' + formatSig(ratio) + 'x more ' + safeMetricLabel + ' than ' + leftLabel;
+        return leftLabel + ' has ' + formatSig(ratio) + 'x less ' + safeMetricLabel + ' than ' + rightLabel;
     }
 
     if (leftNum > rightNum) {
@@ -320,7 +365,7 @@ function renderDeepComparisonResult() {
     const rightLabel = (right.line || '-');
 
     const isRevenueHours = deepCompareState.hoursMetric === 'revenue_hours';
-    const hoursTitle = isRevenueHours ? 'Revenue Hours' : 'Service Hours';
+    const hoursTitle = isRevenueHours ? 'Annual Revenue Hours' : 'Annual Service Hours';
     const leftTotalHours = Number(left[deepCompareState.hoursMetric]);
     const rightTotalHours = Number(right[deepCompareState.hoursMetric]);
     const leftSpan = Number(left.time_span_hours) || 1;
@@ -330,19 +375,19 @@ function renderDeepComparisonResult() {
 
     const leftHoursBody = Number.isFinite(leftAdjustedHours)
         ? generateHourBoxes(leftAdjustedHours) +
-                    buildLargeMetricText(formatNumber(leftTotalHours, 1), 'Total annual ' + hoursTitle.toLowerCase()) +
+                    buildLargeMetricText(formatNumber(leftTotalHours, 1), 'Total ' + hoursTitle.toLowerCase()) +
                     buildLargeMetricText(formatNumber(leftAdjustedHours, 2), 'Adjusted for ' + (left.time_range || '-'))
         : 'No matching data';
 
     const rightHoursBody = Number.isFinite(rightAdjustedHours)
         ? generateHourBoxes(rightAdjustedHours) +
-                    buildLargeMetricText(formatNumber(rightTotalHours, 1), 'Total annual ' + hoursTitle.toLowerCase()) +
+                    buildLargeMetricText(formatNumber(rightTotalHours, 1), 'Total ' + hoursTitle.toLowerCase()) +
                     buildLargeMetricText(formatNumber(rightAdjustedHours, 2), 'Adjusted for ' + (right.time_range || '-'))
         : 'No matching data';
 
     const section1Buttons = '<div class="deep-layer-buttons" style="justify-content:center;margin:12px 0 10px 0;">' +
-        '<button type="button" class="deep-option-btn deep-day-btn deep-section-btn' + (isRevenueHours ? ' deep-option-btn-active' : '') + '" data-action="set-hours-metric" data-metric="revenue_hours">Revenue Hours</button>' +
-        '<button type="button" class="deep-option-btn deep-day-btn deep-section-btn' + (!isRevenueHours ? ' deep-option-btn-active' : '') + '" data-action="set-hours-metric" data-metric="service_hours">Service Hours</button>' +
+        '<button type="button" class="deep-option-btn deep-day-btn deep-section-btn' + (isRevenueHours ? ' deep-option-btn-active' : '') + '" data-action="set-hours-metric" data-metric="revenue_hours">Revenue</button>' +
+        '<button type="button" class="deep-option-btn deep-day-btn deep-section-btn' + (!isRevenueHours ? ' deep-option-btn-active' : '') + '" data-action="set-hours-metric" data-metric="service_hours">Service</button>' +
     '</div>';
 
     const section1 = section1Buttons + buildVsSection(
@@ -372,8 +417,8 @@ function renderDeepComparisonResult() {
     const rightBoardings = right[deepCompareState.boardingsMetric];
 
     const section3Buttons = '<div class="deep-layer-buttons" style="justify-content:center;margin:12px 0 10px 0;">' +
-        '<button type="button" class="deep-option-btn deep-day-btn deep-section-btn' + (isBprh ? ' deep-option-btn-active' : '') + '" data-action="set-boardings-metric" data-metric="boardings_per_revenue_hour">Per Revenue Hour</button>' +
-        '<button type="button" class="deep-option-btn deep-day-btn deep-section-btn' + (!isBprh ? ' deep-option-btn-active' : '') + '" data-action="set-boardings-metric" data-metric="boardings_per_trip">Per Trip</button>' +
+        '<button type="button" class="deep-option-btn deep-day-btn deep-section-btn' + (isBprh ? ' deep-option-btn-active' : '') + '" data-action="set-boardings-metric" data-metric="boardings_per_revenue_hour">Boardings Per Revenue Hour</button>' +
+        '<button type="button" class="deep-option-btn deep-day-btn deep-section-btn' + (!isBprh ? ' deep-option-btn-active' : '') + '" data-action="set-boardings-metric" data-metric="boardings_per_trip">Boardings Per Trip</button>' +
     '</div>';
 
     const section3 = section3Buttons + buildVsSection(
@@ -475,7 +520,7 @@ function loadDeepComparisonData() {
         return;
     }
 
-    resultEl.innerHTML = '<div style="padding:16px;">Loading 2023 deep comparison...</div>';
+    resultEl.innerHTML = '<div style="padding:16px;">Loading deep comparison...</div>';
 
     const params = new URLSearchParams(selections);
     fetch('/api/deep-bus-line-compare-2023?' + params.toString())
@@ -506,6 +551,23 @@ document.addEventListener('click', function(event) {
 
     if (button.classList.contains('deep-option-btn') && button.dataset.group) {
         setDeepGroupActive(button.dataset.group, button);
+
+        if (button.dataset.group === 'left-year' || button.dataset.group === 'right-year') {
+            const selectedYear = parseInt(button.dataset.value || '2023', 10);
+            const yearToLoad = Number.isFinite(selectedYear) ? selectedYear : 2023;
+            const side = button.dataset.group === 'left-year' ? 'left' : 'right';
+            deepCompareState.data = null;
+            deepCompareState.peakPassengerDirection.left = '';
+            deepCompareState.peakPassengerDirection.right = '';
+            deepCompareState.peakLoadFactorDirection.left = '';
+            deepCompareState.peakLoadFactorDirection.right = '';
+            loadDeepLineOptionsForSide(side, yearToLoad);
+
+            const resultEl = document.getElementById('deepCompareResult');
+            if (resultEl) {
+                resultEl.innerHTML = '<div style="padding:16px;">Select both lines and click Compare.</div>';
+            }
+        }
         return;
     }
 
@@ -553,19 +615,5 @@ document.addEventListener('click', function(event) {
     }
 });
 
-fetch('/api/bus-line-options?year=2023')
-    .then(function(response) {
-        if (!response.ok) {
-            throw new Error('Could not load 2023 bus line options');
-        }
-        return response.json();
-    })
-    .then(function(options) {
-        fillDeepLineSelect(document.getElementById('deepLine1'), options || []);
-        fillDeepLineSelect(document.getElementById('deepLine2'), options || []);
-    })
-    .catch(function() {
-        const fallback = [{ value: '', label: 'Unable to load lines' }];
-        fillDeepLineSelect(document.getElementById('deepLine1'), fallback);
-        fillDeepLineSelect(document.getElementById('deepLine2'), fallback);
-    });
+loadDeepLineOptionsForSide('left', getActiveDeepValue('left-year') || 2023);
+loadDeepLineOptionsForSide('right', getActiveDeepValue('right-year') || 2023);

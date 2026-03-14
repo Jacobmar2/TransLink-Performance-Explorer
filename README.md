@@ -3,6 +3,7 @@
 Live Project: https://translink-performance-explorer.onrender.com/
 
 ## What is TransLink-Performance-Explorer?
+
 TransLink Performance Explorer is a web application designed to help users analyze and visualize transit 
 performance data. It allows users to easily explore and compare performance metrics between each other as well as create custom visualizations. It utilizes the TSPR CSV files provided by TransLink as its data source.
 
@@ -16,11 +17,11 @@ performance data. It allows users to easily explore and compare performance metr
 
 ● Similar To: Reveals bus lines/SkyTrain stations that are most closely related to your given bus line/station in a given metric. Like a "recommendation" finder.
 
-## Features (Coming Soon)
-
 ● My 2 Years: Reveals bus lines/SkyTrain stations that had the biggest change (+ and -) in each given metric over the 2 chosen years. From this, you can also choose any individual bus line/SkyTrain station and reveal their change over the 2 years.
 
 ● Deep Bus Line Comparison: Compares any 2 bus line stat subsections. That is, by day of the week (MF, Sat, Sun), Season (Fall, Summer), and Time Range (4, 6, 9, 15, 18, 21, 24). Here, you can compare not only different bus lines of the same subsection (day, season, and time range shared), but also same bus line of different subsections, or even mix it up (ex. compare if a bus line has more ridership late night than another during rush hour).
+
+## Possible Future Features
 
 ● Fun minigame: Bus line/SkyTrain station trivia: which bus line has more riders/the most amount of riders? Other questions: Which has more overcrowding? Higher speed?
 
