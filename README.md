@@ -27,7 +27,9 @@ performance data. It allows users to easily explore and compare performance metr
 
 ## Preview
 
-![alt text](static/images/image.png)
+Comparing ridership of 144 and 145
+
+![144 and 145 Comparison](static/images/image.png)
 
 ## Notes
 

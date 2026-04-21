@@ -408,13 +408,17 @@ function renderDeepComparisonResult() {
         rightLabel,
         (Number.isFinite(Number(leftTrips)) ? generateBusStack(leftTrips) + buildLargeMetricText(formatSig(leftTrips), 'trips') : 'No matching data'),
         (Number.isFinite(Number(rightTrips)) ? generateBusStack(rightTrips) + buildLargeMetricText(formatSig(rightTrips), 'trips') : 'No matching data'),
-        buildComparisonText(leftTrips, rightTrips, leftLabel, rightLabel, 'Trips/Clock-Hour/Direction')
+        buildComparisonText(leftTrips, rightTrips, leftLabel, rightLabel, 'Trips/Clock-Hour/Direction'),
+        'Trips per Clock Hour per Direction = number of scheduled trips operating in one direction during one clock hour.'
     );
 
     const isBprh = deepCompareState.boardingsMetric === 'boardings_per_revenue_hour';
     const boardingsTitle = isBprh ? 'Average Boardings per Revenue Hour' : 'Average Boardings per Trip';
     const leftBoardings = left[deepCompareState.boardingsMetric];
     const rightBoardings = right[deepCompareState.boardingsMetric];
+    const boardingsDefinitionText = isBprh
+        ? 'Average Boardings per Revenue Hour = total boardings divided by revenue hours.'
+        : 'Average Boardings per Trip = total boardings divided by number of trips.';
 
     const section3Buttons = '<div class="deep-layer-buttons" style="justify-content:center;margin:12px 0 10px 0;">' +
         '<button type="button" class="deep-option-btn deep-day-btn deep-section-btn' + (isBprh ? ' deep-option-btn-active' : '') + '" data-action="set-boardings-metric" data-metric="boardings_per_revenue_hour">Boardings Per Revenue Hour</button>' +
@@ -427,7 +431,8 @@ function renderDeepComparisonResult() {
         rightLabel,
         (Number.isFinite(Number(leftBoardings)) ? generatePeopleIcons(leftBoardings) + buildLargeMetricText(formatSig(leftBoardings), 'boardings') : 'No matching data'),
         (Number.isFinite(Number(rightBoardings)) ? generatePeopleIcons(rightBoardings) + buildLargeMetricText(formatSig(rightBoardings), 'boardings') : 'No matching data'),
-        buildComparisonText(leftBoardings, rightBoardings, leftLabel, rightLabel, boardingsTitle)
+        buildComparisonText(leftBoardings, rightBoardings, leftLabel, rightLabel, boardingsTitle),
+        boardingsDefinitionText
     );
 
     const leftDirs = left.available_directions || [];
@@ -457,7 +462,8 @@ function renderDeepComparisonResult() {
         (Number.isFinite(Number(rightPeakPassenger))
             ? generatePeopleIcons(rightPeakPassenger) + buildLargeMetricText(formatSig(rightPeakPassenger), ' passengers')
             : 'No matching direction data'),
-        buildComparisonText(leftPeakPassenger, rightPeakPassenger, leftLabel, rightLabel, 'Avg Peak Passenger Load')
+        buildComparisonText(leftPeakPassenger, rightPeakPassenger, leftLabel, rightLabel, 'Avg Peak Passenger Load'),
+        'Avg Peak Passenger Load = sum of peak passenger load for each trip divided by number of trips. A measure of how full a transit vehicle is, on average, at its busiest point or peak on a route.'
     );
 
     const section5DirectionControls = '<div style="display:grid;grid-template-columns:1fr 1fr;width:min(96%,1400px);margin:12px auto 10px auto;">' +
@@ -484,7 +490,8 @@ function renderDeepComparisonResult() {
         (Number.isFinite(Number(rightPeakFactor))
             ? generatePeakLoadFactorBar(rightPeakFactor) + '<div style="margin-top:8px;font-size:1.03em;color:#fff;">' + deepCompareState.peakLoadFactorDirection.right + '</div>'
             : 'No matching direction data'),
-        buildComparisonText(leftPeakFactor, rightPeakFactor, leftLabel, rightLabel, 'Avg Peak Load Factor %')
+        buildComparisonText(leftPeakFactor, rightPeakFactor, leftLabel, rightLabel, 'Avg Peak Load Factor %'),
+        'Peak Load Factor: The ratio of average passengers carried versus the capacity or space available on a vehicle, expressed as a percentage. A passenger load factor of 100% means the vehicle is at capacity.'
     );
 
     resultEl.innerHTML = '<div style="display:flex;flex-direction:column;gap:26px;">' +

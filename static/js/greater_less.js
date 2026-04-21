@@ -226,7 +226,17 @@ function getEntityDisplayName(entityKey) {
     }
     const type = entityKey.slice(0, splitAt);
     const name = entityKey.slice(splitAt + 1);
-    return type === 'bus' ? 'Bus line ' + name : name;
+
+    if (type === 'bus') {
+        for (const group of allEntityGroups) {
+            const match = (group.items || []).find(item => item.value === entityKey);
+            if (match) {
+                return match.label;
+            }
+        }
+    }
+
+    return name;
 }
 
 function getBoundDefinition(side, feature, datasets) {
@@ -436,68 +446,40 @@ function runSearch() {
 
     resultsStatus.textContent = 'Searching...';
 
-    Promise.all([
-        fetchJsonCached('busBoardings2024', '/api/boardings-data?year=2024'),
-        fetchJsonCached('busDaily2024', '/api/daily-boardings-data?year=2024'),
-        fetchJsonCached('busHours2024', '/api/hours-data?year=2024'),
-        fetchJsonCached('busMetrics2024', '/api/metrics-data?year=2024'),
-        fetchJsonCached('stationBoardings2024', '/api/station-boardings-data?year=2024'),
-        fetchJsonCached('stationDaily2024', '/api/station-daily-boardings-data?year=2024')
-    ])
-        .then(([busBoardings, busDaily, busHours, busMetrics, stationBoardings, stationDaily]) => {
-            const datasets = {
-                busBoardings,
-                busDaily,
-                busHours,
-                busMetrics,
-                stationBoardings,
-                stationDaily
-            };
-
+    getAllDatasetsForCurrentYear()
+        .then(datasets => {
             const greaterBound = getBoundDefinition('greater', feature, datasets);
             const lessBound = getBoundDefinition('less', feature, datasets);
 
             const lower = greaterBound ? greaterBound.value : null;
             const upper = lessBound ? lessBound.value : null;
 
-            const keys = getEligibleEntityKeys(currentEntityScope, feature, datasets);
-            let rows = keys.map(key => {
-                const metric = Number(getMetricValueFromData(feature, key, datasets));
-                return {
-                    key,
-                    name: getEntityDisplayName(key),
-                    metric
-                };
-            }).filter(row => Number.isFinite(row.metric));
-
-            rows = rows.filter(row => {
-                const aboveLower = lower === null || row.metric >= lower;
-                const belowUpper = upper === null || row.metric <= upper;
-                return aboveLower && belowUpper;
-            });
-
             const referenceKeys = [
                 greaterBound && greaterBound.source === 'dropdown' ? greaterBound.entityKey : null,
                 lessBound && lessBound.source === 'dropdown' ? lessBound.entityKey : null
-            ];
+            ].filter(Boolean);
 
-            referenceKeys.forEach(refKey => {
-                if (!refKey) {
-                    return;
-                }
-                if (!rows.some(row => row.key === refKey)) {
-                    const metric = Number(getMetricValueFromData(feature, refKey, datasets));
-                    if (Number.isFinite(metric)) {
-                        rows.push({
-                            key: refKey,
-                            name: getEntityDisplayName(refKey),
-                            metric
-                        });
-                    }
-                }
+            const params = new URLSearchParams({
+                year: '2024',
+                feature,
+                scope: currentEntityScope,
+                lower: lower === null ? '' : String(lower),
+                upper: upper === null ? '' : String(upper),
+                greater_ref: referenceKeys[0] || '',
+                less_ref: referenceKeys[1] || ''
             });
 
-            rows = sortRows(rows);
+            return fetch('/api/greater-less-search?' + params.toString())
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Failed to load search results');
+                    }
+                    return response.json();
+                })
+                .then(data => ({ data, referenceKeys }));
+        })
+        .then(({ data, referenceKeys }) => {
+            const rows = sortRows(data.rows || []);
             lastSearchRows = rows;
 
             renderResultsTable(rows, metricLabel, referenceKeys);

@@ -2,6 +2,7 @@ from flask import Flask, render_template, request, redirect, url_for, flash, jso
 import pandas as pd
 import os
 import csv
+import sqlite3
 import re
 from collections import Counter, OrderedDict
 from datetime import datetime, timedelta
@@ -388,7 +389,7 @@ def _build_compare_values_for_year(year, feature, scope):
             if metric_value is None:
                 continue
             values[f'bus:{line_name}'] = {
-                'name': f'Bus line {line_name}',
+                'name': _format_bus_line_label(line_name, year),
                 'value': metric_value
             }
 
@@ -404,6 +405,225 @@ def _build_compare_values_for_year(year, feature, scope):
             }
 
     return values
+
+
+GREATER_LESS_BUS_ONLY_FEATURES = {
+    'revenue_hours',
+    'boardings_per_revenue_hour',
+    'capacity_utilization',
+    'overcrowded_revenue_hours',
+    'peak_passenger_load',
+    'peak_load_factor',
+    'overcrowded_trips',
+    'on_time_performance',
+    'bus_bunching',
+    'avg_speed'
+}
+
+GREATER_LESS_METRIC_COLUMNS = {
+    'annual_boardings': 'annual_boardings',
+    'weekday_boardings': 'weekday_boardings',
+    'sat_boardings': 'sat_boardings',
+    'sun_hol_boardings': 'sun_hol_boardings',
+    'revenue_hours': 'revenue_hours',
+    'boardings_per_revenue_hour': 'boardings_per_revenue_hour',
+    'capacity_utilization': 'capacity_utilization',
+    'overcrowded_revenue_hours': 'overcrowded_revenue_hours',
+    'peak_passenger_load': 'peak_passenger_load',
+    'peak_load_factor': 'peak_load_factor',
+    'overcrowded_trips': 'overcrowded_trips',
+    'on_time_performance': 'on_time_performance',
+    'bus_bunching': 'bus_bunching',
+    'avg_speed': 'avg_speed'
+}
+
+
+@lru_cache(maxsize=8)
+def _build_greater_less_rows_for_year(year):
+    rows = []
+    sort_order = 0
+
+    bus_rows = _load_bus_standard_rows_for_year(year)
+    for line_name, row in bus_rows.items():
+        rows.append({
+            'entity_key': f'bus:{line_name}',
+            'entity_type': 'bus',
+            'display_name': _format_bus_line_label(line_name, year),
+            'sort_order': sort_order,
+            'annual_boardings': _safe_float(row.get('annual_boardings')),
+            'weekday_boardings': _safe_float(row.get('weekday')),
+            'sat_boardings': _safe_float(row.get('saturday')),
+            'sun_hol_boardings': _safe_float(row.get('sunday')),
+            'revenue_hours': _safe_float(row.get('revenue_hours')),
+            'boardings_per_revenue_hour': _safe_float(row.get('boardings_per_revenue_hour')),
+            'capacity_utilization': _safe_float(row.get('capacity_utilization')),
+            'overcrowded_revenue_hours': _safe_float(row.get('overcrowded_revenue_hours')),
+            'peak_passenger_load': _safe_float(row.get('peak_passenger_load')),
+            'peak_load_factor': _safe_float(row.get('peak_load_factor')),
+            'overcrowded_trips': _safe_float(row.get('overcrowded_trips_percent')),
+            'on_time_performance': _safe_float(row.get('on_time_performance')),
+            'bus_bunching': _safe_float(row.get('bus_bunching_percentage')),
+            'avg_speed': _safe_float(row.get('avg_speed_kph'))
+        })
+        sort_order += 1
+
+    station_rows = _load_station_standard_rows_for_year(year)
+    for station_name, row in station_rows.items():
+        rows.append({
+            'entity_key': f'station:{station_name}',
+            'entity_type': 'station',
+            'display_name': station_name,
+            'sort_order': sort_order,
+            'annual_boardings': _safe_float(row.get('annual_boardings')),
+            'weekday_boardings': _safe_float(row.get('weekday')),
+            'sat_boardings': _safe_float(row.get('saturday')),
+            'sun_hol_boardings': _safe_float(row.get('sunday')),
+            'revenue_hours': None,
+            'boardings_per_revenue_hour': None,
+            'capacity_utilization': None,
+            'overcrowded_revenue_hours': None,
+            'peak_passenger_load': None,
+            'peak_load_factor': None,
+            'overcrowded_trips': None,
+            'on_time_performance': None,
+            'bus_bunching': None,
+            'avg_speed': None
+        })
+        sort_order += 1
+
+    return tuple(rows)
+
+
+def _query_greater_less_rows(year, feature, scope, lower_bound, upper_bound, reference_keys):
+    if feature in GREATER_LESS_BUS_ONLY_FEATURES:
+        scope = 'bus'
+
+    include_bus = scope in {'bus', 'both'}
+    include_station = scope in {'station', 'both'} and feature not in GREATER_LESS_BUS_ONLY_FEATURES
+    metric_column = GREATER_LESS_METRIC_COLUMNS.get(feature, 'annual_boardings')
+
+    connection = sqlite3.connect(':memory:')
+    try:
+        connection.execute(
+            'CREATE TABLE entity_metrics ('
+            'entity_key TEXT PRIMARY KEY, '
+            'entity_type TEXT NOT NULL, '
+            'display_name TEXT NOT NULL, '
+            'sort_order INTEGER NOT NULL, '
+            'annual_boardings REAL, '
+            'weekday_boardings REAL, '
+            'sat_boardings REAL, '
+            'sun_hol_boardings REAL, '
+            'revenue_hours REAL, '
+            'boardings_per_revenue_hour REAL, '
+            'capacity_utilization REAL, '
+            'overcrowded_revenue_hours REAL, '
+            'peak_passenger_load REAL, '
+            'peak_load_factor REAL, '
+            'overcrowded_trips REAL, '
+            'on_time_performance REAL, '
+            'bus_bunching REAL, '
+            'avg_speed REAL'
+            ')'
+        )
+
+        connection.executemany(
+            'INSERT INTO entity_metrics VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [(
+                row['entity_key'],
+                row['entity_type'],
+                row['display_name'],
+                row['sort_order'],
+                row['annual_boardings'],
+                row['weekday_boardings'],
+                row['sat_boardings'],
+                row['sun_hol_boardings'],
+                row['revenue_hours'],
+                row['boardings_per_revenue_hour'],
+                row['capacity_utilization'],
+                row['overcrowded_revenue_hours'],
+                row['peak_passenger_load'],
+                row['peak_load_factor'],
+                row['overcrowded_trips'],
+                row['on_time_performance'],
+                row['bus_bunching'],
+                row['avg_speed']
+            ) for row in _build_greater_less_rows_for_year(year)]
+        )
+
+        conditions = ['metric_value IS NOT NULL']
+        params = []
+
+        if include_bus and not include_station:
+            conditions.append("entity_type = 'bus'")
+        elif include_station and not include_bus:
+            conditions.append("entity_type = 'station'")
+
+        if lower_bound is not None:
+            conditions.append('metric_value >= ?')
+            params.append(lower_bound)
+
+        if upper_bound is not None:
+            conditions.append('metric_value <= ?')
+            params.append(upper_bound)
+
+        base_query = (
+            'WITH selected AS ('
+            f'SELECT entity_key, display_name, sort_order, {metric_column} AS metric_value, entity_type '
+            'FROM entity_metrics'
+            ') '
+            'SELECT entity_key, display_name, metric_value '
+            'FROM selected '
+            f"WHERE {' AND '.join(conditions)} "
+            'ORDER BY sort_order ASC'
+        )
+
+        results = []
+        seen_keys = set()
+
+        for entity_key, display_name, metric_value in connection.execute(base_query, params).fetchall():
+            if metric_value is None:
+                continue
+            results.append({
+                'key': entity_key,
+                'name': display_name,
+                'metric': metric_value
+            })
+            seen_keys.add(entity_key)
+
+        reference_conditions = ['metric_value IS NOT NULL']
+        if include_bus and not include_station:
+            reference_conditions.append("entity_type = 'bus'")
+        elif include_station and not include_bus:
+            reference_conditions.append("entity_type = 'station'")
+
+        for entity_key in reference_keys:
+            if not entity_key or entity_key in seen_keys:
+                continue
+
+            ref_row = connection.execute(
+                'WITH selected AS ('
+                f'SELECT entity_key, display_name, sort_order, {metric_column} AS metric_value, entity_type '
+                'FROM entity_metrics'
+                ') '
+                'SELECT entity_key, display_name, metric_value '
+                'FROM selected '
+                f"WHERE entity_key = ? AND {' AND '.join(reference_conditions)}",
+                (entity_key,)
+            ).fetchone()
+
+            if not ref_row:
+                continue
+
+            results.append({
+                'key': ref_row[0],
+                'name': ref_row[1],
+                'metric': ref_row[2]
+            })
+
+        return results
+    finally:
+        connection.close()
 
 
 BUS_DETAIL_METRICS = [
@@ -469,7 +689,7 @@ def my_2_years_entity_options():
                     'items': [
                         {
                             'value': f'bus:{code}',
-                            'label': f"{_format_bus_line_display_code(code)} - Bus line"
+                            'label': _format_bus_line_label(code, year1)
                         }
                         for code in bus_codes
                     ]
@@ -515,7 +735,9 @@ def my_2_years_entity_metrics():
             row_year_1 = _load_bus_standard_rows_for_year(year1).get(entity_key, {})
             row_year_2 = _load_bus_standard_rows_for_year(year2).get(entity_key, {})
             metric_defs = BUS_DETAIL_METRICS
-            display_name = f'Bus line {entity_key}'
+            display_name = _format_bus_line_label(entity_key, year1)
+            if display_name == _format_bus_line_display_code(entity_key):
+                display_name = _format_bus_line_label(entity_key, year2)
         else:
             entity_key = _normalize_station_name(entity_key_raw)
             row_year_1 = _load_station_standard_rows_for_year(year1).get(entity_key, {})
@@ -681,6 +903,65 @@ def _bus_line_sort_key(code):
 
     # Place alpha routes (e.g., R1) after numeric-coded lines.
     return (1, text)
+
+
+@lru_cache(maxsize=1)
+def _load_bus_line_name_lookup():
+    by_year = {}
+    by_code_with_year = {}
+
+    if not os.path.exists(BUS_OPEN_ARCHIVE_PATH):
+        return by_year, {}
+
+    df = pd.read_csv(BUS_OPEN_ARCHIVE_PATH, dtype=str)
+    year_col = _pick_col(df.columns, ['TSPR_Year', 'CalendarYear', 'Year'])
+    line_col = _pick_col(df.columns, ['Line', 'Lineno_renamed', 'line_no'])
+    name_col = _pick_col(df.columns, ['Line_Name'])
+
+    if not year_col or not line_col or not name_col:
+        return by_year, {}
+
+    for _, row in df.iterrows():
+        code_raw = row.get(line_col)
+        name_raw = str(row.get(name_col, '')).strip()
+        if pd.isna(code_raw) or not name_raw:
+            continue
+
+        code = _normalize_bus_line_code(code_raw)
+        year_value = pd.to_numeric(row.get(year_col), errors='coerce')
+        if pd.notna(year_value):
+            year_int = int(year_value)
+            by_year.setdefault(year_int, {})[code] = name_raw
+        else:
+            year_int = -1
+
+        previous = by_code_with_year.get(code)
+        if previous is None or year_int >= previous[0]:
+            by_code_with_year[code] = (year_int, name_raw)
+
+    by_code = {code: payload[1] for code, payload in by_code_with_year.items()}
+    return by_year, by_code
+
+
+def _get_bus_line_name(line_code, year=None):
+    normalized_code = _normalize_bus_line_code(line_code)
+    names_by_year, fallback_names = _load_bus_line_name_lookup()
+
+    if year is not None:
+        year_names = names_by_year.get(int(year), {})
+        if normalized_code in year_names:
+            return year_names[normalized_code]
+
+    return fallback_names.get(normalized_code)
+
+
+def _format_bus_line_label(line_code, year=None):
+    normalized_code = _normalize_bus_line_code(line_code)
+    display_code = _format_bus_line_display_code(normalized_code)
+    line_name = _get_bus_line_name(normalized_code, year)
+    if line_name:
+        return f'{display_code} - {line_name}'
+    return display_code
 
 
 DEEP_TIME_RANGE_TO_START = {
@@ -903,6 +1184,7 @@ def _build_deep_side_payload_modern(base_df, peak_df, year, line_code, day_norm,
 
     return {
         'line': line_code,
+        'line_label': _format_bus_line_label(line_code, year),
         'day': day_norm,
         'season': season_norm,
         'time_range': time_range,
@@ -963,6 +1245,7 @@ def _build_deep_side_payload_legacy(legacy_df, year, line_code, day_norm, season
 
     return {
         'line': line_code,
+        'line_label': _format_bus_line_label(line_code, year),
         'day': day_norm,
         'season': season_norm,
         'time_range': time_range,
@@ -1100,42 +1383,14 @@ def bus_line_options():
         if not valid_lines:
             return jsonify([])
 
-        options = []
-        seen = set()
-
-        if os.path.exists(BUS_OPEN_ARCHIVE_PATH):
-            df = pd.read_csv(BUS_OPEN_ARCHIVE_PATH, dtype=str)
-            year_col = _pick_col(df.columns, ['TSPR_Year', 'CalendarYear', 'Year'])
-            line_col = _pick_col(df.columns, ['Line', 'Lineno_renamed', 'line_no'])
-            name_col = _pick_col(df.columns, ['Line_Name'])
-
-            if year_col and line_col and name_col:
-                df_year = df[pd.to_numeric(df[year_col], errors='coerce') == year]
-
-                for _, row in df_year.iterrows():
-                    normalized_code = _normalize_bus_line_code(row[line_col])
-                    if normalized_code in seen or normalized_code not in valid_lines:
-                        continue
-
-                    line_name = str(row[name_col]).strip()
-                    display_code = _format_bus_line_display_code(normalized_code)
-                    label = f"{display_code} - {line_name}" if line_name else display_code
-
-                    options.append({
-                        'value': normalized_code,
-                        'label': label
-                    })
-                    seen.add(normalized_code)
-
-        if not options:
-            fallback_codes = sorted(valid_lines, key=_bus_line_sort_key)
-            options = [
-                {
-                    'value': code,
-                    'label': _format_bus_line_display_code(code)
-                }
-                for code in fallback_codes
-            ]
+        fallback_codes = sorted(valid_lines, key=_bus_line_sort_key)
+        options = [
+            {
+                'value': code,
+                'label': _format_bus_line_label(code, year)
+            }
+            for code in fallback_codes
+        ]
 
         options.sort(key=lambda item: _bus_line_sort_key(item['value']))
 
@@ -1524,6 +1779,34 @@ def station_images_data():
         return jsonify(station_images)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+@app.route('/api/greater-less-search')
+def greater_less_search():
+    try:
+        year = request.args.get('year', default=2024, type=int)
+        feature = request.args.get('feature', default='annual_boardings', type=str)
+        scope = request.args.get('scope', default='both', type=str)
+        lower = request.args.get('lower', type=float)
+        upper = request.args.get('upper', type=float)
+        greater_ref = request.args.get('greater_ref', default='', type=str).strip()
+        less_ref = request.args.get('less_ref', default='', type=str).strip()
+
+        if scope not in {'bus', 'station', 'both'}:
+            scope = 'both'
+
+        reference_keys = [ref for ref in [greater_ref, less_ref] if ref]
+        rows = _query_greater_less_rows(year, feature, scope, lower, upper, reference_keys)
+
+        return jsonify({
+            'year': year,
+            'feature': feature,
+            'scope': scope,
+            'lower': lower,
+            'upper': upper,
+            'reference_keys': reference_keys,
+            'rows': rows
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 @app.route("/greater-less")

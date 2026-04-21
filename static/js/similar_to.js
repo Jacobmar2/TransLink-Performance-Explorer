@@ -210,7 +210,17 @@ function getEntityDisplayName(entityKey) {
     }
     const type = entityKey.slice(0, splitAt);
     const name = entityKey.slice(splitAt + 1);
-    return type === 'bus' ? 'Bus line ' + name : name;
+
+    if (type === 'bus') {
+        for (const group of allEntityGroups) {
+            const match = (group.items || []).find(item => item.value === entityKey);
+            if (match) {
+                return match.label;
+            }
+        }
+    }
+
+    return name;
 }
 
 function getEligibleEntityKeys(scope, feature, datasets) {

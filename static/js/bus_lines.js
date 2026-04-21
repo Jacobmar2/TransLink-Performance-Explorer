@@ -12,6 +12,61 @@ const boardingsByYear = {};
 const dailyBoardingsByYear = {};
 const hoursByYear = {};
 const metricsByYear = {};
+const busLineOptionsByYear = {};
+
+function populateLineDropdown(selectEl, options, preferredValue) {
+    if (!selectEl) return;
+
+    const previousValue = preferredValue !== undefined ? preferredValue : selectEl.value;
+    selectEl.innerHTML = '';
+
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = 'Select line';
+    selectEl.appendChild(placeholder);
+
+    options.forEach(function(option) {
+        const opt = document.createElement('option');
+        opt.value = String(option.value || '');
+        opt.textContent = option.label || opt.value;
+        selectEl.appendChild(opt);
+    });
+
+    if (previousValue && Array.from(selectEl.options).some(function(opt) { return opt.value === previousValue; })) {
+        selectEl.value = previousValue;
+    }
+}
+
+function loadLineOptionsForSide(side, year, preferredValue) {
+    const selectEl = document.getElementById(side);
+    if (!selectEl) {
+        return Promise.resolve();
+    }
+
+    if (busLineOptionsByYear[year]) {
+        populateLineDropdown(selectEl, busLineOptionsByYear[year], preferredValue);
+        syncBusDropdownWidths();
+        return Promise.resolve();
+    }
+
+    return fetch('/api/bus-line-options?year=' + encodeURIComponent(String(year)))
+        .then(function(response) {
+            if (!response.ok) {
+                throw new Error('Failed to load bus line options for ' + year);
+            }
+            return response.json();
+        })
+        .then(function(options) {
+            const normalized = Array.isArray(options) ? options : [];
+            busLineOptionsByYear[year] = normalized;
+            populateLineDropdown(selectEl, normalized, preferredValue);
+            syncBusDropdownWidths();
+        })
+        .catch(function() {
+            populateLineDropdown(selectEl, [], preferredValue);
+            syncBusDropdownWidths();
+        });
+}
 
 function setYearButtonState(side, year) {
     document.querySelectorAll('.year-btn[data-side="' + side + '"]').forEach(btn => btn.classList.remove('year-btn-active'));
@@ -119,6 +174,8 @@ setYearButtonState('line1', selectedYearLine1);
 setYearButtonState('line2', selectedYearLine2);
 syncBusDropdownWidths();
 ensureYearLoaded(selectedYearLine1);
+loadLineOptionsForSide('line1', selectedYearLine1);
+loadLineOptionsForSide('line2', selectedYearLine2);
 window.addEventListener('resize', syncBusDropdownWidths);
 window.addEventListener('load', syncBusDropdownWidths);
 
@@ -496,8 +553,6 @@ function buildSpeedTimeComparisonText(lineA, speedA, lineB, speedB) {
 document.getElementById('compareBtn').addEventListener('click', function () {
     var a = document.getElementById('line1').value || 'X';
     var b = document.getElementById('line2').value || 'Y';
-    a = escapeHtml(a);
-    b = escapeHtml(b);
 
     const aLabel = getSideLabel(a, 'line1');
     const bLabel = getSideLabel(b, 'line2');
@@ -756,8 +811,8 @@ function updateHoursDisplay(a, b, hoursType) {
     }
 
     var hoursDefinitionText = (hoursType === 'revenue')
-        ? 'Annual Revenue Hours = Σ(all in-service hours where the bus is carrying passengers) over the year.'
-        : 'Annual Service Hours = Σ(all operated service hours) over the year = Revenue Hours + non-revenue operating hours.';
+        ? 'Annual Revenue Hours = The time that transit vehicles are in revenue service, from the time they leave the trip start terminus to the time they arrive at the trip end terminus, and exclude recovery (layover) time at terminuses and deadheading times (i.e., time used by vehicles to travel from a depot to a service start point and to return to the depot from a service end point)'
+        : 'Annual Service Hours = The time that transit vehicles are in revenue service (from the time they leave the trip start terminus to the time they arrive at the trip end terminus) and including recovery (layover) time at terminuses and deadheading times (i.e., time used by vehicles to travel from a depot to a service start point and to return to the depot from a service end point)';
     
     // Check if line a has data
     var hoursEntryA = getHoursEntry(a, 'line1');
@@ -844,8 +899,8 @@ function updateMetricsDisplay(a, b, metricType) {
     }
 
     var metricsDefinitionText = (metricType === 'boardings_per_revenue_hour')
-        ? 'Boardings per Revenue Hour = Annual Boardings ÷ Annual Revenue Hours.'
-        : 'Avg Peak Passenger Load = Σ(peak passenger load for each trip) ÷ number of trips.';
+        ? 'Boardings per Revenue Hour = Annual Boardings ÷ Annual Revenue Hours. An industry-standard key performance indicator that measures the volume of riders compared to the supply of transit service.'
+        : 'Avg Peak Passenger Load = Σ(peak passenger load for each trip) ÷ number of trips. A measure of how full a transit vehicle is, on average, at its busiest point or peak on a route.';
     
     // Check if line a has data
     var metricsEntryA = getMetricsEntry(a, 'line1');
@@ -919,8 +974,8 @@ function updateMetricsDisplay(a, b, metricType) {
         var title = (peakType === 'peak_cap') ? 'Capacity Utilization' : 'Peak Load Factor';
         var metricKey = (peakType === 'peak_cap') ? 'capacity_utilization' : 'peak_load_factor';
         var definitionText = (peakType === 'peak_cap')
-            ? 'Capacity Utilization: percentage of practical vehicle capacity used during service.'
-            : 'Peak Load Factor: percentage of vehicle capacity used at the busiest point on the route.';
+            ? 'Capacity Utilization: The percentage of delivered capacity (seats and spaces) utilized by customers along an entire route.'
+            : 'Peak Load Factor: The ratio of average passengers carried versus the capacity or space available on a vehicle, expressed as a percentage. A passenger load factor of 100% means the vehicle is at capacity. The peak load factor is calculated by dividing the average load on a transit vehicle at its busiest point by the number of spaces (seats plus standing space) provided on each trip.';
 
         var peakValueA = null;
         var peakValueB = null;
@@ -1197,8 +1252,6 @@ document.getElementById('swapBtn').addEventListener('click', function () {
     if (!s1 || !s2) return;
     const v1 = s1.value;
     const v2 = s2.value;
-    s1.value = v2;
-    s2.value = v1;
 
     const y1 = selectedYearLine1;
     const y2 = selectedYearLine2;
@@ -1207,8 +1260,15 @@ document.getElementById('swapBtn').addEventListener('click', function () {
     setYearButtonState('line1', selectedYearLine1);
     setYearButtonState('line2', selectedYearLine2);
 
-    const compareBtn = document.getElementById('compareBtn');
-    if (compareBtn) compareBtn.click();
+    Promise.all([
+        loadLineOptionsForSide('line1', selectedYearLine1, v2),
+        loadLineOptionsForSide('line2', selectedYearLine2, v1),
+        ensureYearLoaded(selectedYearLine1),
+        ensureYearLoaded(selectedYearLine2)
+    ]).then(function() {
+        const compareBtn = document.getElementById('compareBtn');
+        if (compareBtn) compareBtn.click();
+    });
 });
 // Daily boardings selector button group logic
 document.addEventListener('click', function(e) {
@@ -1229,7 +1289,13 @@ document.addEventListener('click', function(e) {
         setYearButtonState(side, selectedYear);
         document.getElementById('compareResult').innerHTML = '<div style="padding:16px;">Loading ' + selectedYear + ' data...</div>';
 
-        ensureYearLoaded(selectedYear).then(function() {
+        const targetSelect = side === 'line1' ? document.getElementById('line1') : document.getElementById('line2');
+        const preserveValue = targetSelect ? targetSelect.value : '';
+
+        Promise.all([
+            loadLineOptionsForSide(side, selectedYear, preserveValue),
+            ensureYearLoaded(selectedYear)
+        ]).then(function() {
             const compareBtn = document.getElementById('compareBtn');
             if (compareBtn) compareBtn.click();
         });
