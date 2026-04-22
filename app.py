@@ -101,6 +101,7 @@ STATION_COVID_2020_TOTAL_PATH = os.path.join("data", "covid years", "tspr-2020--
 STATION_COVID_2020_DAILY_PATH = os.path.join("data", "covid years", "tspr-2020--avg-daily-skytrain-and-wce-boardings-by-mode-line-station-and-day-type.csv")
 STATION_COVID_2021_TOTAL_PATH = os.path.join("data", "covid years", "tspr-fall-2021-skytrain-and-wce-total-boardings-by-station.csv")
 STATION_COVID_2021_DAILY_PATH = os.path.join("data", "covid years", "tspr-fall-2021-avg-daily-skytrain-and-wce-boardings-by-mode-station-and-day-type.csv")
+STOPS_PATH = os.path.join("data", "stops.txt")
 
 
 def _safe_float(value):
@@ -120,6 +121,94 @@ def _normalize_station_name(raw_name):
     text = text.replace('\u2013', '-').replace('\u2014', '-').replace('\u2212', '-')
     text = re.sub(r'\s+', ' ', text).strip()
     return text
+
+
+def _station_name_candidates_for_platform_lookup(station_name):
+    base_name = _normalize_station_name(station_name)
+    explicit_aliases = {
+        'Sea Island Station': 'Sea Island Centre Station'
+    }
+
+    variants = {
+        base_name,
+        re.sub(r'\bAvenue\b', 'Ave', base_name),
+        re.sub(r'\bAve\b', 'Avenue', base_name),
+        re.sub(r'\bCentre\b', 'Center', base_name),
+        re.sub(r'\bCenter\b', 'Centre', base_name),
+        base_name.replace('Production Way-University Station', 'Production Way Station')
+    }
+
+    if base_name in explicit_aliases:
+        variants.add(explicit_aliases[base_name])
+
+    return [_normalize_station_name(variant) for variant in variants if variant]
+
+
+@lru_cache(maxsize=1)
+def _load_skytrain_station_usage_map_2024_data():
+    boardings_df = pd.read_csv(STATION_YEAR_2024_PATH)
+    boardings_2024 = boardings_df[pd.to_numeric(boardings_df['CalendarYear'], errors='coerce') == 2024].copy()
+
+    stops_df = pd.read_csv(STOPS_PATH)
+    platform_1_rows = stops_df[stops_df['stop_name'].fillna('').str.contains('@ Platform 1', case=False, regex=False)]
+
+    platform_lookup = {}
+    for _, row in platform_1_rows.iterrows():
+        stop_name = _normalize_station_name(row.get('stop_name'))
+        station_part = _normalize_station_name(stop_name.split('@')[0])
+
+        try:
+            lat = float(row.get('stop_lat'))
+            lon = float(row.get('stop_lon'))
+        except (TypeError, ValueError):
+            continue
+
+        if pd.isna(lat) or pd.isna(lon):
+            continue
+
+        platform_lookup[station_part] = {
+            'lat': lat,
+            'lon': lon,
+            'platform_stop_name': stop_name
+        }
+
+    mapped_stations = []
+    missing_stations = []
+
+    for _, row in boardings_2024.iterrows():
+        station_name = _normalize_station_name(row.get('StationName'))
+        annual_boardings = _safe_float(row.get('AnnualStationBrdgs'))
+        if annual_boardings is None:
+            continue
+
+        selected_platform = None
+        for candidate in _station_name_candidates_for_platform_lookup(station_name):
+            if candidate in platform_lookup:
+                selected_platform = platform_lookup[candidate]
+                break
+
+        if not selected_platform:
+            missing_stations.append(station_name)
+            continue
+
+        mapped_stations.append({
+            'station_name': station_name,
+            'annual_boardings': annual_boardings,
+            'weekday': _safe_float(row.get('AvgStationBrdgs_MF')),
+            'saturday': _safe_float(row.get('AvgStationBrdgs_Sat')),
+            'sunday': _safe_float(row.get('AvgStationBrdgs_SunHol')),
+            'lat': selected_platform['lat'],
+            'lon': selected_platform['lon'],
+            'platform_stop_name': selected_platform['platform_stop_name']
+        })
+
+    mapped_stations.sort(key=lambda station: station['annual_boardings'], reverse=True)
+
+    return {
+        'year': 2024,
+        'stations': mapped_stations,
+        'missing_stations': sorted(set(missing_stations))
+    }
 
 
 def _get_active_feature_value(entity_type, row, feature):
@@ -1525,6 +1614,17 @@ def station_boardings_data():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/skytrain-station-usage-map-3d-data")
+def skytrain_station_usage_map_3d_data():
+    """API endpoint for 2024 station boardings joined to Platform 1 stop coordinates."""
+    try:
+        if request.args.get('refresh', default='0') == '1':
+            _load_skytrain_station_usage_map_2024_data.cache_clear()
+        return jsonify(_load_skytrain_station_usage_map_2024_data())
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/api/station-daily-boardings-data")
 def station_daily_boardings_data():
     """API endpoint to fetch station daily boardings data by year (Weekday, Saturday, Sunday/Holiday)"""
@@ -1827,6 +1927,26 @@ def my_2_years():
 @app.route("/deep-bus-line-comparison")
 def deep_bus_line_comparison():
     return render_template("deep_bus_line_comparison.html")
+
+
+@app.route("/skytrain-station-usage-map-3d")
+def skytrain_station_usage_map_3d():
+    return render_template("skytrain_station_usage_map_3d.html")
+
+
+@app.route("/bus-stop-usage-map-3d")
+def bus_stop_usage_map_3d():
+    return render_template("bus_stop_usage_map_3d.html")
+
+
+@app.route("/skytrain-segment-usage-map-3d")
+def skytrain_segment_usage_map_3d():
+    return render_template("skytrain_segment_usage_map_3d.html")
+
+
+@app.route("/bus-line-usage-map")
+def bus_line_usage_map():
+    return render_template("bus_line_usage_map.html")
 
 
 if __name__ == "__main__":

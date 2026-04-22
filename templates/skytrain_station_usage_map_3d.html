@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D SkyTrain Station Usage Map</title>
+    <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background: #02060b;
+            color: #e6f2ff;
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+        }
+
+        #map {
+            position: fixed;
+            inset: 0;
+        }
+
+        .overlay {
+            position: fixed;
+            top: 18px;
+            left: 18px;
+            z-index: 3;
+            background: rgba(3, 10, 20, 0.76);
+            border: 1px solid rgba(86, 155, 255, 0.35);
+            border-radius: 14px;
+            padding: 14px 16px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+            backdrop-filter: blur(8px);
+            max-width: min(560px, calc(100vw - 36px));
+        }
+
+        .overlay h1 {
+            margin: 0 0 6px 0;
+            font-size: clamp(1.05rem, 2.2vw, 1.45rem);
+            color: #b6dcff;
+        }
+
+        .overlay p {
+            margin: 0;
+            font-size: 0.95rem;
+            color: #d8e8ff;
+            line-height: 1.4;
+        }
+
+        .legend {
+            position: fixed;
+            left: 18px;
+            bottom: 76px;
+            z-index: 3;
+            background: rgba(3, 10, 20, 0.78);
+            border: 1px solid rgba(86, 155, 255, 0.35);
+            border-radius: 12px;
+            padding: 12px 14px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+            backdrop-filter: blur(8px);
+            width: min(320px, calc(100vw - 36px));
+        }
+
+        .maplibregl-ctrl-top-left {
+            top: 126px;
+            left: 8px;
+        }
+
+        @media (max-width: 640px) {
+            .maplibregl-ctrl-top-left {
+                top: 154px;
+            }
+        }
+
+        .legend-title {
+            margin: 0 0 8px 0;
+            color: #c9e4ff;
+            font-size: 0.95rem;
+            font-weight: 700;
+        }
+
+        .legend-gradient {
+            height: 12px;
+            width: 100%;
+            border-radius: 999px;
+            background: linear-gradient(90deg, #3f8cff 0%, #63a8ff 45%, #9fd6ff 100%);
+            margin-bottom: 6px;
+        }
+
+        .legend-labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.82rem;
+            color: #d3e6ff;
+        }
+
+        .home-link {
+            position: fixed;
+            top: 18px;
+            right: 18px;
+            z-index: 3;
+            display: inline-block;
+            text-decoration: none;
+            color: #eaf4ff;
+            background: rgba(7, 17, 31, 0.78);
+            border: 1px solid rgba(134, 187, 255, 0.5);
+            border-radius: 10px;
+            padding: 10px 12px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            transition: background 0.2s ease, transform 0.2s ease;
+        }
+
+        .home-link:hover {
+            background: rgba(37, 84, 149, 0.85);
+            transform: translateY(-1px);
+        }
+
+        .top-right-controls {
+            position: fixed;
+            top: 18px;
+            right: 18px;
+            z-index: 3;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .top-right-controls .home-link {
+            position: static;
+            top: auto;
+            right: auto;
+        }
+
+        .info-hint {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 28px;
+            border-radius: 999px;
+            border: 1px solid rgba(134, 187, 255, 0.5);
+            background: rgba(7, 17, 31, 0.82);
+            color: #eaf4ff;
+            font-size: 0.86rem;
+            font-weight: 700;
+            cursor: help;
+            user-select: none;
+        }
+
+        .info-hint::after {
+            content: "If bars don't appear, clear recent history then refresh the page.";
+            position: absolute;
+            top: calc(100% + 8px);
+            right: 0;
+            width: min(320px, 70vw);
+            padding: 8px 10px;
+            border-radius: 10px;
+            border: 1px solid rgba(134, 187, 255, 0.42);
+            background: rgba(4, 12, 24, 0.96);
+            color: #dcecff;
+            font-size: 0.78rem;
+            line-height: 1.35;
+            box-shadow: 0 10px 26px rgba(0, 0, 0, 0.34);
+            opacity: 0;
+            pointer-events: none;
+            transform: translateY(-4px);
+            transition: opacity 0.18s ease, transform 0.18s ease;
+        }
+
+        .info-hint:hover::after {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .control-panel {
+            --collapsed-visible-height: 56px;
+            --panel-strip-height: 56px;
+            position: fixed;
+            left: 8px;
+            right: 8px;
+            bottom: 8px;
+            height: min(40vh, 330px);
+            z-index: 4;
+            background: rgba(4, 11, 22, 0.9);
+            border-top: 1px solid rgba(134, 187, 255, 0.35);
+            border-left: 1px solid rgba(134, 187, 255, 0.18);
+            border-right: 1px solid rgba(134, 187, 255, 0.18);
+            border-radius: 16px 16px 0 0;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 -18px 38px rgba(0, 0, 0, 0.45);
+            transform: translateY(calc(100% - var(--collapsed-visible-height)));
+            transition: transform 0.28s ease;
+        }
+
+        .control-panel.mode-hourly {
+            --collapsed-visible-height: 56px;
+            --panel-strip-height: 56px;
+        }
+
+        .control-panel.is-open {
+            transform: translateY(0);
+        }
+
+        .control-panel-toggle {
+            width: auto;
+            min-width: 190px;
+            height: 34px;
+            border: 1px solid rgba(134, 187, 255, 0.42);
+            background: linear-gradient(180deg, rgba(16, 35, 64, 0.85), rgba(9, 22, 42, 0.85));
+            color: #dcecff;
+            font-size: 0.82rem;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+            cursor: pointer;
+            border-radius: 10px 10px 0 0;
+            position: absolute;
+            top: -34px;
+            left: 50%;
+            transform: translateX(-50%);
+            box-shadow: 0 -6px 16px rgba(0, 0, 0, 0.34);
+        }
+
+        .control-panel-body {
+            height: calc(100% - var(--panel-strip-height));
+            padding: 8px 16px 12px 16px;
+            overflow: auto;
+        }
+
+        .control-panel-strip {
+            height: var(--panel-strip-height);
+            padding: 10px 14px 10px 14px;
+            border-bottom: 1px solid rgba(110, 164, 241, 0.24);
+            background: linear-gradient(180deg, rgba(5, 17, 34, 0.88), rgba(2, 14, 30, 0.88));
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .strip-row {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .mode-buttons {
+            display: inline-flex;
+            gap: 10px;
+            padding: 4px;
+            background: rgba(11, 28, 52, 0.62);
+            border: 1px solid rgba(121, 179, 255, 0.35);
+            border-radius: 999px;
+        }
+
+        .mode-button {
+            border: 1px solid rgba(134, 187, 255, 0.35);
+            border-radius: 999px;
+            padding: 7px 12px;
+            background: rgba(10, 22, 41, 0.92);
+            color: #dcecff;
+            font-size: 0.78rem;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .mode-button.is-active {
+            background: linear-gradient(180deg, rgba(49, 103, 180, 0.98), rgba(23, 59, 113, 0.98));
+            border-color: rgba(173, 212, 255, 0.88);
+            color: #ffffff;
+        }
+
+        .hourly-strip {
+            display: none;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+            gap: 10px;
+            color: #cde4ff;
+            font-size: 0.78rem;
+            font-weight: 600;
+            flex-wrap: wrap;
+        }
+
+        .hourly-strip-main {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex: 1 1 540px;
+            min-width: 280px;
+        }
+
+        #hourly-time-label {
+            display: inline-block;
+            flex: 0 0 150px;
+            width: 150px;
+            white-space: nowrap;
+            text-align: left;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .hourly-player {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
+        .player-button,
+        .player-speed-button,
+        .player-loop-button {
+            border: 1px solid rgba(134, 187, 255, 0.42);
+            border-radius: 999px;
+            padding: 7px 11px;
+            background: rgba(9, 22, 42, 0.92);
+            color: #dcecff;
+            font-size: 0.76rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
+            white-space: nowrap;
+        }
+
+        .player-button:hover,
+        .player-speed-button:hover,
+        .player-loop-button:hover {
+            transform: translateY(-1px);
+            border-color: rgba(166, 208, 255, 0.65);
+        }
+
+        .player-button.is-active,
+        .player-speed-button.is-active,
+        .player-loop-button.is-active {
+            background: linear-gradient(180deg, rgba(43, 92, 162, 0.98), rgba(21, 54, 103, 0.98));
+            border-color: rgba(166, 208, 255, 0.9);
+            color: #ffffff;
+        }
+
+        .player-speed-group,
+        .player-loop-group {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px;
+            border: 1px solid rgba(121, 179, 255, 0.28);
+            border-radius: 999px;
+            background: rgba(11, 28, 52, 0.5);
+        }
+
+        .control-panel.mode-hourly .hourly-strip {
+            display: flex;
+        }
+
+        .hourly-time-slider {
+            flex: 1 1 auto;
+            width: auto;
+            min-width: 0;
+            accent-color: #64a9ff;
+            cursor: pointer;
+        }
+
+        .player-separator {
+            color: rgba(208, 229, 255, 0.6);
+            font-size: 0.72rem;
+            letter-spacing: 0.02em;
+            padding: 0 2px;
+        }
+
+        .control-panel-title {
+            margin: 0 0 8px 0;
+            font-size: 1rem;
+            color: #b6dcff;
+        }
+
+        .metric-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 8px;
+        }
+
+        .metric-button {
+            border: 1px solid rgba(134, 187, 255, 0.42);
+            border-radius: 999px;
+            padding: 8px 14px;
+            background: rgba(9, 22, 42, 0.92);
+            color: #dcecff;
+            font-size: 0.82rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
+        }
+
+        .metric-button:hover {
+            transform: translateY(-1px);
+            border-color: rgba(166, 208, 255, 0.65);
+        }
+
+        .metric-button.is-active {
+            background: linear-gradient(180deg, rgba(43, 92, 162, 0.98), rgba(21, 54, 103, 0.98));
+            border-color: rgba(166, 208, 255, 0.9);
+            color: #ffffff;
+        }
+
+        .height-slider-wrap {
+            margin-top: 10px;
+            max-width: 440px;
+        }
+
+        .height-slider-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 8px;
+            color: #cde4ff;
+            font-size: 0.82rem;
+            font-weight: 600;
+        }
+
+        .height-slider {
+            width: 100%;
+            accent-color: #64a9ff;
+            cursor: pointer;
+        }
+
+        .control-layout {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 20px;
+        }
+
+        .mode-row-in-body {
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .hourly-controls {
+            min-width: 330px;
+        }
+
+        .control-group-title {
+            margin: 0 0 8px 0;
+            color: #b6dcff;
+            font-size: 0.84rem;
+            font-weight: 700;
+            letter-spacing: 0.01em;
+        }
+
+        .hourly-button-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+
+        .hourly-button {
+            text-align: center;
+            border: 1px solid rgba(134, 187, 255, 0.42);
+            border-radius: 999px;
+            padding: 8px 14px;
+            background: rgba(9, 22, 42, 0.92);
+            color: #dcecff;
+            font-size: 0.82rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
+        }
+
+        .hourly-button:hover {
+            transform: translateY(-1px);
+            border-color: rgba(166, 208, 255, 0.65);
+        }
+
+        .hourly-button.is-active {
+            background: linear-gradient(180deg, rgba(43, 92, 162, 0.98), rgba(21, 54, 103, 0.98));
+            border-color: rgba(166, 208, 255, 0.9);
+            color: #ffffff;
+        }
+
+        @media (max-width: 980px) {
+            .control-layout {
+                grid-template-columns: 1fr;
+            }
+
+            .hourly-controls {
+                min-width: 0;
+            }
+
+            .hourly-button-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+        }
+
+        @media (max-width: 640px) {
+            .hourly-strip-main {
+                flex-basis: 100%;
+            }
+
+            #hourly-time-label {
+                flex-basis: 128px;
+                width: 128px;
+            }
+
+            .hourly-player {
+                justify-content: flex-start;
+            }
+
+            .hourly-button-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+
+    <div class="overlay">
+        <h1>3D SkyTrain Station Usage Map (2024)</h1>
+        <p>Blue vertical bars show annual station boardings. Bar height indicates station usage.</p>
+    </div>
+
+    <div class="top-right-controls">
+        <a href="/" class="home-link">Back to Home</a>
+        <span class="info-hint" aria-label="If bars don't appear, clear recent history then refresh the page." title="If bars don't appear, clear recent history then refresh the page.">(i)</span>
+    </div>
+
+    <div class="legend">
+        <p class="legend-title">Annual Boardings Intensity</p>
+        <div class="legend-gradient"></div>
+        <div class="legend-labels">
+            <span>Lower</span>
+            <span>Higher</span>
+        </div>
+    </div>
+
+    <section id="control-panel" class="control-panel" aria-label="Map control panel">
+        <button id="control-panel-toggle" class="control-panel-toggle" type="button" aria-expanded="false">
+            Open Control Panel
+        </button>
+        <div class="control-panel-strip">
+            <div id="hourly-strip" class="hourly-strip">
+                <div class="hourly-strip-main">
+                    <span id="hourly-time-label">4:00 AM - 5:00 AM</span>
+                    <input id="hourly-time-slider" class="hourly-time-slider" type="range" min="0" max="23" step="1" value="0" aria-label="Hourly time selection">
+                </div>
+                <div class="hourly-player" aria-label="Hourly playback controls">
+                    <button id="hourly-play-toggle" class="player-button" type="button" aria-pressed="false">Play</button>
+                    <div class="player-speed-group" role="group" aria-label="Playback speed">
+                        <button type="button" class="player-speed-button is-active" data-playback-speed="0.5">0.5x</button>
+                        <button type="button" class="player-speed-button" data-playback-speed="1">1x</button>
+                        <button type="button" class="player-speed-button" data-playback-speed="2">2x</button>
+                        <button type="button" class="player-speed-button" data-playback-speed="4">4x</button>
+                    </div>
+                    <span class="player-separator">Loop</span>
+                    <div class="player-loop-group" role="group" aria-label="Loop mode">
+                        <button type="button" class="player-loop-button is-active" data-loop-mode="same-day-type">Same day type</button>
+                        <button type="button" class="player-loop-button" data-loop-mode="shift-day-types">Shift day types</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="control-panel-body">
+            <div class="mode-row-in-body">
+                <div class="mode-buttons" role="group" aria-label="Map mode selection">
+                    <button type="button" class="mode-button is-active" data-mode="total">Total Mode</button>
+                    <button type="button" class="mode-button" data-mode="hourly">Hourly Mode</button>
+                </div>
+            </div>
+            <div class="control-layout">
+                <div>
+                    <h2 class="control-panel-title">Total Usage Controls</h2>
+                    <div class="metric-buttons" role="group" aria-label="Boardings metric selection">
+                        <button type="button" class="metric-button is-active" data-metric="annual">Annual boardings</button>
+                        <button type="button" class="metric-button" data-metric="weekday">Daily boardings (MF)</button>
+                        <button type="button" class="metric-button" data-metric="saturday">Daily boardings (Sat)</button>
+                        <button type="button" class="metric-button" data-metric="sunday">Daily boardings (SunHol)</button>
+                    </div>
+                    <div class="height-slider-wrap">
+                        <div class="height-slider-row">
+                            <span>Bar Height Scale</span>
+                            <span id="height-slider-value">50%</span>
+                        </div>
+                        <input id="height-scale-slider" class="height-slider" type="range" min="15" max="100" step="1" value="50" aria-label="Bar height scale">
+                    </div>
+                </div>
+
+                <div class="hourly-controls">
+                    <p class="control-group-title">Hourly Usage Day Type</p>
+                    <div class="hourly-button-grid" role="group" aria-label="Hourly day type selection">
+                        <button type="button" class="hourly-button is-active" data-hourly-daytype="weekday">hourly usage (MF)</button>
+                        <button type="button" class="hourly-button" data-hourly-daytype="saturday">hourly usage (Sat)</button>
+                        <button type="button" class="hourly-button" data-hourly-daytype="sunday">hourly usage (SunHol)</button>
+                    </div>
+
+                    <p class="control-group-title">Hourly Usage Measure</p>
+                    <div class="hourly-button-grid" role="group" aria-label="Hourly usage measure selection">
+                        <button type="button" class="hourly-button is-active" data-hourly-usage="boardings">Boardings</button>
+                        <button type="button" class="hourly-button" data-hourly-usage="alightings">Alightings</button>
+                        <button type="button" class="hourly-button" data-hourly-usage="total">Total Usage</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+    <script src="https://unpkg.com/deck.gl@9.0.34/dist.min.js"></script>
+    <script src="{{ url_for('static', filename='js/skytrain_station_usage_map_3d.js', v='20260421-7') }}"></script>
+    <script>
+        (function setupBottomControlPanel() {
+            const panel = document.getElementById("control-panel");
+            const toggleButton = document.getElementById("control-panel-toggle");
+
+            if (!panel || !toggleButton) {
+                return;
+            }
+
+            toggleButton.addEventListener("click", function () {
+                const isOpen = panel.classList.toggle("is-open");
+                toggleButton.setAttribute("aria-expanded", isOpen ? "true" : "false");
+                toggleButton.textContent = isOpen ? "Close Control Panel" : "Open Control Panel";
+            });
+        })();
+    </script>
+</body>
+</html>

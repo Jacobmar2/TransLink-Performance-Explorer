@@ -216,6 +216,46 @@ body {
     max-width: 400px;
 }
 
+.button-map {
+    position: relative;
+    min-height: 170px;
+    max-width: 400px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    isolation: isolate;
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.7);
+}
+
+.button-map::before {
+    content: "";
+    position: absolute;
+    inset: -8px;
+    background-image: url("/static/images/Screenshot%202026-04-20%20215843.jpg");
+    background-size: cover;
+    background-position: center;
+    filter: blur(6px);
+    transform: scale(1.08);
+    z-index: -2;
+}
+
+.button-map-skytrain::before {
+    background-image: url("/static/images/Screenshot%202026-04-21%20192417.jpg");
+}
+
+.button-map::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(0, 0, 0, 0.45), rgba(0, 108, 158, 0.35));
+    z-index: -1;
+}
+
+.button-map:hover::after {
+    background: linear-gradient(135deg, rgba(0, 0, 0, 0.35), rgba(0, 135, 192, 0.45));
+}
+
 .button-group {
     display: flex;
     flex-wrap: wrap;

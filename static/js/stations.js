@@ -63,6 +63,14 @@ function getStationHourlyValues(stationName, side, dayType, metricType) {
     const yearData = stationHourlyByYear[year] || {};
     const stationData = yearData[stationName];
     if (!stationData || !stationData[dayType]) return null;
+    if (metricType === 'total_usage') {
+        const boardingsValues = stationData[dayType].boardings;
+        const alightingsValues = stationData[dayType].alightings;
+        if (!Array.isArray(boardingsValues) || boardingsValues.length !== 24) return null;
+        if (!Array.isArray(alightingsValues) || alightingsValues.length !== 24) return null;
+        return boardingsValues.map((value, index) => (Number(value) || 0) + (Number(alightingsValues[index]) || 0));
+    }
+
     const values = stationData[dayType][metricType];
     if (!Array.isArray(values) || values.length !== 24) return null;
     return values;
@@ -568,7 +576,12 @@ function updateHourlyStationComparisonDisplay(a, b, dayType, metricType) {
     const yearA = getSideYear('station1');
     const yearB = getSideYear('station2');
 
-    const metricLabel = metricType === 'alightings' ? 'Alightings' : 'Boardings';
+    let metricLabel = 'Boardings';
+    if (metricType === 'alightings') {
+        metricLabel = 'Alightings';
+    } else if (metricType === 'total_usage') {
+        metricLabel = 'Total Usage';
+    }
     const dayLabel = getHourlyDayLabel(dayType);
     const orderedHours = getOrderedHourList();
 
@@ -771,6 +784,7 @@ document.getElementById('compareStationsBtn').addEventListener('click', function
         '<div class="section-selectors" style="margin-top:10px;margin-left:60px;">' +
             '<button type="button" class="section-btn section-btn-active" id="btn-station-hourly-boardings">Boardings</button>' +
             '<button type="button" class="section-btn" id="btn-station-hourly-alightings">Alightings</button>' +
+            '<button type="button" class="section-btn" id="btn-station-hourly-total-usage">Total Usage</button>' +
         '</div>' +
         '<div id="hourly-station-compare-display" class="vs-container"></div>';
 
@@ -858,12 +872,14 @@ document.addEventListener('click', function(e) {
     }
 
     if (e.target.classList.contains('section-btn') && e.target.id.startsWith('btn-station-hourly-')) {
-        document.querySelectorAll('#btn-station-hourly-boardings, #btn-station-hourly-alightings').forEach(btn => btn.classList.remove('section-btn-active'));
+        document.querySelectorAll('#btn-station-hourly-boardings, #btn-station-hourly-alightings, #btn-station-hourly-total-usage').forEach(btn => btn.classList.remove('section-btn-active'));
         e.target.classList.add('section-btn-active');
 
         let metricType = 'boardings';
         if (e.target.id === 'btn-station-hourly-alightings') {
             metricType = 'alightings';
+        } else if (e.target.id === 'btn-station-hourly-total-usage') {
+            metricType = 'total_usage';
         }
 
         updateHourlyStationComparisonDisplay(currentStationA, currentStationB, currentHourlyDayType, metricType);
