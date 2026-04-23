@@ -102,6 +102,11 @@ STATION_COVID_2020_DAILY_PATH = os.path.join("data", "covid years", "tspr-2020--
 STATION_COVID_2021_TOTAL_PATH = os.path.join("data", "covid years", "tspr-fall-2021-skytrain-and-wce-total-boardings-by-station.csv")
 STATION_COVID_2021_DAILY_PATH = os.path.join("data", "covid years", "tspr-fall-2021-avg-daily-skytrain-and-wce-boardings-by-mode-station-and-day-type.csv")
 STOPS_PATH = os.path.join("data", "stops.txt")
+BUS_STOP_OPEN_ARCHIVE_PATH = os.path.join("data", "TSPR_OpenData_Archive_6085823632155390806.csv")
+BUS_STOP_EXCLUDED_NAMES = {
+    "sb lonsdale quay seabus station",
+    "nb waterfront seabus station"
+}
 
 
 def _safe_float(value):
@@ -114,6 +119,35 @@ def _safe_float(value):
         return numeric_value
     except (TypeError, ValueError):
         return None
+
+
+def _split_bus_line_tokens(raw_value):
+    text = _normalize_bus_line_code(raw_value)
+    if not text:
+        return set()
+
+    tokens = set()
+    for chunk in re.split(r"[;,/&|]+", text):
+        normalized_chunk = chunk.strip()
+        if not normalized_chunk:
+            continue
+
+        tokens.add(normalized_chunk.upper())
+        if re.fullmatch(r"\d+", normalized_chunk):
+            tokens.add(str(int(normalized_chunk)))
+            tokens.add(normalized_chunk.zfill(3))
+
+    for chunk in re.split(r"[^A-Za-z0-9]+", text):
+        normalized_chunk = chunk.strip()
+        if not normalized_chunk:
+            continue
+
+        tokens.add(normalized_chunk.upper())
+        if re.fullmatch(r"\d+", normalized_chunk):
+            tokens.add(str(int(normalized_chunk)))
+            tokens.add(normalized_chunk.zfill(3))
+
+    return {token for token in tokens if token and token.lower() != "nan"}
 
 
 def _normalize_station_name(raw_name):
@@ -208,6 +242,177 @@ def _load_skytrain_station_usage_map_2024_data():
         'year': 2024,
         'stations': mapped_stations,
         'missing_stations': sorted(set(missing_stations))
+    }
+
+
+@lru_cache(maxsize=1)
+def _load_bus_stop_usage_map_2024_data(year=2024):
+    if not os.path.exists(BUS_STOP_OPEN_ARCHIVE_PATH):
+        return {
+            'year': year,
+            'stops': []
+        }
+
+    df = pd.read_csv(BUS_STOP_OPEN_ARCHIVE_PATH, dtype=str)
+    if df.empty:
+        return {
+            'year': year,
+            'stops': []
+        }
+
+    year_col = _pick_col(df.columns, ['TSPR_Year', 'CalendarYear', 'Year'])
+    if year_col:
+        df_year = df[pd.to_numeric(df[year_col], errors='coerce') == year].copy()
+    else:
+        df_year = df.copy()
+
+    if df_year.empty:
+        return {
+            'year': year,
+            'stops': []
+        }
+
+    stop_number_col = _pick_col(df_year.columns, ['Stop_Number', 'Stop Number'])
+    stop_name_col = _pick_col(df_year.columns, ['Stop_Name', 'Stop Name'])
+    sub_region_col = _pick_col(df_year.columns, ['Sub_Region', 'Sub Region'])
+    municipality_col = _pick_col(df_year.columns, ['Municipality'])
+    line_number_col = _pick_col(df_year.columns, ['Line_Number', 'Line Number'])
+    line_connections_col = _pick_col(df_year.columns, ['Line_Connections', 'Line Connections'])
+    latitude_col = _pick_col(df_year.columns, ['Stop_Latitude', 'Latitude', 'stop_lat'])
+    longitude_col = _pick_col(df_year.columns, ['Stop_Longitude', 'Longitude', 'stop_lon'])
+
+    boardings_mf_col = _pick_col(df_year.columns, ['Stop_Avg_Daily_Boardings_MF'])
+    alightings_mf_col = _pick_col(df_year.columns, ['Stop_Avg_Daily_Alightings_MF'])
+    boardings_sat_col = _pick_col(df_year.columns, ['Stop_Avg_Daily_Boardings_Sat'])
+    alightings_sat_col = _pick_col(df_year.columns, ['Stop_Avg_Daily_Alightings_Sat'])
+    boardings_sunhol_col = _pick_col(df_year.columns, ['Stop_Avg_Daily_Boardings_SunHol'])
+    alightings_sunhol_col = _pick_col(df_year.columns, ['Stop_Avg_Daily_Alightings_SunHol'])
+
+    line_boardings_mf_col = _pick_col(df_year.columns, ['Line_Avg_Daily_Boardings_MF'])
+    line_alightings_mf_col = _pick_col(df_year.columns, ['Line_Avg_Daily_Alightings_MF'])
+    line_boardings_sat_col = _pick_col(df_year.columns, ['Line_Avg_Daily_Boardings_Sat'])
+    line_alightings_sat_col = _pick_col(df_year.columns, ['Line_Avg_Daily_Alightings_Sat'])
+    line_boardings_sunhol_col = _pick_col(df_year.columns, ['Line_Avg_Daily_Boardings_SunHol'])
+    line_alightings_sunhol_col = _pick_col(df_year.columns, ['Line_Avg_Daily_Alightings_SunHol'])
+
+    if not stop_number_col or not stop_name_col or not latitude_col or not longitude_col:
+        return {
+            'year': year,
+            'stops': []
+        }
+
+    stop_lookup = {}
+
+    for _, row in df_year.iterrows():
+        stop_number = str(row.get(stop_number_col, '')).strip()
+        if not stop_number or stop_number.lower() == 'nan':
+            continue
+
+        stop_entry = stop_lookup.setdefault(stop_number, {
+            'stop_number': stop_number,
+            'stop_name': None,
+            'sub_region': None,
+            'municipality': None,
+            'lat': None,
+            'lon': None,
+            'line_tokens': set(),
+            'line_metrics': {},
+            'boardings_mf': None,
+            'alightings_mf': None,
+            'boardings_sat': None,
+            'alightings_sat': None,
+            'boardings_sunhol': None,
+            'alightings_sunhol': None
+        })
+
+        stop_name = str(row.get(stop_name_col, '')).strip()
+        if stop_name and stop_name.lower() != 'nan' and stop_entry['stop_name'] is None:
+            stop_entry['stop_name'] = stop_name
+
+        if stop_entry['stop_name'] and _normalize_station_name(stop_entry['stop_name']).lower() in BUS_STOP_EXCLUDED_NAMES:
+            stop_lookup.pop(stop_number, None)
+            continue
+
+        if sub_region_col and stop_entry['sub_region'] is None:
+            sub_region = str(row.get(sub_region_col, '')).strip()
+            if sub_region and sub_region.lower() != 'nan':
+                stop_entry['sub_region'] = sub_region
+
+        if municipality_col and stop_entry['municipality'] is None:
+            municipality = str(row.get(municipality_col, '')).strip()
+            if municipality and municipality.lower() != 'nan':
+                stop_entry['municipality'] = municipality
+
+        if stop_entry['lat'] is None:
+            stop_entry['lat'] = _safe_float(row.get(latitude_col))
+
+        if stop_entry['lon'] is None:
+            stop_entry['lon'] = _safe_float(row.get(longitude_col))
+
+        if line_number_col:
+            route_tokens = _split_bus_line_tokens(row.get(line_number_col))
+            stop_entry['line_tokens'].update(route_tokens)
+
+            line_number_value = str(row.get(line_number_col, '')).strip()
+            if line_number_value and line_number_value.lower() != 'nan':
+                stop_entry['line_metrics'][line_number_value] = {
+                    'line_number': line_number_value,
+                    'line_tokens': sorted(route_tokens, key=_bus_line_sort_key),
+                    'boardings_mf': _safe_float(row.get(line_boardings_mf_col)) if line_boardings_mf_col else None,
+                    'alightings_mf': _safe_float(row.get(line_alightings_mf_col)) if line_alightings_mf_col else None,
+                    'boardings_sat': _safe_float(row.get(line_boardings_sat_col)) if line_boardings_sat_col else None,
+                    'alightings_sat': _safe_float(row.get(line_alightings_sat_col)) if line_alightings_sat_col else None,
+                    'boardings_sunhol': _safe_float(row.get(line_boardings_sunhol_col)) if line_boardings_sunhol_col else None,
+                    'alightings_sunhol': _safe_float(row.get(line_alightings_sunhol_col)) if line_alightings_sunhol_col else None
+                }
+        if line_connections_col:
+            stop_entry['line_tokens'].update(_split_bus_line_tokens(row.get(line_connections_col)))
+
+        if boardings_mf_col and stop_entry['boardings_mf'] is None:
+            stop_entry['boardings_mf'] = _safe_float(row.get(boardings_mf_col))
+        if alightings_mf_col and stop_entry['alightings_mf'] is None:
+            stop_entry['alightings_mf'] = _safe_float(row.get(alightings_mf_col))
+        if boardings_sat_col and stop_entry['boardings_sat'] is None:
+            stop_entry['boardings_sat'] = _safe_float(row.get(boardings_sat_col))
+        if alightings_sat_col and stop_entry['alightings_sat'] is None:
+            stop_entry['alightings_sat'] = _safe_float(row.get(alightings_sat_col))
+        if boardings_sunhol_col and stop_entry['boardings_sunhol'] is None:
+            stop_entry['boardings_sunhol'] = _safe_float(row.get(boardings_sunhol_col))
+        if alightings_sunhol_col and stop_entry['alightings_sunhol'] is None:
+            stop_entry['alightings_sunhol'] = _safe_float(row.get(alightings_sunhol_col))
+
+    stops = []
+    for stop_entry in stop_lookup.values():
+        if stop_entry['lat'] is None or stop_entry['lon'] is None:
+            continue
+
+        stop_entry['line_tokens'] = sorted(
+            stop_entry['line_tokens'],
+            key=_bus_line_sort_key
+        )
+
+        stops.append({
+            'stop_number': stop_entry['stop_number'],
+            'stop_name': stop_entry['stop_name'] or stop_entry['stop_number'],
+            'sub_region': stop_entry['sub_region'],
+            'municipality': stop_entry['municipality'],
+            'lat': stop_entry['lat'],
+            'lon': stop_entry['lon'],
+            'line_tokens': stop_entry['line_tokens'],
+            'line_metrics': sorted(stop_entry['line_metrics'].values(), key=lambda item: _bus_line_sort_key(item['line_number'])),
+            'boardings_mf': stop_entry['boardings_mf'] or 0,
+            'alightings_mf': stop_entry['alightings_mf'] or 0,
+            'boardings_sat': stop_entry['boardings_sat'] or 0,
+            'alightings_sat': stop_entry['alightings_sat'] or 0,
+            'boardings_sunhol': stop_entry['boardings_sunhol'] or 0,
+            'alightings_sunhol': stop_entry['alightings_sunhol'] or 0
+        })
+
+    stops.sort(key=lambda stop: (stop['stop_name'], stop['stop_number']))
+
+    return {
+        'year': year,
+        'stops': stops
     }
 
 
@@ -1484,6 +1689,18 @@ def bus_line_options():
         options.sort(key=lambda item: _bus_line_sort_key(item['value']))
 
         return jsonify(options)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/bus-stop-usage-map-3d-data")
+def bus_stop_usage_map_3d_data():
+    """API endpoint for bus stop usage bars from the open-data archive."""
+    try:
+        year = request.args.get('year', default=2024, type=int)
+        if request.args.get('refresh', default='0') == '1':
+            _load_bus_stop_usage_map_2024_data.cache_clear()
+        return jsonify(_load_bus_stop_usage_map_2024_data(year))
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

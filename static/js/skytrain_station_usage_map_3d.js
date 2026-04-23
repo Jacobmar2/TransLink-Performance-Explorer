@@ -2,6 +2,8 @@
     const apiUrl = "/api/skytrain-station-usage-map-3d-data?refresh=1";
     const hourlyApiUrl = "/api/station-hourly-data?year=2024";
 
+    window.__skytrainBarsRendered = false;
+
     const totalMetricConfig = {
         annual: {
             label: "Annual Boardings Intensity",
@@ -68,6 +70,15 @@
             heightFactor: 0.86,
             colorLow: [101, 165, 255],
             colorHigh: [212, 237, 255]
+        },
+        total_split: {
+            label: "Total Usage (Split)",
+            tooltipLabel: "Hourly total usage (split)",
+            heightFactor: 0.86,
+            referenceKey: "total",
+            splitStacked: true,
+            colorLow: [101, 165, 255],
+            colorHigh: [212, 237, 255]
         }
     };
 
@@ -75,6 +86,7 @@
     const modeButtons = Array.from(document.querySelectorAll(".mode-button"));
     const hourlyDayTypeButtons = Array.from(document.querySelectorAll("[data-hourly-daytype]"));
     const hourlyUsageButtons = Array.from(document.querySelectorAll("[data-hourly-usage]"));
+    const hourlyTimeModeButtons = Array.from(document.querySelectorAll("[data-hourly-time-mode]"));
     const hourlyPlayToggle = document.getElementById("hourly-play-toggle");
     const playbackSpeedButtons = Array.from(document.querySelectorAll("[data-playback-speed]"));
     const loopModeButtons = Array.from(document.querySelectorAll("[data-loop-mode]"));
@@ -84,13 +96,16 @@
     const heightSliderValue = document.getElementById("height-slider-value");
     const controlPanel = document.getElementById("control-panel");
     const hourlyStrip = document.getElementById("hourly-strip");
+    const hourlyTimeModeRow = document.getElementById("hourly-time-mode-row");
     const hourlyTimeSlider = document.getElementById("hourly-time-slider");
     const hourlyTimeLabel = document.getElementById("hourly-time-label");
+    const hourlyTimeDisplay = document.getElementById("hourly-time-display");
 
     let activeMode = "total";
     let activeTotalMetric = "annual";
     let activeHourlyDayType = "weekday";
     let activeHourlyUsage = "boardings";
+    let activeHourlyTimeMode = "none";
     let activeHourlySliderIndex = 0;
     let hourlyPlaybackTimerId = null;
     let hourlyPlaybackSpeed = 1;
@@ -107,6 +122,11 @@
     let currentRenderData = [];
     let animationFrameId = null;
     let hasInitializedOverlay = false;
+    let mapReady = false;
+    let dataReady = false;
+    let revealRetryTimerId = null;
+    let revealRetryCount = 0;
+    const maxRevealRetries = 6;
 
     const normalizeStationName = (value) => {
         return String(value || "")
@@ -138,6 +158,12 @@
         return `${formatHour(startHour24)} - ${formatHour(endHour24)}`;
     };
 
+    const formatDigitalHour = (hour24) => {
+        const suffix = hour24 >= 12 ? "PM" : "AM";
+        const hour12 = hour24 % 12 === 0 ? 12 : hour24 % 12;
+        return `${hour12}:00 ${suffix}`;
+    };
+
     const sliderIndexToHour = (index) => {
         return (index + 4) % 24;
     };
@@ -161,6 +187,20 @@
         }
         const hour = sliderIndexToHour(activeHourlySliderIndex);
         hourlyTimeLabel.textContent = formatHourRange(hour);
+
+        if (!hourlyTimeDisplay) {
+            return;
+        }
+
+        const shouldShowTime = activeMode === "hourly" && activeHourlyTimeMode === "show";
+        hourlyTimeDisplay.classList.toggle("is-visible", shouldShowTime);
+
+        if (!shouldShowTime) {
+            hourlyTimeDisplay.textContent = "";
+            return;
+        }
+
+        hourlyTimeDisplay.textContent = formatDigitalHour(hour);
     };
 
     const getHourlyReferenceMax = (dayTypeKey, usageKey) => {
@@ -288,6 +328,7 @@
                 heightFactor: cfg.heightFactor,
                 colorLow: cfg.colorLow,
                 colorHigh: cfg.colorHigh,
+                splitStacked: false,
                 maxValue: null,
                 getValue: (station) => toNumber(station[cfg.valueKey])
             };
@@ -303,7 +344,10 @@
             heightFactor: usageCfg.heightFactor,
             colorLow: usageCfg.colorLow,
             colorHigh: usageCfg.colorHigh,
-            maxValue: getHourlyReferenceMax(dayCfg.apiKey, activeHourlyUsage),
+            splitStacked: Boolean(usageCfg.splitStacked),
+            dayApiKey: dayCfg.apiKey,
+            selectedHour,
+            maxValue: getHourlyReferenceMax(dayCfg.apiKey, usageCfg.referenceKey || activeHourlyUsage),
             getValue: (station) => {
                 const stationHourly = station.__hourly || {};
                 const daySeries = stationHourly[dayCfg.apiKey] || {};
@@ -349,6 +393,10 @@
         hourlyUsageButtons.forEach((button) => {
             button.classList.toggle("is-active", button.dataset.hourlyUsage === activeHourlyUsage);
         });
+
+        hourlyTimeModeButtons.forEach((button) => {
+            button.classList.toggle("is-active", button.dataset.hourlyTimeMode === activeHourlyTimeMode);
+        });
     };
 
     const syncModeUIState = () => {
@@ -357,6 +405,9 @@
         }
         if (hourlyStrip) {
             hourlyStrip.style.display = activeMode === "hourly" ? "flex" : "none";
+        }
+        if (hourlyTimeModeRow) {
+            hourlyTimeModeRow.classList.toggle("is-visible", activeMode === "hourly");
         }
         if (activeMode !== "hourly") {
             stopHourlyPlayback();
@@ -380,37 +431,85 @@
         return [red, green, blue, alpha];
     };
 
-    const getHeightMeters = (value, maxValue, heightFactor) => {
+    const getHeightMeters = (value, maxValue, heightFactor, includeBase = true) => {
         if (maxValue <= 0) {
-            return 120;
+            return includeBase ? 120 : 0;
         }
         const ratio = Math.max(0, Math.min(1, value / maxValue));
         const scaleMultiplier = getSliderPercent() / 50;
         const modeMultiplier = activeMode === "hourly" ? 2 : 1;
-        return 90 + ratio * 3600 * heightFactor * scaleMultiplier * modeMultiplier;
+        const scaledHeight = ratio * 3600 * heightFactor * scaleMultiplier * modeMultiplier;
+        return (includeBase ? 90 : 0) + scaledHeight;
     };
 
-    const buildLayer = (renderData) => {
-        return new deck.ColumnLayer({
-            id: "skytrain-usage-columns",
-            data: renderData,
-            diskResolution: 20,
-            radius: 230,
-            extruded: true,
-            pickable: true,
-            opacity: 0.95,
-            getPosition: (d) => [Number(d.lon), Number(d.lat)],
-            getElevation: (d) => d.__elevation,
-            getFillColor: (d) => d.__fillColor,
-            getLineColor: [171, 212, 255, 255],
-            lineWidthMinPixels: 1,
-            material: {
-                ambient: 0.48,
-                diffuse: 0.56,
-                shininess: 96,
-                specularColor: [160, 210, 255]
-            }
-        });
+    const buildLayers = (renderData) => {
+        const splitModeActive = activeMode === "hourly" && activeHourlyUsage === "total_split";
+
+        if (!splitModeActive) {
+            return [new deck.ColumnLayer({
+                id: "skytrain-usage-columns",
+                data: renderData,
+                diskResolution: 20,
+                radius: 230,
+                extruded: true,
+                pickable: true,
+                opacity: 0.95,
+                getPosition: (d) => [Number(d.lon), Number(d.lat)],
+                getElevation: (d) => d.__elevation,
+                getFillColor: (d) => d.__fillColor,
+                getLineColor: [171, 212, 255, 255],
+                lineWidthMinPixels: 1,
+                material: {
+                    ambient: 0.48,
+                    diffuse: 0.56,
+                    shininess: 96,
+                    specularColor: [160, 210, 255]
+                }
+            })];
+        }
+
+        return [
+            new deck.ColumnLayer({
+                id: "skytrain-usage-columns-boardings",
+                data: renderData,
+                diskResolution: 20,
+                radius: 230,
+                extruded: true,
+                pickable: true,
+                opacity: 0.96,
+                getPosition: (d) => [Number(d.lon), Number(d.lat), 0],
+                getElevation: (d) => d.__boardingElevation,
+                getFillColor: (d) => d.__boardingFillColor,
+                getLineColor: [171, 212, 255, 255],
+                lineWidthMinPixels: 1,
+                material: {
+                    ambient: 0.48,
+                    diffuse: 0.56,
+                    shininess: 96,
+                    specularColor: [160, 210, 255]
+                }
+            }),
+            new deck.ColumnLayer({
+                id: "skytrain-usage-columns-alightings",
+                data: renderData,
+                diskResolution: 20,
+                radius: 230,
+                extruded: true,
+                pickable: true,
+                opacity: 0.96,
+                getPosition: (d) => [Number(d.lon), Number(d.lat), d.__boardingElevation],
+                getElevation: (d) => d.__alightingElevation,
+                getFillColor: (d) => d.__alightingFillColor,
+                getLineColor: [171, 212, 255, 255],
+                lineWidthMinPixels: 1,
+                material: {
+                    ambient: 0.48,
+                    diffuse: 0.56,
+                    shininess: 96,
+                    specularColor: [160, 210, 255]
+                }
+            })
+        ];
     };
 
     const lerp = (startValue, endValue, t) => startValue + (endValue - startValue) * t;
@@ -447,19 +546,44 @@
         const targetRenderData = stations.map((station) => {
             const value = profile.getValue(station);
             const ratio = effectiveMax > 0 ? Math.max(0, Math.min(1, value / effectiveMax)) : 0;
+
+            let boardingsHourlyValue = 0;
+            let alightingsHourlyValue = 0;
+
+            if (profile.splitStacked && profile.dayApiKey != null && profile.selectedHour != null) {
+                const stationHourly = station.__hourly || {};
+                const daySeries = stationHourly[profile.dayApiKey] || {};
+                boardingsHourlyValue = toNumber(daySeries.boardings && daySeries.boardings[profile.selectedHour]);
+                alightingsHourlyValue = toNumber(daySeries.alightings && daySeries.alightings[profile.selectedHour]);
+            }
+
             return {
                 ...station,
                 __metricValue: value,
                 __ratio: ratio,
                 __tooltipLabel: profile.tooltipLabel,
                 __elevation: getHeightMeters(value, effectiveMax, profile.heightFactor),
-                __fillColor: toColor(value, effectiveMax, profile.colorLow, profile.colorHigh)
+                __fillColor: toColor(value, effectiveMax, profile.colorLow, profile.colorHigh),
+                __boardingElevation: getHeightMeters(boardingsHourlyValue, effectiveMax, profile.heightFactor, false),
+                __alightingElevation: getHeightMeters(alightingsHourlyValue, effectiveMax, profile.heightFactor, false),
+                __boardingFillColor: toColor(
+                    boardingsHourlyValue,
+                    effectiveMax,
+                    hourlyUsageConfig.boardings.colorLow,
+                    hourlyUsageConfig.boardings.colorHigh
+                ),
+                __alightingFillColor: toColor(
+                    alightingsHourlyValue,
+                    effectiveMax,
+                    hourlyUsageConfig.alightings.colorLow,
+                    hourlyUsageConfig.alightings.colorHigh
+                )
             };
         });
 
         if (forceImmediate || !currentRenderData.length) {
             currentRenderData = targetRenderData;
-            overlay.setProps({ layers: [buildLayer(currentRenderData)] });
+            overlay.setProps({ layers: buildLayers(currentRenderData) });
         } else {
             if (animationFrameId) {
                 cancelAnimationFrame(animationFrameId);
@@ -482,11 +606,23 @@
                         __metricValue: lerp(toNumber(startRow.__metricValue), toNumber(targetRow.__metricValue), eased),
                         __ratio: lerp(toNumber(startRow.__ratio), toNumber(targetRow.__ratio), eased),
                         __elevation: lerp(toNumber(startRow.__elevation), toNumber(targetRow.__elevation), eased),
-                        __fillColor: lerpColor(startRow.__fillColor || targetRow.__fillColor, targetRow.__fillColor, eased)
+                        __fillColor: lerpColor(startRow.__fillColor || targetRow.__fillColor, targetRow.__fillColor, eased),
+                        __boardingElevation: lerp(toNumber(startRow.__boardingElevation), toNumber(targetRow.__boardingElevation), eased),
+                        __alightingElevation: lerp(toNumber(startRow.__alightingElevation), toNumber(targetRow.__alightingElevation), eased),
+                        __boardingFillColor: lerpColor(
+                            startRow.__boardingFillColor || targetRow.__boardingFillColor,
+                            targetRow.__boardingFillColor,
+                            eased
+                        ),
+                        __alightingFillColor: lerpColor(
+                            startRow.__alightingFillColor || targetRow.__alightingFillColor,
+                            targetRow.__alightingFillColor,
+                            eased
+                        )
                     };
                 });
 
-                overlay.setProps({ layers: [buildLayer(currentRenderData)] });
+                overlay.setProps({ layers: buildLayers(currentRenderData) });
                 if (map && map.isStyleLoaded && map.isStyleLoaded()) {
                     map.triggerRepaint();
                 }
@@ -495,7 +631,7 @@
                     animationFrameId = requestAnimationFrame(animate);
                 } else {
                     currentRenderData = targetRenderData;
-                    overlay.setProps({ layers: [buildLayer(currentRenderData)] });
+                    overlay.setProps({ layers: buildLayers(currentRenderData) });
                     animationFrameId = null;
                 }
             };
@@ -504,6 +640,15 @@
         }
 
         needsBarsReveal = false;
+
+        if (currentRenderData.length) {
+            window.__skytrainBarsRendered = true;
+            revealRetryCount = 0;
+            if (revealRetryTimerId !== null) {
+                window.clearTimeout(revealRetryTimerId);
+                revealRetryTimerId = null;
+            }
+        }
 
         updateLegend(profile.label, effectiveMin, effectiveMax);
         syncModeUIState();
@@ -521,6 +666,10 @@
         renderCurrentView(true);
         needsBarsReveal = false;
 
+        if (currentRenderData.length) {
+            window.__skytrainBarsRendered = true;
+        }
+
         if (map && map.resize) {
             map.resize();
         }
@@ -528,6 +677,23 @@
         if (map && map.isStyleLoaded && map.isStyleLoaded()) {
             map.triggerRepaint();
         }
+    };
+
+    const scheduleRevealRetry = () => {
+        if (window.__skytrainBarsRendered || revealRetryCount >= maxRevealRetries) {
+            return;
+        }
+
+        if (revealRetryTimerId !== null) {
+            window.clearTimeout(revealRetryTimerId);
+        }
+
+        revealRetryTimerId = window.setTimeout(() => {
+            revealRetryCount += 1;
+            needsBarsReveal = true;
+            revealBars();
+            scheduleRevealRetry();
+        }, 360);
     };
 
     map = new maplibregl.Map({
@@ -558,6 +724,15 @@
         bearing: -20,
         antialias: true
     });
+
+    // Track map readiness immediately so we don't miss load timing while data is still fetching.
+    map.on("load", () => {
+        mapReady = true;
+    });
+
+    if (map.loaded()) {
+        mapReady = true;
+    }
 
     map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "top-left");
 
@@ -654,6 +829,8 @@
                 __hourly: hourlyStationsByName.get(normalizedName) || {}
             };
         });
+
+        dataReady = true;
     } catch (error) {
         console.error(error);
         tooltip.style.display = "block";
@@ -661,6 +838,7 @@
         tooltip.style.bottom = "18px";
         tooltip.style.top = "auto";
         tooltip.innerHTML = "Could not load map data.";
+        window.__skytrainBarsRendered = false;
         return;
     }
 
@@ -670,6 +848,7 @@
         tooltip.style.bottom = "18px";
         tooltip.style.top = "auto";
         tooltip.innerHTML = "No station data available for 2024.";
+        window.__skytrainBarsRendered = false;
         return;
     }
 
@@ -687,8 +866,13 @@
     });
 
     const initializeMapOverlayAndRender = () => {
+        if (!mapReady || !dataReady) {
+            return;
+        }
+
         if (hasInitializedOverlay) {
             revealBars();
+            scheduleRevealRetry();
             return;
         }
 
@@ -707,35 +891,48 @@
         // Ensure overlay is attached before first render to avoid intermittent empty layers on refresh.
         requestAnimationFrame(() => {
             revealBars();
+            scheduleRevealRetry();
         });
     };
 
-    if (map.loaded()) {
+    map.on("load", () => {
+        mapReady = true;
         initializeMapOverlayAndRender();
-    } else {
-        map.on("load", initializeMapOverlayAndRender);
+    });
+
+    if (map.loaded()) {
+        mapReady = true;
     }
 
+    initializeMapOverlayAndRender();
+
     map.on("idle", () => {
-        if (needsBarsReveal && currentRenderData.length) {
+        if (needsBarsReveal && stations.length) {
             revealBars();
+            scheduleRevealRetry();
         }
     });
 
     window.addEventListener("pageshow", (event) => {
         if (event.persisted) {
             needsBarsReveal = true;
+            window.__skytrainBarsRendered = false;
+            revealRetryCount = 0;
             window.requestAnimationFrame(() => {
                 revealBars();
+                scheduleRevealRetry();
             });
         }
     });
 
     document.addEventListener("visibilitychange", () => {
-        if (!document.hidden && currentRenderData.length) {
+        if (!document.hidden && stations.length) {
             needsBarsReveal = true;
+            window.__skytrainBarsRendered = false;
+            revealRetryCount = 0;
             window.requestAnimationFrame(() => {
                 revealBars();
+                scheduleRevealRetry();
             });
         }
     });
@@ -847,6 +1044,18 @@
             }
             activeMode = "hourly";
             activeHourlyUsage = usage;
+            renderCurrentView();
+        });
+    });
+
+    hourlyTimeModeButtons.forEach((button) => {
+        button.addEventListener("click", () => {
+            const timeMode = button.dataset.hourlyTimeMode;
+            if (timeMode !== "none" && timeMode !== "show") {
+                return;
+            }
+            activeMode = "hourly";
+            activeHourlyTimeMode = timeMode;
             renderCurrentView();
         });
     });

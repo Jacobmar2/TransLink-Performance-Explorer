@@ -36,6 +36,37 @@
             max-width: min(560px, calc(100vw - 36px));
         }
 
+        .title-visibility-button {
+            border: 1px solid rgba(134, 187, 255, 0.38);
+            border-radius: 999px;
+            padding: 6px 10px;
+            background: rgba(9, 22, 42, 0.92);
+            color: #dcecff;
+            font-size: 0.74rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
+        }
+
+        .title-visibility-button:hover {
+            transform: translateY(-1px);
+            border-color: rgba(166, 208, 255, 0.65);
+        }
+
+        .title-visibility-button.is-active {
+            background: linear-gradient(180deg, rgba(43, 92, 162, 0.98), rgba(21, 54, 103, 0.98));
+            border-color: rgba(166, 208, 255, 0.9);
+            color: #ffffff;
+        }
+
+        body {
+            --map-zoom-controls-top: 126px;
+        }
+
+        body.title-hidden {
+            --map-zoom-controls-top: 74px;
+        }
+
         .overlay h1 {
             margin: 0 0 6px 0;
             font-size: clamp(1.05rem, 2.2vw, 1.45rem);
@@ -96,6 +127,76 @@
             color: #d3e6ff;
         }
 
+        .title-controls-row {
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin: 10px 0 0 0;
+        }
+
+        .title-controls-label {
+            color: #c9e4ff;
+            font-size: 0.82rem;
+            font-weight: 700;
+            letter-spacing: 0.01em;
+        }
+
+        .title-controls-buttons {
+            display: inline-flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .hourly-time-mode-row {
+            display: none;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin: 10px 0 0 0;
+            padding-top: 10px;
+            border-top: 1px solid rgba(110, 164, 241, 0.24);
+        }
+
+        .hourly-time-mode-row.is-visible {
+            display: flex;
+        }
+
+        .hourly-time-mode-label {
+            color: #c9e4ff;
+            font-size: 0.82rem;
+            font-weight: 700;
+            letter-spacing: 0.01em;
+        }
+
+        .hourly-time-mode-buttons {
+            display: inline-flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
+        .maplibregl-ctrl-top-left {
+            top: var(--map-zoom-controls-top);
+            left: 8px;
+        }
+
+        @media (max-width: 640px) {
+            body {
+                --map-zoom-controls-top: 154px;
+            }
+
+            body.title-hidden {
+                --map-zoom-controls-top: 100px;
+            }
+
+            .maplibregl-ctrl-top-left {
+                top: var(--map-zoom-controls-top);
+            }
+        }
+
         .home-link {
             position: fixed;
             top: 18px;
@@ -123,8 +224,9 @@
             top: 18px;
             right: 18px;
             z-index: 3;
-            display: inline-flex;
-            align-items: center;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
             gap: 8px;
         }
 
@@ -134,51 +236,50 @@
             right: auto;
         }
 
-        .info-hint {
-            position: relative;
-            display: inline-flex;
+        .hourly-time-display {
+            display: none;
             align-items: center;
             justify-content: center;
-            width: 28px;
-            height: 28px;
-            border-radius: 999px;
-            border: 1px solid rgba(134, 187, 255, 0.5);
+            min-width: 110px;
+            padding: 10px 14px;
+            border-radius: 10px;
+            border: 1px solid rgba(134, 187, 255, 0.42);
             background: rgba(7, 17, 31, 0.82);
             color: #eaf4ff;
-            font-size: 0.86rem;
+            font-size: 1rem;
             font-weight: 700;
-            cursor: help;
-            user-select: none;
+            letter-spacing: 0.01em;
+            box-shadow: 0 10px 26px rgba(0, 0, 0, 0.28);
         }
 
-        .info-hint::after {
-            content: "If bars don't appear, clear recent history then refresh the page.";
-            position: absolute;
-            top: calc(100% + 8px);
-            right: 0;
-            width: min(320px, 70vw);
-            padding: 8px 10px;
+        .hourly-time-display.is-visible {
+            display: inline-flex;
+        }
+
+        .bars-warning {
+            display: none;
+            position: fixed;
+            top: 92px;
+            right: 18px;
+            z-index: 3;
+            max-width: min(360px, calc(100vw - 36px));
+            padding: 10px 12px;
             border-radius: 10px;
             border: 1px solid rgba(134, 187, 255, 0.42);
             background: rgba(4, 12, 24, 0.96);
             color: #dcecff;
-            font-size: 0.78rem;
+            font-size: 0.82rem;
             line-height: 1.35;
             box-shadow: 0 10px 26px rgba(0, 0, 0, 0.34);
-            opacity: 0;
-            pointer-events: none;
-            transform: translateY(-4px);
-            transition: opacity 0.18s ease, transform 0.18s ease;
         }
 
-        .info-hint:hover::after {
-            opacity: 1;
-            transform: translateY(0);
+        .bars-warning.is-visible {
+            display: block;
         }
 
         .control-panel {
-            --collapsed-visible-height: 56px;
-            --panel-strip-height: 56px;
+            --collapsed-visible-height: 48px;
+            --panel-strip-height: 30px;
             position: fixed;
             left: 8px;
             right: 8px;
@@ -192,13 +293,13 @@
             border-radius: 16px 16px 0 0;
             backdrop-filter: blur(10px);
             box-shadow: 0 -18px 38px rgba(0, 0, 0, 0.45);
-            transform: translateY(calc(100% - var(--collapsed-visible-height)));
+            transform: translateY(calc(100% - var(--collapsed-visible-height) + 8px));
             transition: transform 0.28s ease;
         }
 
         .control-panel.mode-hourly {
-            --collapsed-visible-height: 56px;
-            --panel-strip-height: 56px;
+            --collapsed-visible-height: 48px;
+            --panel-strip-height:30px;
         }
 
         .control-panel.is-open {
@@ -232,7 +333,7 @@
 
         .control-panel-strip {
             height: var(--panel-strip-height);
-            padding: 10px 14px 10px 14px;
+            padding: 8px 14px 8px 14px;
             border-bottom: 1px solid rgba(110, 164, 241, 0.24);
             background: linear-gradient(180deg, rgba(5, 17, 34, 0.88), rgba(2, 14, 30, 0.88));
             display: flex;
@@ -277,9 +378,9 @@
             align-items: center;
             justify-content: space-between;
             width: 100%;
-            gap: 10px;
+            gap: 8px;
             color: #cde4ff;
-            font-size: 0.78rem;
+            font-size: 0.76rem;
             font-weight: 600;
             flex-wrap: wrap;
         }
@@ -287,9 +388,9 @@
         .hourly-strip-main {
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 8px;
             flex: 1 1 540px;
-            min-width: 280px;
+            min-width: 260px;
         }
 
         #hourly-time-label {
@@ -304,7 +405,7 @@
         .hourly-player {
             display: inline-flex;
             align-items: center;
-            gap: 8px;
+            gap: 6px;
             flex-wrap: wrap;
             justify-content: flex-end;
         }
@@ -314,10 +415,10 @@
         .player-loop-button {
             border: 1px solid rgba(134, 187, 255, 0.42);
             border-radius: 999px;
-            padding: 7px 11px;
+            padding: 6px 10px;
             background: rgba(9, 22, 42, 0.92);
             color: #dcecff;
-            font-size: 0.76rem;
+            font-size: 0.74rem;
             font-weight: 700;
             cursor: pointer;
             transition: background 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
@@ -343,8 +444,8 @@
         .player-loop-group {
             display: inline-flex;
             align-items: center;
-            gap: 6px;
-            padding: 4px;
+            gap: 5px;
+            padding: 3px;
             border: 1px solid rgba(121, 179, 255, 0.28);
             border-radius: 999px;
             background: rgba(11, 28, 52, 0.5);
@@ -420,6 +521,9 @@
             font-size: 0.82rem;
             font-weight: 600;
         }
+        .height-slider-row .control-group-title {
+            margin: 0;
+        }
 
         .height-slider {
             width: 100%;
@@ -456,6 +560,16 @@
             grid-template-columns: repeat(3, minmax(0, 1fr));
             gap: 8px;
             margin-bottom: 10px;
+        }
+
+        .hourly-usage-measure-grid {
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 6px;
+        }
+
+        .hourly-usage-measure-grid .hourly-button {
+            padding: 7px 10px;
+            font-size: 0.78rem;
         }
 
         .hourly-button {
@@ -526,7 +640,11 @@
 
     <div class="top-right-controls">
         <a href="/" class="home-link">Back to Home</a>
-        <span class="info-hint" aria-label="If bars don't appear, clear recent history then refresh the page." title="If bars don't appear, clear recent history then refresh the page.">(i)</span>
+        <span id="hourly-time-display" class="hourly-time-display" aria-live="polite"></span>
+    </div>
+
+    <div id="bars-warning" class="bars-warning" role="status" aria-live="polite">
+        If bars don't appear, clear recent history then refresh the page.
     </div>
 
     <div class="legend">
@@ -567,13 +685,13 @@
         <div class="control-panel-body">
             <div class="mode-row-in-body">
                 <div class="mode-buttons" role="group" aria-label="Map mode selection">
-                    <button type="button" class="mode-button is-active" data-mode="total">Total Mode</button>
-                    <button type="button" class="mode-button" data-mode="hourly">Hourly Mode</button>
+                    <button type="button" class="mode-button is-active" data-mode="total">Total Usage Mode</button>
+                    <button type="button" class="mode-button" data-mode="hourly">Hourly Usage Mode</button>
                 </div>
             </div>
             <div class="control-layout">
                 <div>
-                    <h2 class="control-panel-title">Total Usage Controls</h2>
+                    <h2 class="control-panel-title">Total Usage Options</h2>
                     <div class="metric-buttons" role="group" aria-label="Boardings metric selection">
                         <button type="button" class="metric-button is-active" data-metric="annual">Annual boardings</button>
                         <button type="button" class="metric-button" data-metric="weekday">Daily boardings (MF)</button>
@@ -582,15 +700,22 @@
                     </div>
                     <div class="height-slider-wrap">
                         <div class="height-slider-row">
-                            <span>Bar Height Scale</span>
+                            <span class="control-group-title">Bar Height Scale</span>
                             <span id="height-slider-value">50%</span>
                         </div>
                         <input id="height-scale-slider" class="height-slider" type="range" min="15" max="100" step="1" value="50" aria-label="Bar height scale">
                     </div>
+                    <div class="title-controls-row" role="group" aria-label="Title visibility controls">
+                        <span class="title-controls-label">Map Title</span>
+                        <div class="title-controls-buttons">
+                            <button id="title-hide-button" class="title-visibility-button" type="button" aria-pressed="false">Hide Title</button>
+                            <button id="title-show-button" class="title-visibility-button is-active" type="button" aria-pressed="true">Show Title</button>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="hourly-controls">
-                    <p class="control-group-title">Hourly Usage Day Type</p>
+                    <h2 class="control-panel-title">Hourly Usage Day Type</h2>
                     <div class="hourly-button-grid" role="group" aria-label="Hourly day type selection">
                         <button type="button" class="hourly-button is-active" data-hourly-daytype="weekday">hourly usage (MF)</button>
                         <button type="button" class="hourly-button" data-hourly-daytype="saturday">hourly usage (Sat)</button>
@@ -598,10 +723,19 @@
                     </div>
 
                     <p class="control-group-title">Hourly Usage Measure</p>
-                    <div class="hourly-button-grid" role="group" aria-label="Hourly usage measure selection">
+                    <div class="hourly-button-grid hourly-usage-measure-grid" role="group" aria-label="Hourly usage measure selection">
                         <button type="button" class="hourly-button is-active" data-hourly-usage="boardings">Boardings</button>
                         <button type="button" class="hourly-button" data-hourly-usage="alightings">Alightings</button>
                         <button type="button" class="hourly-button" data-hourly-usage="total">Total Usage</button>
+                        <button type="button" class="hourly-button" data-hourly-usage="total_split">Total Usage (Split)</button>
+                    </div>
+
+                    <div class="hourly-time-mode-row" id="hourly-time-mode-row" role="group" aria-label="Hourly time display selection">
+                        <span class="hourly-time-mode-label">Time Display</span>
+                        <div class="hourly-time-mode-buttons">
+                            <button type="button" class="hourly-button is-active" data-hourly-time-mode="none">None</button>
+                            <button type="button" class="hourly-button" data-hourly-time-mode="show">Show Time</button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -610,8 +744,77 @@
 
     <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
     <script src="https://unpkg.com/deck.gl@9.0.34/dist.min.js"></script>
-    <script src="{{ url_for('static', filename='js/skytrain_station_usage_map_3d.js', v='20260421-7') }}"></script>
+    <script src="{{ url_for('static', filename='js/skytrain_station_usage_map_3d.js', v='20260422-3') }}"></script>
     <script>
+        (function setupBarsWarning() {
+            const warning = document.getElementById("bars-warning");
+
+            if (!warning) {
+                return;
+            }
+
+            const syncWarningVisibility = () => {
+                warning.classList.toggle("is-visible", !window.__skytrainBarsRendered);
+            };
+
+            window.addEventListener("load", () => {
+                // Allow initial map/data retries to complete before deciding bars are missing.
+                window.setTimeout(syncWarningVisibility, 2600);
+
+                // Keep the warning in sync in case bars render shortly after the first check.
+                window.setTimeout(syncWarningVisibility, 4200);
+            });
+
+            document.addEventListener("visibilitychange", () => {
+                if (!document.hidden) {
+                    window.setTimeout(syncWarningVisibility, 900);
+                }
+            });
+        })();
+
+        (function setupTitleVisibilityControls() {
+            const titleElement = document.querySelector(".overlay h1");
+            const titleDescription = document.querySelector(".overlay p");
+            const legendElement = document.querySelector(".legend");
+            const hideButton = document.getElementById("title-hide-button");
+            const showButton = document.getElementById("title-show-button");
+
+            if (!titleElement || !hideButton || !showButton) {
+                return;
+            }
+
+            let titleVisible = true;
+
+            const syncTitleVisibility = () => {
+                document.body.classList.toggle("title-hidden", !titleVisible);
+                titleElement.hidden = !titleVisible;
+                if (titleDescription) {
+                    titleDescription.hidden = !titleVisible;
+                }
+                if (legendElement) {
+                    legendElement.hidden = !titleVisible;
+                }
+
+                hideButton.classList.toggle("is-active", !titleVisible);
+                hideButton.setAttribute("aria-pressed", titleVisible ? "false" : "true");
+
+                showButton.classList.toggle("is-active", titleVisible);
+                showButton.setAttribute("aria-pressed", titleVisible ? "true" : "false");
+            };
+
+            hideButton.addEventListener("click", function () {
+                titleVisible = false;
+                syncTitleVisibility();
+            });
+
+            showButton.addEventListener("click", function () {
+                titleVisible = true;
+                syncTitleVisibility();
+            });
+
+            syncTitleVisibility();
+        })();
+
         (function setupBottomControlPanel() {
             const panel = document.getElementById("control-panel");
             const toggleButton = document.getElementById("control-panel-toggle");
