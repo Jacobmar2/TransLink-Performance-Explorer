@@ -24,6 +24,10 @@
             --map-zoom-controls-top: 112px;
         }
 
+        body.title-hidden {
+            --map-zoom-controls-top: 74px;
+        }
+
         #map {
             position: fixed;
             inset: 0;
@@ -174,36 +178,69 @@
             border-radius: 16px;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
             backdrop-filter: blur(8px);
-            overflow: hidden;
+            overflow: visible;
+            transition: background 0.26s ease, border-color 0.26s ease, box-shadow 0.26s ease, backdrop-filter 0.26s ease;
         }
 
         .control-panel-toggle {
-            width: 100%;
-            padding: 10px 14px;
-            border: 0;
-            border-radius: 16px 16px 0 0;
-            background: rgba(7, 29, 18, 0.92);
+            position: absolute;
+            left: 50%;
+            top: 0;
+            width: auto;
+            padding: 10px 15px;
+            border: 1px solid rgba(121, 204, 145, 0.46);
+            border-radius: 10px 10px 0 0;
+            background: rgba(7, 29, 18, 0.96);
             color: #edf9f0;
             font-size: 0.9rem;
             font-weight: 700;
             cursor: pointer;
             text-align: left;
+            box-shadow: 0 -6px 18px rgba(0, 0, 0, 0.26);
+            transform: translate(-50%, calc(-100% - 15px));
+            transition: border-color 0.2s ease, transform 0.2s ease;
+        }
+
+        .control-panel-toggle:hover {
+            transform: translate(-50%, calc(-100% - 15px));
+            border-color: rgba(161, 227, 178, 0.72);
         }
 
         .control-panel-body {
             display: block;
             padding: 14px;
+            max-height: 56vh;
+            opacity: 1;
+            overflow: hidden;
+            transform: translateY(0);
+            transition: max-height 0.28s ease, opacity 0.2s ease, padding 0.28s ease, transform 0.28s ease;
         }
 
-        .control-layout {
-            display: grid;
-            grid-template-columns: minmax(180px, 220px) minmax(0, 1fr);
-            gap: 16px;
+        .panel-row {
+            width: 100%;
+        }
+
+        .panel-row + .panel-row {
+            margin-top: 14px;
+            padding-top: 14px;
+            border-top: 1px solid rgba(121, 204, 145, 0.2);
+        }
+
+        .panel-row-1 {
+            display: flex;
+            justify-content: center;
+            gap: 220px;
             align-items: start;
+            flex-wrap: wrap;
+        }
+
+        .panel-row-1 > div {
+            flex: 0 1 auto;
+            min-width: max-content;
         }
 
         .control-panel-title {
-            margin: 0 0 10px 0;
+            margin: 0 0 8px 0;
             color: #d2f6d7;
             font-size: 0.95rem;
             font-weight: 700;
@@ -217,12 +254,11 @@
             letter-spacing: 0.01em;
         }
 
-        .mode-buttons,
         .metric-buttons,
         .daytype-buttons {
             display: flex;
             flex-wrap: wrap;
-            gap: 8px;
+            gap: 6px;
         }
 
         .mode-button,
@@ -258,6 +294,51 @@
             padding: 0;
         }
 
+        .title-controls-row {
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin: 0;
+        }
+
+        .title-controls-label {
+            color: #dff7e4;
+            font-size: 0.82rem;
+            font-weight: 700;
+            letter-spacing: 0.01em;
+        }
+
+        .title-controls-buttons {
+            display: inline-flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .title-visibility-button {
+            border: 1px solid rgba(121, 204, 145, 0.38);
+            border-radius: 999px;
+            padding: 6px 10px;
+            background: rgba(6, 22, 14, 0.94);
+            color: #edf9f0;
+            font-size: 0.74rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
+        }
+
+        .title-visibility-button:hover {
+            transform: translateY(-1px);
+            border-color: rgba(161, 227, 178, 0.65);
+        }
+
+        .title-visibility-button.is-active {
+            background: linear-gradient(180deg, rgba(58, 140, 82, 0.98), rgba(24, 74, 42, 0.98));
+            border-color: rgba(178, 238, 191, 0.9);
+            color: #ffffff;
+        }
+
         .bus-line-label {
             display: block;
             margin: 0 0 8px 0;
@@ -268,32 +349,39 @@
 
         .bus-line-row {
             display: flex;
-            align-items: stretch;
+            align-items: center;
             gap: 8px;
             flex-wrap: wrap;
         }
 
         .bus-line-select {
-            flex: 1 1 280px;
-            min-width: 240px;
-            padding: 0.78em 0.9em;
+            flex: 0 1 600px;
+            min-width: 200px;
+            height: 36px;
+            min-height: 36px;
+            padding: 0.75em 0.9em;
             border-radius: 0.6em;
             border: 1px solid rgba(121, 204, 145, 0.4);
             background: rgba(5, 18, 11, 0.96);
             color: #edf9f0;
-            font-size: 0.92rem;
+            font-size: 0.86rem;
+            line-height: 1.2;
+            box-sizing: border-box;
         }
 
         .reveal-map-button {
+            height: 36px;
+            min-height: 36px;
             border: 1px solid rgba(121, 204, 145, 0.36);
             border-radius: 0.6em;
-            padding: 0.78em 0.95em;
+            padding: 0 0.95em;
             background: rgba(6, 22, 14, 0.94);
             color: #edf9f0;
             font-size: 0.84rem;
             font-weight: 700;
             cursor: pointer;
             white-space: nowrap;
+            box-sizing: border-box;
             transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
         }
 
@@ -303,7 +391,7 @@
         }
 
         .panel-note {
-            margin: 10px 0 0 0;
+            margin: 4px 0 0 0;
             color: #bce6c5;
             font-size: 0.84rem;
             line-height: 1.4;
@@ -342,16 +430,37 @@
         }
 
         .control-panel.is-collapsed .control-panel-body {
-            display: none;
+            max-height: 0;
+            opacity: 0;
+            padding-top: 0;
+            padding-bottom: 0;
+            transform: translateY(8px);
+            pointer-events: none;
+        }
+
+        .control-panel.is-collapsed {
+            background: transparent;
+            border-color: transparent;
+            box-shadow: none;
+            backdrop-filter: none;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .control-panel,
+            .control-panel-body,
+            .control-panel-toggle {
+                transition: none;
+            }
         }
 
         .control-panel.is-collapsed .control-panel-toggle {
-            border-radius: 16px;
+            border-radius: 10px;
         }
 
         @media (max-width: 820px) {
-            .control-layout {
-                grid-template-columns: 1fr;
+            .panel-row-1 {
+                justify-content: flex-start;
+                gap: 12px;
             }
         }
 
@@ -404,7 +513,7 @@
             Open Control Panel
         </button>
         <div class="control-panel-body">
-            <div class="control-layout">
+            <div class="panel-row panel-row-1">
                 <div>
                     <h2 class="control-panel-title">Total Usage Options</h2>
                     <div class="metric-buttons" role="group" aria-label="Total usage metric selection">
@@ -412,27 +521,36 @@
                         <button type="button" class="metric-button" data-metric="alightings">Alightings</button>
                         <button type="button" class="metric-button" data-metric="total_usage">Total usage</button>
                     </div>
-
-                    <div style="margin-top: 14px;">
-                        <p class="control-group-title">Day Type</p>
-                        <div class="daytype-buttons" role="group" aria-label="Day type selection">
-                            <button type="button" class="daytype-button is-active" data-daytype="weekday">MF</button>
-                            <button type="button" class="daytype-button" data-daytype="saturday">Sat</button>
-                            <button type="button" class="daytype-button" data-daytype="sunday">SunHol</button>
-                        </div>
-                    </div>
                 </div>
 
                 <div>
-                    <h2 class="control-panel-title">Bus Line Selection</h2>
-                    <label class="bus-line-label" for="bus-line-select">Select bus line</label>
-                    <div class="bus-line-row">
-                        <select id="bus-line-select" class="bus-line-select" name="bus-line-select">
-                            <option value="">Loading bus lines...</option>
-                        </select>
-                        <button id="reveal-map-button" class="reveal-map-button" type="button">Reveal Complete Map</button>
+                    <h2 class="control-panel-title">Day Type</h2>
+                    <div class="daytype-buttons" role="group" aria-label="Day type selection">
+                        <button type="button" class="daytype-button is-active" data-daytype="weekday">MF</button>
+                        <button type="button" class="daytype-button" data-daytype="saturday">Sat</button>
+                        <button type="button" class="daytype-button" data-daytype="sunday">SunHol</button>
                     </div>
-                    <p class="panel-note">Choose a line to isolate its stops. Use Reveal Complete Map to clear the selection.</p>
+                </div>
+            </div>
+
+            <div class="panel-row panel-row-2">
+                <label class="bus-line-label" for="bus-line-select">Select bus line</label>
+                <div class="bus-line-row">
+                    <select id="bus-line-select" class="bus-line-select" name="bus-line-select">
+                        <option value="">Loading bus lines...</option>
+                    </select>
+                    <button id="reveal-map-button" class="reveal-map-button" type="button">Reveal Complete Map</button>
+                </div>
+                <p class="panel-note">Choose a line to isolate its stops. Use Reveal Complete Map to clear the selection.</p>
+            </div>
+
+            <div class="panel-row panel-row-3">
+                <div class="title-controls-row" role="group" aria-label="Title visibility controls">
+                    <span class="title-controls-label">Map Title</span>
+                    <div class="title-controls-buttons">
+                        <button id="title-hide-button" class="title-visibility-button" type="button" aria-pressed="false">Hide Title</button>
+                        <button id="title-show-button" class="title-visibility-button is-active" type="button" aria-pressed="true">Show Title</button>
+                    </div>
                 </div>
             </div>
         </div>

@@ -419,8 +419,8 @@
     };
 
     const toColor = (value, maxValue, colorLow, colorHigh) => {
-        if (maxValue <= 0) {
-            return [colorLow[0], colorLow[1], colorLow[2], 210];
+        if (value <= 0 || maxValue <= 0) {
+            return [128, 128, 128, 190];
         }
 
         const ratio = Math.max(0, Math.min(1, value / maxValue));

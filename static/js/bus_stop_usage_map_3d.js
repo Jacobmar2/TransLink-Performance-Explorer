@@ -36,6 +36,11 @@
     const panel = document.getElementById("control-panel");
     const toggleButton = document.getElementById("control-panel-toggle");
     const tooltip = document.getElementById("map-tooltip");
+    const titleHeading = document.querySelector(".overlay h1");
+    const titleDescriptions = Array.from(document.querySelectorAll(".overlay p"));
+    const legendElement = document.querySelector(".legend");
+    const titleHideButton = document.getElementById("title-hide-button");
+    const titleShowButton = document.getElementById("title-show-button");
 
     let map = null;
     let overlay = null;
@@ -47,6 +52,7 @@
     let currentDayType = "weekday";
     let currentBusLine = "";
     let hoverInfo = null;
+    let titleVisible = true;
 
     const numberFormatter = new Intl.NumberFormat("en-CA", {
         maximumFractionDigits: 0
@@ -293,6 +299,32 @@
         renderMap();
     };
 
+    const syncTitleVisibility = () => {
+        document.body.classList.toggle("title-hidden", !titleVisible);
+
+        if (titleHeading) {
+            titleHeading.hidden = !titleVisible;
+        }
+
+        titleDescriptions.forEach((node) => {
+            node.hidden = !titleVisible;
+        });
+
+        if (legendElement) {
+            legendElement.hidden = !titleVisible;
+        }
+
+        if (titleHideButton) {
+            titleHideButton.classList.toggle("is-active", !titleVisible);
+            titleHideButton.setAttribute("aria-pressed", titleVisible ? "false" : "true");
+        }
+
+        if (titleShowButton) {
+            titleShowButton.classList.toggle("is-active", titleVisible);
+            titleShowButton.setAttribute("aria-pressed", titleVisible ? "true" : "false");
+        }
+    };
+
     const populateBusLineOptions = (options) => {
         if (!busLineSelect) {
             return;
@@ -355,6 +387,20 @@
 
     if (revealMapButton) {
         revealMapButton.addEventListener("click", clearBusLineSelection);
+    }
+
+    if (titleHideButton && titleShowButton && titleHeading) {
+        titleHideButton.addEventListener("click", () => {
+            titleVisible = false;
+            syncTitleVisibility();
+        });
+
+        titleShowButton.addEventListener("click", () => {
+            titleVisible = true;
+            syncTitleVisibility();
+        });
+
+        syncTitleVisibility();
     }
 
     map = new maplibregl.Map({
