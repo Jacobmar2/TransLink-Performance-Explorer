@@ -1,6 +1,6 @@
 (async function initializeBusStopUsageMap() {
-    const apiUrl = "/api/bus-stop-usage-map-3d-data?year=2024&refresh=1";
-    const busLineOptionsUrl = "/api/bus-line-options?year=2024&refresh=1";
+    const apiUrl = "/api/bus-stop-usage-map-3d-data?year=2024";
+    const busLineOptionsUrl = "/api/bus-line-options?year=2024";
 
     window.__busStopBarsRendered = false;
 

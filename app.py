@@ -551,6 +551,16 @@ def _load_bus_stop_usage_map_2024_data(year=2024):
 
     bay_cluster_lookup = {}
     bay_cluster_by_stop_code = {}
+    bay_cluster_canon_lookup = {}
+
+    def _canon_cluster_root(text):
+        t = str(text or '').lower()
+        t = t.replace('@', ' ')
+        t = re.sub(r'\b(stn)\b', 'station', t)
+        t = re.sub(r'[^a-z0-9\- ]+', ' ', t)
+        t = re.sub(r'\s+', ' ', t).strip()
+        return t
+
     if os.path.exists(STOPS_PATH):
         stops_txt_df = pd.read_csv(STOPS_PATH, dtype=str)
         if not stops_txt_df.empty:
@@ -597,6 +607,18 @@ def _load_bus_stop_usage_map_2024_data(year=2024):
                     'count': stats['count'],
                     'name': stats['cluster_name']
                 }
+
+            # Precompute canonical cluster roots once to avoid heavy per-row regex work.
+            for cluster_key, cluster_meta in bay_cluster_lookup.items():
+                if cluster_key.startswith('name:'):
+                    root_k = cluster_key[len('name:'):]
+                else:
+                    root_k = cluster_meta.get('name') or ''
+
+                canon_root = _canon_cluster_root(root_k)
+                if not canon_root:
+                    continue
+                bay_cluster_canon_lookup.setdefault(canon_root, []).append((cluster_key, cluster_meta))
 
     year_col = _pick_col(df.columns, ['TSPR_Year', 'CalendarYear', 'Year'])
     if year_col:
@@ -689,10 +711,10 @@ def _load_bus_stop_usage_map_2024_data(year=2024):
 
         stop_code_cluster = bay_cluster_by_stop_code.get(stop_number)
         assigned_cluster = False
+        has_bay_pattern = bool(re.search(r'\b(bay|unload)', stop_entry['stop_name'] or '', re.IGNORECASE))
         # Only assign via stop_code mapping if the stop name contains "bay" or "unload"
         # to filter out corrupted/mismatched archive stop names
         if stop_code_cluster and stop_code_cluster in bay_cluster_lookup and stop_entry['stop_name']:
-            has_bay_pattern = bool(re.search(r'\b(bay|unload)', stop_entry['stop_name'], re.IGNORECASE))
             if has_bay_pattern:
                 cluster_meta = bay_cluster_lookup[stop_code_cluster]
                 stop_entry['bay_cluster_id'] = stop_code_cluster
@@ -710,36 +732,22 @@ def _load_bus_stop_usage_map_2024_data(year=2024):
             normalized_root = _normalize_station_name(cluster_name_root or stop_entry['stop_name']).lower()
             candidate_key = f"name:{normalized_root}"
             candidate_meta = bay_cluster_lookup.get(candidate_key)
-            # Try relaxed matching when naming variants exist (e.g., "Stn" vs "Station").
-            if candidate_meta is None:
-                def _canon(text):
-                    t = str(text or '').lower()
-                    t = t.replace('@', ' ')
-                    t = re.sub(r'\b(stn)\b', 'station', t)
-                    t = re.sub(r'\bstation\b', 'station', t)
-                    t = re.sub(r'[^a-z0-9\- ]+', ' ', t)
-                    t = re.sub(r'\s+', ' ', t).strip()
-                    return t
 
-                target_canon = _canon(normalized_root)
-                # Relaxed scan: compare against any known cluster (name: or parent:)
-                for k, meta in bay_cluster_lookup.items():
-                    # derive a comparable root for the cluster key
-                    if k.startswith('name:'):
-                        root_k = k[len('name:'):]
-                    else:
-                        root_k = meta.get('name') or ''
-                    if not root_k:
-                        continue
-                    c_root = _canon(root_k)
-                    if target_canon in c_root or c_root in target_canon:
-                        candidate_key = k
-                        candidate_meta = meta
-                        break
+            # Try relaxed matching when naming variants exist (e.g., "Stn" vs "Station").
+            # This uses precomputed canonical roots to keep lookup fast on low-CPU deploys.
+            if candidate_meta is None:
+                target_canon = _canon_cluster_root(normalized_root)
+                exact_candidates = bay_cluster_canon_lookup.get(target_canon, [])
+                if exact_candidates:
+                    candidate_key, candidate_meta = exact_candidates[0]
+                elif target_canon:
+                    for canon_root, matches in bay_cluster_canon_lookup.items():
+                        if target_canon in canon_root or canon_root in target_canon:
+                            candidate_key, candidate_meta = matches[0]
+                            break
             if candidate_meta:
                 # use a geographic threshold (~300m) to verify proximity within station/terminal
                 # also require stop name to contain "bay" or "unload" to filter out corrupted/mislabeled stops
-                has_bay_pattern = bool(re.search(r'\b(bay|unload)', stop_entry['stop_name'], re.IGNORECASE))
                 if has_bay_pattern and abs(stop_entry['lat'] - candidate_meta['lat']) <= 0.003 and abs(stop_entry['lon'] - candidate_meta['lon']) <= 0.003:
                     stop_entry['bay_cluster_id'] = candidate_key
                     stop_entry['bay_cluster_lat'] = candidate_meta['lat']
