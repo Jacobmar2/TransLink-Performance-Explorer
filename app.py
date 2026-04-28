@@ -10,7 +10,10 @@ from functools import lru_cache
 from difflib import SequenceMatcher
 
 app = Flask(__name__)
-app.config["UPLOAD_FOLDER"] = "uploads"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR = os.path.join(BASE_DIR, "data")
+
+app.config["UPLOAD_FOLDER"] = os.path.join(BASE_DIR, "uploads")
 os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
 
 @app.route("/howto")
@@ -31,16 +34,16 @@ def bus_lines():
     return render_template("bus_lines.html")
 
 
-BUS_YEARLINE_2024_PATH = os.path.join("data", "tspr2024_bus_yearline.csv")
-BUS_KEYINDICATORS_PATH = os.path.join("data", "tspr2022_bus_keyindicators_year.csv")
-BUS_OPEN_ARCHIVE_PATH = os.path.join("data", "TSPR_OpenData_Archive_8554786340162954844.csv")
-BUS_COVID_2020_TOTAL_PATH = os.path.join("data", "covid years", "tspr-2020---total-bus-boardings-by-route.csv")
-BUS_COVID_2020_DAILY_PATH = os.path.join("data", "covid years", "tspr-2020---avg-daily-bus-boardings-by-route-and-day-type.csv")
-BUS_COVID_2021_TOTAL_PATH = os.path.join("data", "covid years", "tspr-fall-2021-total-bus-boardings-by-route.csv")
-BUS_COVID_2021_DAILY_PATH = os.path.join("data", "covid years", "tspr-fall-2021-avg-daily-bus-boardings-by-route-and-day-type.csv")
-BUS_DEEP_2023_PATH = os.path.join("data", "tspr2023_bus_yearlinedaytypeseasontimerange(2).csv")
-BUS_DEEP_2023_PEAK_PATH = os.path.join("data", "tspr2023_bus_peakload_yearlinedaytypeseasontimerangedirection.csv")
-BUS_DEEP_LEGACY_PATH = os.path.join("data", "TSPR2022_Bus_KeyIndicators_YearLinenoDaytypeSeasonTimerange.csv")
+BUS_YEARLINE_2024_PATH = os.path.join(DATA_DIR, "tspr2024_bus_yearline.csv")
+BUS_KEYINDICATORS_PATH = os.path.join(DATA_DIR, "tspr2022_bus_keyindicators_year.csv")
+BUS_OPEN_ARCHIVE_PATH = os.path.join(DATA_DIR, "TSPR_OpenData_Archive_8554786340162954844.csv")
+BUS_COVID_2020_TOTAL_PATH = os.path.join(DATA_DIR, "covid years", "tspr-2020---total-bus-boardings-by-route.csv")
+BUS_COVID_2020_DAILY_PATH = os.path.join(DATA_DIR, "covid years", "tspr-2020---avg-daily-bus-boardings-by-route-and-day-type.csv")
+BUS_COVID_2021_TOTAL_PATH = os.path.join(DATA_DIR, "covid years", "tspr-fall-2021-total-bus-boardings-by-route.csv")
+BUS_COVID_2021_DAILY_PATH = os.path.join(DATA_DIR, "covid years", "tspr-fall-2021-avg-daily-bus-boardings-by-route-and-day-type.csv")
+BUS_DEEP_2023_PATH = os.path.join(DATA_DIR, "tspr2023_bus_yearlinedaytypeseasontimerange(2).csv")
+BUS_DEEP_2023_PEAK_PATH = os.path.join(DATA_DIR, "tspr2023_bus_peakload_yearlinedaytypeseasontimerangedirection.csv")
+BUS_DEEP_LEGACY_PATH = os.path.join(DATA_DIR, "TSPR2022_Bus_KeyIndicators_YearLinenoDaytypeSeasonTimerange.csv")
 
 
 def _pick_col(columns, candidates):
@@ -95,17 +98,17 @@ def _build_bus_standard_df(df):
     return standard_df
 
 
-STATION_YEAR_2024_PATH = os.path.join("data", "tspr2024_skytrain_yearstation.csv")
-STATION_BOARDINGS_2022_PATH = os.path.join("data", "tspr2022_rail_skytrain_boardings_stationyear.csv")
-STATION_DAILY_2022_PATH = os.path.join("data", "tspr2022_rail_skytrain_avgdailyboardings_stationyeardaytype(1).csv")
-SEGMENT_SHAPES_PATH = os.path.join("data", "SkyTrain segments map- segments.csv")
-SEGMENT_USAGE_ROLLING_PATH = os.path.join("data", "tspr2024_rail_rollinghouravgpassengervol.csv")
-STATION_COVID_2020_TOTAL_PATH = os.path.join("data", "covid years", "tspr-2020---total-skytrain-and-wce-boardings-by-station.csv")
-STATION_COVID_2020_DAILY_PATH = os.path.join("data", "covid years", "tspr-2020--avg-daily-skytrain-and-wce-boardings-by-mode-line-station-and-day-type.csv")
-STATION_COVID_2021_TOTAL_PATH = os.path.join("data", "covid years", "tspr-fall-2021-skytrain-and-wce-total-boardings-by-station.csv")
-STATION_COVID_2021_DAILY_PATH = os.path.join("data", "covid years", "tspr-fall-2021-avg-daily-skytrain-and-wce-boardings-by-mode-station-and-day-type.csv")
-STOPS_PATH = os.path.join("data", "stops.txt")
-BUS_STOP_OPEN_ARCHIVE_PATH = os.path.join("data", "TSPR_OpenData_Archive_6085823632155390806.csv")
+STATION_YEAR_2024_PATH = os.path.join(DATA_DIR, "tspr2024_skytrain_yearstation.csv")
+STATION_BOARDINGS_2022_PATH = os.path.join(DATA_DIR, "tspr2022_rail_skytrain_boardings_stationyear.csv")
+STATION_DAILY_2022_PATH = os.path.join(DATA_DIR, "tspr2022_rail_skytrain_avgdailyboardings_stationyeardaytype(1).csv")
+SEGMENT_SHAPES_PATH = os.path.join(DATA_DIR, "SkyTrain segments map- segments.csv")
+SEGMENT_USAGE_ROLLING_PATH = os.path.join(DATA_DIR, "tspr2024_rail_rollinghouravgpassengervol.csv")
+STATION_COVID_2020_TOTAL_PATH = os.path.join(DATA_DIR, "covid years", "tspr-2020---total-skytrain-and-wce-boardings-by-station.csv")
+STATION_COVID_2020_DAILY_PATH = os.path.join(DATA_DIR, "covid years", "tspr-2020--avg-daily-skytrain-and-wce-boardings-by-mode-line-station-and-day-type.csv")
+STATION_COVID_2021_TOTAL_PATH = os.path.join(DATA_DIR, "covid years", "tspr-fall-2021-skytrain-and-wce-total-boardings-by-station.csv")
+STATION_COVID_2021_DAILY_PATH = os.path.join(DATA_DIR, "covid years", "tspr-fall-2021-avg-daily-skytrain-and-wce-boardings-by-mode-station-and-day-type.csv")
+STOPS_PATH = os.path.join(DATA_DIR, "stops.txt")
+BUS_STOP_OPEN_ARCHIVE_PATH = os.path.join(DATA_DIR, "TSPR_OpenData_Archive_6085823632155390806.csv")
 BUS_STOP_EXCLUDED_NAMES = {
     "sb lonsdale quay seabus station",
     "nb waterfront seabus station"
@@ -2043,7 +2046,7 @@ def bus_line_options():
         # Ensure deep-comparison year data can still populate dropdowns
         # even when open-archive labels are unavailable.
         if year in {2022, 2023}:
-            deep_2023_path = os.path.join("data", "tspr2023_bus_yearlinedaytypeseasontimerange(2).csv")
+            deep_2023_path = os.path.join(DATA_DIR, "tspr2023_bus_yearlinedaytypeseasontimerange(2).csv")
             if os.path.exists(deep_2023_path):
                 deep_df = pd.read_csv(deep_2023_path, dtype=str)
                 deep_year_col = _pick_col(deep_df.columns, ['SeasonYear', 'CalendarYear', 'Year'])
@@ -2203,7 +2206,7 @@ def station_boardings_data():
         boardings_dict = {}
 
         # Base file (wide format, includes modern years)
-        csv_path = os.path.join("data", "tspr2024_skytrain_yearstation.csv")
+        csv_path = os.path.join(DATA_DIR, "tspr2024_skytrain_yearstation.csv")
         df = pd.read_csv(csv_path)
         df_year = df[df['CalendarYear'] == year]
         for _, row in df_year.iterrows():
@@ -2212,7 +2215,7 @@ def station_boardings_data():
             boardings_dict[station_name] = boardings
 
         # Legacy file (stacked format for 2018/2019/2022 annual boardings)
-        legacy_csv_path = os.path.join("data", "tspr2022_rail_skytrain_boardings_stationyear.csv")
+        legacy_csv_path = os.path.join(DATA_DIR, "tspr2022_rail_skytrain_boardings_stationyear.csv")
         legacy_df = pd.read_csv(legacy_csv_path)
         legacy_year = legacy_df[legacy_df['Calendar_Year'] == year]
         for _, row in legacy_year.iterrows():
@@ -2255,7 +2258,7 @@ def station_daily_boardings_data():
         daily_boardings_dict = {}
 
         # Base file (wide format, includes modern years)
-        csv_path = os.path.join("data", "tspr2024_skytrain_yearstation.csv")
+        csv_path = os.path.join(DATA_DIR, "tspr2024_skytrain_yearstation.csv")
         df = pd.read_csv(csv_path)
         df_year = df[df['CalendarYear'] == year]
         for _, row in df_year.iterrows():
@@ -2271,7 +2274,7 @@ def station_daily_boardings_data():
             }
 
         # Legacy file (stacked day type format for 2018/2019/2022 daily boardings)
-        legacy_csv_path = os.path.join("data", "tspr2022_rail_skytrain_avgdailyboardings_stationyeardaytype(1).csv")
+        legacy_csv_path = os.path.join(DATA_DIR, "tspr2022_rail_skytrain_avgdailyboardings_stationyeardaytype(1).csv")
         legacy_df = pd.read_csv(legacy_csv_path)
         legacy_year = legacy_df[legacy_df['Calendar_Year'] == year]
         day_type_map = {
@@ -2306,7 +2309,7 @@ def station_hourly_data():
     """API endpoint to fetch station hourly boardings/alightings by day type"""
     try:
         year = request.args.get('year', default=None, type=int)
-        csv_path = os.path.join("data", "tspr2024_skytainavgalightsbrdgs_yearstationdaytypehourly.csv")
+        csv_path = os.path.join(DATA_DIR, "tspr2024_skytainavgalightsbrdgs_yearstationdaytypehourly.csv")
         df = pd.read_csv(csv_path)
 
         if df.empty:
@@ -2390,7 +2393,7 @@ def station_hourly_data():
 def station_general_stats_data():
     """API endpoint to fetch station general stats data"""
     try:
-        csv_path = os.path.join("data", "tspr2022_rail_keycharacteristics_station.csv")
+        csv_path = os.path.join(DATA_DIR, "tspr2022_rail_keycharacteristics_station.csv")
         df = pd.read_csv(csv_path)
 
         def map_fare_zone(sub_region):

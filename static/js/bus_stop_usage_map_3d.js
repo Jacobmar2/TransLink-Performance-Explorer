@@ -850,16 +850,33 @@
         layers: []
     });
 
-    const loadBusData = Promise.all([
-        fetch(apiUrl, { cache: "no-store" }),
-        fetch(busLineOptionsUrl, { cache: "no-store" })
-    ]).then(async ([stopResponse, busLineResponse]) => {
-        if (!stopResponse.ok) {
-            throw new Error("Failed to load bus stop usage data.");
+    const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+    const fetchJsonWithRetry = async (url, options = {}, retries = 3) => {
+        let lastError = null;
+
+        for (let attempt = 0; attempt <= retries; attempt += 1) {
+            try {
+                const response = await fetch(url, options);
+                if (!response.ok) {
+                    throw new Error(`${response.status} ${response.statusText}`.trim());
+                }
+                return await response.json();
+            } catch (error) {
+                lastError = error;
+                if (attempt < retries) {
+                    await delay(700 * (attempt + 1));
+                }
+            }
         }
 
-        const stopPayload = await stopResponse.json();
-        const busLinePayload = busLineResponse.ok ? await busLineResponse.json() : [];
+        throw lastError || new Error("Unknown fetch error");
+    };
+
+    const loadBusData = Promise.all([
+        fetchJsonWithRetry(apiUrl, { cache: "no-store" }, 3),
+        fetchJsonWithRetry(busLineOptionsUrl, { cache: "no-store" }, 2).catch(() => [])
+    ]).then(async ([stopPayload, busLinePayload]) => {
 
         stops = Array.isArray(stopPayload.stops) ? stopPayload.stops.map((stop) => ({
             ...stop,
@@ -896,7 +913,8 @@
     }).catch((error) => {
         console.error(error);
         if (tooltip) {
-            tooltip.textContent = "Could not load bus stop data.";
+            const reason = error && error.message ? ` (${error.message})` : "";
+            tooltip.textContent = `Could not load bus stop data${reason}.`;
             tooltip.classList.add("is-visible");
             tooltip.setAttribute("aria-hidden", "false");
             tooltip.style.left = "18px";
