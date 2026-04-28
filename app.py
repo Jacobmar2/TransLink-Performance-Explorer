@@ -4,14 +4,23 @@ import os
 import csv
 import sqlite3
 import re
+import logging
 from collections import Counter, OrderedDict
 from datetime import datetime, timedelta
 from functools import lru_cache
 from difflib import SequenceMatcher
 
+# Configure logging to help diagnose production issues
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
 app = Flask(__name__)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "data")
+
+logger.info(f"BASE_DIR: {BASE_DIR}")
+logger.info(f"DATA_DIR: {DATA_DIR}")
+logger.info(f"DATA_DIR exists: {os.path.exists(DATA_DIR)}")
 
 app.config["UPLOAD_FOLDER"] = os.path.join(BASE_DIR, "uploads")
 os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
@@ -503,14 +512,21 @@ def _load_skytrain_station_usage_map_2024_data():
 
 @lru_cache(maxsize=1)
 def _load_bus_stop_usage_map_2024_data(year=2024):
+    logger.info(f"[bus-stop-map] Loading bus stop usage data for year {year}")
+    logger.info(f"[bus-stop-map] BUS_STOP_OPEN_ARCHIVE_PATH: {BUS_STOP_OPEN_ARCHIVE_PATH}")
+    logger.info(f"[bus-stop-map] File exists: {os.path.exists(BUS_STOP_OPEN_ARCHIVE_PATH)}")
+    
     if not os.path.exists(BUS_STOP_OPEN_ARCHIVE_PATH):
+        logger.error(f"[bus-stop-map] Archive file not found at {BUS_STOP_OPEN_ARCHIVE_PATH}")
         return {
             'year': year,
             'stops': []
         }
 
     df = pd.read_csv(BUS_STOP_OPEN_ARCHIVE_PATH, dtype=str)
+    logger.info(f"[bus-stop-map] Loaded {len(df)} rows from archive")
     if df.empty:
+        logger.warning("[bus-stop-map] Archive is empty")
         return {
             'year': year,
             'stops': []
@@ -807,6 +823,10 @@ def _load_bus_stop_usage_map_2024_data(year=2024):
 
     stops.sort(key=lambda stop: (stop['stop_name'], stop['stop_number']))
 
+    logger.info(f"[bus-stop-map] Returning {len(stops)} stops for year {year}")
+    if len(stops) == 0:
+        logger.warning("[bus-stop-map] WARNING: No stops to return! This may cause blank map.")
+    
     return {
         'year': year,
         'stops': stops
@@ -2036,6 +2056,7 @@ def bus_line_options():
     """API endpoint to fetch bus line dropdown options with display names."""
     try:
         year = request.args.get('year', default=2024, type=int)
+        logger.info(f"[api] bus_line_options called with year={year}")
 
         valid_lines_df = _load_bus_data_for_year(year)
         valid_lines = {
@@ -2085,8 +2106,10 @@ def bus_line_options():
 
         options.sort(key=lambda item: _bus_line_sort_key(item['value']))
 
+        logger.info(f"[api] bus_line_options returning {len(options)} options for year {year}")
         return jsonify(options)
     except Exception as e:
+        logger.error(f"[api] Error in bus_line_options: {str(e)}", exc_info=True)
         return jsonify({"error": str(e)}), 500
 
 
@@ -2095,10 +2118,15 @@ def bus_stop_usage_map_3d_data():
     """API endpoint for bus stop usage bars from the open-data archive."""
     try:
         year = request.args.get('year', default=2024, type=int)
+        logger.info(f"[api] bus_stop_usage_map_3d_data called with year={year}")
         if request.args.get('refresh', default='0') == '1':
+            logger.info("[api] Cache clear requested")
             _load_bus_stop_usage_map_2024_data.cache_clear()
-        return jsonify(_load_bus_stop_usage_map_2024_data(year))
+        result = _load_bus_stop_usage_map_2024_data(year)
+        logger.info(f"[api] Returning {len(result.get('stops', []))} stops")
+        return jsonify(result)
     except Exception as e:
+        logger.error(f"[api] Error in bus_stop_usage_map_3d_data: {str(e)}", exc_info=True)
         return jsonify({"error": str(e)}), 500
 
 

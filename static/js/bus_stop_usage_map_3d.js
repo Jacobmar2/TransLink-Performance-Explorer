@@ -1,6 +1,6 @@
 (async function initializeBusStopUsageMap() {
-    const apiUrl = "/api/bus-stop-usage-map-3d-data?year=2024";
-    const busLineOptionsUrl = "/api/bus-line-options?year=2024";
+    const apiUrl = "/api/bus-stop-usage-map-3d-data?year=2024&refresh=1";
+    const busLineOptionsUrl = "/api/bus-line-options?year=2024&refresh=1";
 
     window.__busStopBarsRendered = false;
 
@@ -850,32 +850,19 @@
         layers: []
     });
 
-    const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-    const fetchJsonWithRetry = async (url, options = {}, retries = 3) => {
-        let lastError = null;
-
-        for (let attempt = 0; attempt <= retries; attempt += 1) {
-            try {
-                const response = await fetch(url, options);
-                if (!response.ok) {
-                    throw new Error(`${response.status} ${response.statusText}`.trim());
-                }
-                return await response.json();
-            } catch (error) {
-                lastError = error;
-                if (attempt < retries) {
-                    await delay(700 * (attempt + 1));
-                }
-            }
-        }
-
-        throw lastError || new Error("Unknown fetch error");
-    };
-
     const loadBusData = Promise.all([
-        fetchJsonWithRetry(apiUrl, { cache: "no-store" }, 3),
-        fetchJsonWithRetry(busLineOptionsUrl, { cache: "no-store" }, 2).catch(() => [])
+        fetch(apiUrl, { cache: "no-store" }).then((res) => {
+            if (!res.ok) {
+                throw new Error(`${res.status} ${res.statusText}`.trim());
+            }
+            return res.json();
+        }),
+        fetch(busLineOptionsUrl, { cache: "no-store" }).then((res) => {
+            if (!res.ok) {
+                return [];
+            }
+            return res.json();
+        }).catch(() => [])
     ]).then(async ([stopPayload, busLinePayload]) => {
 
         stops = Array.isArray(stopPayload.stops) ? stopPayload.stops.map((stop) => ({
