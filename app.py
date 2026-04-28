@@ -7,6 +7,7 @@ import re
 from collections import Counter, OrderedDict
 from datetime import datetime, timedelta
 from functools import lru_cache
+from difflib import SequenceMatcher
 
 app = Flask(__name__)
 app.config["UPLOAD_FOLDER"] = "uploads"
@@ -97,6 +98,8 @@ def _build_bus_standard_df(df):
 STATION_YEAR_2024_PATH = os.path.join("data", "tspr2024_skytrain_yearstation.csv")
 STATION_BOARDINGS_2022_PATH = os.path.join("data", "tspr2022_rail_skytrain_boardings_stationyear.csv")
 STATION_DAILY_2022_PATH = os.path.join("data", "tspr2022_rail_skytrain_avgdailyboardings_stationyeardaytype(1).csv")
+SEGMENT_SHAPES_PATH = os.path.join("data", "SkyTrain segments map- segments.csv")
+SEGMENT_USAGE_ROLLING_PATH = os.path.join("data", "tspr2024_rail_rollinghouravgpassengervol.csv")
 STATION_COVID_2020_TOTAL_PATH = os.path.join("data", "covid years", "tspr-2020---total-skytrain-and-wce-boardings-by-station.csv")
 STATION_COVID_2020_DAILY_PATH = os.path.join("data", "covid years", "tspr-2020--avg-daily-skytrain-and-wce-boardings-by-mode-line-station-and-day-type.csv")
 STATION_COVID_2021_TOTAL_PATH = os.path.join("data", "covid years", "tspr-fall-2021-skytrain-and-wce-total-boardings-by-station.csv")
@@ -107,6 +110,256 @@ BUS_STOP_EXCLUDED_NAMES = {
     "sb lonsdale quay seabus station",
     "nb waterfront seabus station"
 }
+
+
+def _normalize_segment_station_label(value):
+    text = str(value or "").strip().lower()
+    text = text.replace('\u2013', '-').replace('\u2014', '-').replace('\u2212', '-')
+    text = text.replace('&', ' and ')
+    text = re.sub(r'\b(station|stn)\b', '', text)
+    text = re.sub(r'\b(cl|el|ml)\b', '', text)
+    text = re.sub(r'\bcentre\b', 'center', text)
+
+    # Align common naming differences between usage CSV and shape CSV.
+    text = text.replace('main street-science world', 'science world')
+    text = text.replace('main street science world', 'science world')
+    text = text.replace('main street', 'science world')
+    text = text.replace('commercial-broadway', 'commercial')
+    text = text.replace('commercial broadway', 'commercial')
+    text = text.replace('commercial drive', 'commercial')
+
+    text = re.sub(r'[^a-z0-9\- ]+', ' ', text)
+    text = re.sub(r'\s+', ' ', text).strip()
+    return text
+
+
+def _parse_linestring_wkt(wkt_text):
+    text = str(wkt_text or "").strip()
+    if not text:
+        return []
+
+    match = re.match(r'^LINESTRING\s*\((.*)\)$', text, re.IGNORECASE)
+    if not match:
+        return []
+
+    coords = []
+    for chunk in match.group(1).split(','):
+        parts = chunk.strip().split()
+        if len(parts) < 2:
+            continue
+        try:
+            lon = float(parts[0])
+            lat = float(parts[1])
+        except (TypeError, ValueError):
+            continue
+        coords.append([lon, lat])
+    return coords
+
+
+@lru_cache(maxsize=1)
+def _load_skytrain_segment_shapes():
+    if not os.path.exists(SEGMENT_SHAPES_PATH):
+        return []
+
+    df = pd.read_csv(SEGMENT_SHAPES_PATH)
+    segments = []
+
+    for idx, row in df.iterrows():
+        coords = _parse_linestring_wkt(row.get('WKT'))
+        if len(coords) < 2:
+            continue
+
+        raw_name = str(row.get('name') or '').strip()
+        normalized_name = _normalize_segment_station_label(raw_name)
+        if not normalized_name:
+            continue
+
+        segments.append({
+            'shape_index': int(idx),
+            'shape_name': raw_name,
+            'shape_name_normalized': normalized_name,
+            'description': None if pd.isna(row.get('description')) else str(row.get('description')),
+            'coordinates': coords
+        })
+
+    return segments
+
+
+def _best_shape_match_for_usage_segment(from_station, to_station, shape_rows):
+    if not shape_rows:
+        return None
+
+    from_norm = _normalize_segment_station_label(from_station)
+    to_norm = _normalize_segment_station_label(to_station)
+
+    if not from_norm or not to_norm:
+        return None
+
+    forward_key = f"{from_norm} {to_norm}"
+    reverse_key = f"{to_norm} {from_norm}"
+
+    best_row = None
+    best_reversed = False
+    best_score = -1.0
+
+    for shape_row in shape_rows:
+        shape_name = shape_row['shape_name_normalized']
+
+        forward_score = SequenceMatcher(None, forward_key, shape_name).ratio()
+        reverse_score = SequenceMatcher(None, reverse_key, shape_name).ratio()
+
+        from_in_name = from_norm in shape_name
+        to_in_name = to_norm in shape_name
+        contains_bonus = 0.2 if (from_in_name and to_in_name) else 0
+
+        forward_total = forward_score + contains_bonus
+        reverse_total = reverse_score + contains_bonus
+
+        if forward_total > best_score:
+            best_score = forward_total
+            best_row = shape_row
+            best_reversed = False
+
+        if reverse_total > best_score:
+            best_score = reverse_total
+            best_row = shape_row
+            best_reversed = True
+
+    if best_row is None:
+        return None
+
+    if best_score < 0.34:
+        return None
+
+    return {
+        'shape': best_row,
+        'reverse_coordinates': best_reversed,
+        'score': round(best_score, 4)
+    }
+
+
+@lru_cache(maxsize=1)
+def _load_skytrain_segment_usage_map_2024_data():
+    if not os.path.exists(SEGMENT_USAGE_ROLLING_PATH):
+        return {
+            'year': 2024,
+            'segments': [],
+            'missing_shapes': []
+        }
+
+    usage_df = pd.read_csv(SEGMENT_USAGE_ROLLING_PATH)
+    usage_df['TravYear'] = pd.to_numeric(usage_df.get('TravYear'), errors='coerce')
+    usage_df = usage_df[usage_df['TravYear'] == 2024].copy()
+
+    if usage_df.empty:
+        return {
+            'year': 2024,
+            'segments': [],
+            'missing_shapes': []
+        }
+
+    usage_df['Hour_24'] = pd.to_numeric(usage_df.get('Hour_24'), errors='coerce').fillna(-1).astype(int)
+    usage_df['Minute_15'] = pd.to_numeric(usage_df.get('Minute_15'), errors='coerce').fillna(-1).astype(int)
+    usage_df['AvgHrlyVol'] = pd.to_numeric(usage_df.get('AvgHrlyVol'), errors='coerce').fillna(0.0)
+
+    usage_df = usage_df[
+        usage_df['Hour_24'].between(0, 23)
+        & usage_df['Minute_15'].isin([0, 15, 30, 45])
+    ].copy()
+
+    day_type_map = {
+        'MF': 'weekday',
+        'Sat': 'saturday',
+        'Sun/Hol': 'sunday',
+        'SunHol': 'sunday'
+    }
+
+    usage_df['DayTypeNormalized'] = usage_df['DayType'].astype(str).str.strip().map(day_type_map)
+    usage_df = usage_df[usage_df['DayTypeNormalized'].notna()].copy()
+
+    if usage_df.empty:
+        return {
+            'year': 2024,
+            'segments': [],
+            'missing_shapes': []
+        }
+
+    usage_df['DirectionNormalized'] = usage_df['Direction'].astype(str).str.strip().str.lower()
+    usage_df['DirectionNormalized'] = usage_df['DirectionNormalized'].map({
+        'inbound': 'inbound',
+        'outbound': 'outbound'
+    })
+    usage_df = usage_df[usage_df['DirectionNormalized'].notna()].copy()
+
+    usage_df['time_index'] = usage_df['Hour_24'] * 4 + (usage_df['Minute_15'] // 15)
+    usage_df = usage_df[usage_df['time_index'].between(0, 95)].copy()
+
+    shape_rows = _load_skytrain_segment_shapes()
+
+    segment_rows = []
+    missing_shapes = []
+
+    usage_df = usage_df.sort_values(['SegID', 'DayTypeNormalized', 'DirectionNormalized', 'time_index'])
+    grouped = usage_df.groupby(['SegID', 'FromStn_Long', 'ToStn_Long'], dropna=False)
+
+    for (seg_id, from_long, to_long), seg_df in grouped:
+        # Skip Commercial-Broadway to Commercial Drive segment (SegID 59)
+        if int(seg_id) == 59:
+            continue
+        
+        match = _best_shape_match_for_usage_segment(from_long, to_long, shape_rows)
+        if not match:
+            missing_shapes.append({
+                'seg_id': int(seg_id),
+                'from_station': str(from_long),
+                'to_station': str(to_long)
+            })
+            continue
+
+        coords = match['shape']['coordinates']
+        if match['reverse_coordinates']:
+            coords = list(reversed(coords))
+
+        usage_payload = {
+            'weekday': {'inbound': [0.0] * 96, 'outbound': [0.0] * 96, 'total': [0.0] * 96},
+            'saturday': {'inbound': [0.0] * 96, 'outbound': [0.0] * 96, 'total': [0.0] * 96},
+            'sunday': {'inbound': [0.0] * 96, 'outbound': [0.0] * 96, 'total': [0.0] * 96}
+        }
+
+        per_slot = seg_df.groupby(['DayTypeNormalized', 'DirectionNormalized', 'time_index'])['AvgHrlyVol'].mean()
+        for (day_type, direction, time_index), value in per_slot.items():
+            idx = int(time_index)
+            numeric_value = float(value)
+            usage_payload[day_type][direction][idx] = numeric_value
+
+        for day_key in ['weekday', 'saturday', 'sunday']:
+            usage_payload[day_key]['total'] = [
+                usage_payload[day_key]['inbound'][i] + usage_payload[day_key]['outbound'][i]
+                for i in range(96)
+            ]
+
+        segment_rows.append({
+            'seg_id': int(seg_id),
+            'from_station': _normalize_station_name(from_long),
+            'to_station': _normalize_station_name(to_long),
+            'shape_name': match['shape']['shape_name'],
+            'match_score': match['score'],
+            'coordinates': coords,
+            'usage': usage_payload
+        })
+
+    segment_rows.sort(key=lambda row: row['seg_id'])
+
+    return {
+        'year': 2024,
+        'segments': segment_rows,
+        'missing_shapes': missing_shapes,
+        'day_types': [
+            {'key': 'weekday', 'label': 'MF'},
+            {'key': 'saturday', 'label': 'Sat'},
+            {'key': 'sunday', 'label': 'SunHol'}
+        ]
+    }
 
 
 def _safe_float(value):
@@ -260,6 +513,55 @@ def _load_bus_stop_usage_map_2024_data(year=2024):
             'stops': []
         }
 
+    bay_cluster_lookup = {}
+    bay_cluster_by_stop_code = {}
+    if os.path.exists(STOPS_PATH):
+        stops_txt_df = pd.read_csv(STOPS_PATH, dtype=str)
+        if not stops_txt_df.empty:
+            stops_txt_df['stop_name'] = stops_txt_df['stop_name'].fillna('')
+            stops_txt_df['parent_station'] = stops_txt_df['parent_station'].fillna('')
+
+            bay_rows = stops_txt_df[stops_txt_df['stop_name'].str.contains(r'\bbay\b', case=False, regex=True)].copy()
+            cluster_stats = {}
+
+            for _, row in bay_rows.iterrows():
+                stop_code = str(row.get('stop_code', '')).strip()
+                stop_name = str(row.get('stop_name', '')).strip()
+                parent_station = str(row.get('parent_station', '')).strip()
+                if not stop_code or stop_code.lower() == 'nan':
+                    continue
+
+                cluster_name_root = re.sub(r'\s*(?:-|–|—)?\s*\bbay\b.*$', '', stop_name, flags=re.IGNORECASE).strip()
+                normalized_root = _normalize_station_name(cluster_name_root or stop_name).lower()
+                cluster_key = f"parent:{parent_station}" if parent_station else f"name:{normalized_root}"
+
+                lat = _safe_float(row.get('stop_lat'))
+                lon = _safe_float(row.get('stop_lon'))
+                if lat is None or lon is None:
+                    continue
+
+                stats = cluster_stats.setdefault(cluster_key, {
+                    'lat_sum': 0.0,
+                    'lon_sum': 0.0,
+                    'count': 0,
+                    'cluster_name': cluster_name_root or stop_name
+                })
+                stats['lat_sum'] += lat
+                stats['lon_sum'] += lon
+                stats['count'] += 1
+
+                bay_cluster_by_stop_code[stop_code] = cluster_key
+
+            for cluster_key, stats in cluster_stats.items():
+                if stats['count'] <= 0:
+                    continue
+                bay_cluster_lookup[cluster_key] = {
+                    'lat': stats['lat_sum'] / stats['count'],
+                    'lon': stats['lon_sum'] / stats['count'],
+                    'count': stats['count'],
+                    'name': stats['cluster_name']
+                }
+
     year_col = _pick_col(df.columns, ['TSPR_Year', 'CalendarYear', 'Year'])
     if year_col:
         df_year = df[pd.to_numeric(df[year_col], errors='coerce') == year].copy()
@@ -349,6 +651,67 @@ def _load_bus_stop_usage_map_2024_data(year=2024):
         if stop_entry['lon'] is None:
             stop_entry['lon'] = _safe_float(row.get(longitude_col))
 
+        stop_code_cluster = bay_cluster_by_stop_code.get(stop_number)
+        assigned_cluster = False
+        # Only assign via stop_code mapping if the stop name contains "bay" or "unload"
+        # to filter out corrupted/mismatched archive stop names
+        if stop_code_cluster and stop_code_cluster in bay_cluster_lookup and stop_entry['stop_name']:
+            has_bay_pattern = bool(re.search(r'\b(bay|unload)', stop_entry['stop_name'], re.IGNORECASE))
+            if has_bay_pattern:
+                cluster_meta = bay_cluster_lookup[stop_code_cluster]
+                stop_entry['bay_cluster_id'] = stop_code_cluster
+                stop_entry['bay_cluster_lat'] = cluster_meta['lat']
+                stop_entry['bay_cluster_lon'] = cluster_meta['lon']
+                stop_entry['bay_cluster_count'] = cluster_meta['count']
+                stop_entry['bay_cluster_name'] = cluster_meta['name']
+                assigned_cluster = True
+
+        # Fallback: if no explicit stop_code mapping, try matching by normalized
+        # place name and proximity to cluster centroid so numbered bays like
+        # "Bay 2" get grouped even when stop_code isn't present in stops.txt.
+        if not assigned_cluster and stop_entry['stop_name'] and stop_entry['lat'] is not None and stop_entry['lon'] is not None:
+            cluster_name_root = re.sub(r"\s*(?:-|–|—)?\s*\bbay\b.*$", '', stop_entry['stop_name'], flags=re.IGNORECASE).strip()
+            normalized_root = _normalize_station_name(cluster_name_root or stop_entry['stop_name']).lower()
+            candidate_key = f"name:{normalized_root}"
+            candidate_meta = bay_cluster_lookup.get(candidate_key)
+            # Try relaxed matching when naming variants exist (e.g., "Stn" vs "Station").
+            if candidate_meta is None:
+                def _canon(text):
+                    t = str(text or '').lower()
+                    t = t.replace('@', ' ')
+                    t = re.sub(r'\b(stn)\b', 'station', t)
+                    t = re.sub(r'\bstation\b', 'station', t)
+                    t = re.sub(r'[^a-z0-9\- ]+', ' ', t)
+                    t = re.sub(r'\s+', ' ', t).strip()
+                    return t
+
+                target_canon = _canon(normalized_root)
+                # Relaxed scan: compare against any known cluster (name: or parent:)
+                for k, meta in bay_cluster_lookup.items():
+                    # derive a comparable root for the cluster key
+                    if k.startswith('name:'):
+                        root_k = k[len('name:'):]
+                    else:
+                        root_k = meta.get('name') or ''
+                    if not root_k:
+                        continue
+                    c_root = _canon(root_k)
+                    if target_canon in c_root or c_root in target_canon:
+                        candidate_key = k
+                        candidate_meta = meta
+                        break
+            if candidate_meta:
+                # use a geographic threshold (~300m) to verify proximity within station/terminal
+                # also require stop name to contain "bay" or "unload" to filter out corrupted/mislabeled stops
+                has_bay_pattern = bool(re.search(r'\b(bay|unload)', stop_entry['stop_name'], re.IGNORECASE))
+                if has_bay_pattern and abs(stop_entry['lat'] - candidate_meta['lat']) <= 0.003 and abs(stop_entry['lon'] - candidate_meta['lon']) <= 0.003:
+                    stop_entry['bay_cluster_id'] = candidate_key
+                    stop_entry['bay_cluster_lat'] = candidate_meta['lat']
+                    stop_entry['bay_cluster_lon'] = candidate_meta['lon']
+                    stop_entry['bay_cluster_count'] = candidate_meta['count']
+                    stop_entry['bay_cluster_name'] = candidate_meta['name']
+                    assigned_cluster = True
+
         if line_number_col:
             route_tokens = _split_bus_line_tokens(row.get(line_number_col))
             stop_entry['line_tokens'].update(route_tokens)
@@ -381,6 +744,19 @@ def _load_bus_stop_usage_map_2024_data(year=2024):
         if alightings_sunhol_col and stop_entry['alightings_sunhol'] is None:
             stop_entry['alightings_sunhol'] = _safe_float(row.get(alightings_sunhol_col))
 
+    # Recompute cluster counts from assembled stop_lookup so dynamically matched
+    # stops are included in the cluster counts before building the output list.
+    cluster_counts = {}
+    for ent in stop_lookup.values():
+        cid = ent.get('bay_cluster_id')
+        if cid:
+            cluster_counts[cid] = cluster_counts.get(cid, 0) + 1
+
+    for ent in stop_lookup.values():
+        cid = ent.get('bay_cluster_id')
+        if cid:
+            ent['bay_cluster_count'] = cluster_counts.get(cid, ent.get('bay_cluster_count'))
+
     stops = []
     for stop_entry in stop_lookup.values():
         if stop_entry['lat'] is None or stop_entry['lon'] is None:
@@ -405,8 +781,26 @@ def _load_bus_stop_usage_map_2024_data(year=2024):
             'boardings_sat': stop_entry['boardings_sat'] or 0,
             'alightings_sat': stop_entry['alightings_sat'] or 0,
             'boardings_sunhol': stop_entry['boardings_sunhol'] or 0,
-            'alightings_sunhol': stop_entry['alightings_sunhol'] or 0
+            'alightings_sunhol': stop_entry['alightings_sunhol'] or 0,
+            'bay_cluster_id': stop_entry.get('bay_cluster_id'),
+            'bay_cluster_lat': stop_entry.get('bay_cluster_lat'),
+            'bay_cluster_lon': stop_entry.get('bay_cluster_lon'),
+            'bay_cluster_count': stop_entry.get('bay_cluster_count'),
+            'bay_cluster_name': stop_entry.get('bay_cluster_name')
         })
+
+    # Recompute cluster counts from assembled stops so dynamically matched
+    # stops are included in the cluster counts.
+    cluster_counts = {}
+    for ent in stop_lookup.values():
+        cid = ent.get('bay_cluster_id')
+        if cid:
+            cluster_counts[cid] = cluster_counts.get(cid, 0) + 1
+
+    for ent in stop_lookup.values():
+        cid = ent.get('bay_cluster_id')
+        if cid:
+            ent['bay_cluster_count'] = cluster_counts.get(cid, ent.get('bay_cluster_count'))
 
     stops.sort(key=lambda stop: (stop['stop_name'], stop['stop_number']))
 
@@ -1838,6 +2232,17 @@ def skytrain_station_usage_map_3d_data():
         if request.args.get('refresh', default='0') == '1':
             _load_skytrain_station_usage_map_2024_data.cache_clear()
         return jsonify(_load_skytrain_station_usage_map_2024_data())
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/skytrain-segment-usage-map-3d-data")
+def skytrain_segment_usage_map_3d_data():
+    """API endpoint for 2024 SkyTrain segment 15-minute usage joined to segment shapes."""
+    try:
+        if request.args.get('refresh', default='0') == '1':
+            _load_skytrain_segment_usage_map_2024_data.cache_clear()
+        return jsonify(_load_skytrain_segment_usage_map_2024_data())
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

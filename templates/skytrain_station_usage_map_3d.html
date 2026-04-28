@@ -36,6 +36,72 @@
             max-width: min(560px, calc(100vw - 36px));
         }
 
+        .top-right-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .map-info-wrap {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+        }
+
+        .map-info-button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 34px;
+            height: 34px;
+            border: 1px solid rgba(134, 187, 255, 0.38);
+            border-radius: 999px;
+            background: rgba(9, 22, 42, 0.92);
+            color: #dcecff;
+            text-decoration: none;
+            font-size: 1rem;
+            font-weight: 800;
+            line-height: 1;
+            box-shadow: 0 8px 18px rgba(0, 0, 0, 0.26);
+            cursor: help;
+            transition: background 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
+        }
+
+        .map-info-button:hover {
+            transform: translateY(-1px);
+            border-color: rgba(166, 208, 255, 0.65);
+        }
+
+        .map-info-tooltip {
+            position: absolute;
+            right: calc(100% + 10px);
+            top: 50%;
+            transform: translateY(-50%) translateY(-4px);
+            min-width: 210px;
+            max-width: 280px;
+            padding: 10px 12px;
+            border: 1px solid rgba(134, 187, 255, 0.38);
+            border-radius: 10px;
+            background: linear-gradient(180deg, rgba(8, 20, 39, 0.98), rgba(8, 34, 65, 0.98));
+            color: #dcecff;
+            font-size: 0.8rem;
+            line-height: 1.35;
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.34);
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+            white-space: nowrap;
+            transition: opacity 0.16s ease, visibility 0.16s ease, transform 0.16s ease;
+            z-index: 4;
+        }
+
+        .map-info-wrap:hover .map-info-tooltip,
+        .map-info-wrap:focus-within .map-info-tooltip {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(-50%) translateY(0);
+        }
+
         .title-visibility-button {
             border: 1px solid rgba(134, 187, 255, 0.38);
             border-radius: 999px;
@@ -393,6 +459,14 @@
             min-width: 260px;
         }
 
+        .hourly-time-stepper {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex: 1 1 auto;
+            min-width: 0;
+        }
+
         #hourly-time-label {
             display: inline-block;
             flex: 0 0 150px;
@@ -423,6 +497,11 @@
             cursor: pointer;
             transition: background 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
             white-space: nowrap;
+        }
+
+        #hourly-play-toggle {
+            min-width: 62px;
+            text-align: center;
         }
 
         .player-button:hover,
@@ -461,6 +540,13 @@
             min-width: 0;
             accent-color: #64a9ff;
             cursor: pointer;
+        }
+
+        .hourly-step-button {
+            min-width: 30px;
+            padding: 6px 10px;
+            text-align: center;
+            line-height: 1;
         }
 
         .player-separator {
@@ -510,6 +596,7 @@
             margin-top: 10px;
             max-width: 440px;
         }
+
 
         .height-slider-row {
             display: flex;
@@ -635,11 +722,27 @@
 
     <div class="overlay">
         <h1>3D SkyTrain Station Usage Map (2024)</h1>
-        <p>Blue vertical bars show annual station boardings. Bar height indicates station usage.</p>
+        <p>Bars reveal annual station boardings. Bar height indicates station usage.</p>
     </div>
 
     <div class="top-right-controls">
-        <a href="/" class="home-link">Back to Home</a>
+        <div class="top-right-actions">
+            <span class="map-info-wrap">
+                <button
+                    type="button"
+                    class="map-info-button"
+                    aria-describedby="map-info-tooltip"
+                    aria-label="Map controls info"
+                >
+                    ℹ
+                </button>
+                <span id="map-info-tooltip" class="map-info-tooltip" role="tooltip">
+                    Hold left click to move map.<br>
+                    Hold right click to move viewing angle.
+                </span>
+            </span>
+            <a href="/" class="home-link">Back to Home</a>
+        </div>
         <span id="hourly-time-display" class="hourly-time-display" aria-live="polite"></span>
     </div>
 
@@ -664,7 +767,11 @@
             <div id="hourly-strip" class="hourly-strip">
                 <div class="hourly-strip-main">
                     <span id="hourly-time-label">4:00 AM - 5:00 AM</span>
-                    <input id="hourly-time-slider" class="hourly-time-slider" type="range" min="0" max="23" step="1" value="0" aria-label="Hourly time selection">
+                    <div class="hourly-time-stepper">
+                        <button id="hourly-prev-hour" class="player-button hourly-step-button" type="button" aria-label="Previous hour">&lt;</button>
+                        <input id="hourly-time-slider" class="hourly-time-slider" type="range" min="0" max="23" step="1" value="0" aria-label="Hourly time selection">
+                        <button id="hourly-next-hour" class="player-button hourly-step-button" type="button" aria-label="Next hour">&gt;</button>
+                    </div>
                 </div>
                 <div class="hourly-player" aria-label="Hourly playback controls">
                     <button id="hourly-play-toggle" class="player-button" type="button" aria-pressed="false">Play</button>
@@ -701,9 +808,9 @@
                     <div class="height-slider-wrap">
                         <div class="height-slider-row">
                             <span class="control-group-title">Bar Height Scale</span>
-                            <span id="height-slider-value">50%</span>
+                            <span id="height-slider-value">100%</span>
                         </div>
-                        <input id="height-scale-slider" class="height-slider" type="range" min="15" max="100" step="1" value="50" aria-label="Bar height scale">
+                        <input id="height-scale-slider" class="height-slider" type="range" min="15" max="300" step="1" value="100" aria-label="Bar height scale">
                     </div>
                     <div class="title-controls-row" role="group" aria-label="Title visibility controls">
                         <span class="title-controls-label">Map Title</span>
@@ -744,7 +851,7 @@
 
     <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
     <script src="https://unpkg.com/deck.gl@9.0.34/dist.min.js"></script>
-    <script src="{{ url_for('static', filename='js/skytrain_station_usage_map_3d.js', v='20260423-1') }}"></script>
+    <script src="{{ url_for('static', filename='js/skytrain_station_usage_map_3d.js', v='20260423-5') }}"></script>
     <script>
         (function setupBarsWarning() {
             const warning = document.getElementById("bars-warning");

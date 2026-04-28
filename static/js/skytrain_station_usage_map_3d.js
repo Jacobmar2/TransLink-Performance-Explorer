@@ -98,6 +98,8 @@
     const hourlyStrip = document.getElementById("hourly-strip");
     const hourlyTimeModeRow = document.getElementById("hourly-time-mode-row");
     const hourlyTimeSlider = document.getElementById("hourly-time-slider");
+    const hourlyPrevHourButton = document.getElementById("hourly-prev-hour");
+    const hourlyNextHourButton = document.getElementById("hourly-next-hour");
     const hourlyTimeLabel = document.getElementById("hourly-time-label");
     const hourlyTimeDisplay = document.getElementById("hourly-time-display");
 
@@ -170,9 +172,29 @@
 
     const getSliderPercent = () => {
         if (!heightSlider) {
-            return 50;
+            return 100;
         }
-        return toNumber(heightSlider.value) || 50;
+
+        const parsed = toNumber(heightSlider.value);
+        if (!Number.isFinite(parsed) || parsed <= 0) {
+            return 100;
+        }
+
+        return Math.max(15, Math.min(300, parsed));
+    };
+
+    const getHeightScaleMultiplier = () => {
+        const scalePercent = getSliderPercent();
+
+        // Keep low-end scale compressed: at 15%, bars are below one-third of 100% height.
+        if (scalePercent <= 100) {
+            const t = (scalePercent - 15) / 85;
+            return 0.3 + Math.max(0, Math.min(1, t)) * 0.95;
+        }
+
+        // Beyond 100% ramp up sharply toward 300%.
+        const over = (scalePercent - 100) / 200;
+        return 1.25 + Math.pow(over, 2.1) * 3.75;
     };
 
     const updateSliderLabel = () => {
@@ -319,6 +341,21 @@
         startHourlyPlayback();
     };
 
+    const stepHourlySliderBy = (delta) => {
+        activeMode = "hourly";
+        activeHourlySliderIndex = (activeHourlySliderIndex + delta + 24) % 24;
+
+        if (hourlyTimeSlider) {
+            hourlyTimeSlider.value = String(activeHourlySliderIndex);
+        }
+
+        if (hourlyPlaybackActive) {
+            stopHourlyPlayback();
+        }
+
+        renderCurrentView();
+    };
+
     const getCurrentProfile = () => {
         if (activeMode === "total") {
             const cfg = totalMetricConfig[activeTotalMetric];
@@ -436,7 +473,7 @@
             return includeBase ? 120 : 0;
         }
         const ratio = Math.max(0, Math.min(1, value / maxValue));
-        const scaleMultiplier = getSliderPercent() / 50;
+        const scaleMultiplier = getHeightScaleMultiplier();
         const modeMultiplier = activeMode === "hourly" ? 2 : 1;
         const scaledHeight = ratio * 3600 * heightFactor * scaleMultiplier * modeMultiplier;
         return (includeBase ? 90 : 0) + scaledHeight;
@@ -1063,6 +1100,7 @@
     if (heightSlider) {
         updateSliderLabel();
         heightSlider.addEventListener("input", () => {
+            updateSliderLabel();
             renderCurrentView();
         });
     }
@@ -1075,6 +1113,18 @@
                 stopHourlyPlayback();
             }
             renderCurrentView();
+        });
+    }
+
+    if (hourlyPrevHourButton) {
+        hourlyPrevHourButton.addEventListener("click", () => {
+            stepHourlySliderBy(-1);
+        });
+    }
+
+    if (hourlyNextHourButton) {
+        hourlyNextHourButton.addEventListener("click", () => {
+            stepHourlySliderBy(1);
         });
     }
 })();

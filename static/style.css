@@ -244,6 +244,14 @@ body {
     background-image: url("/static/images/Screenshot%202026-04-21%20192417.jpg");
 }
 
+.button-map-bus-stop::before {
+    background-image: url("/static/images/Screenshot%202026-04-23%20214925.jpg");
+}
+
+.button-map-segment::before {
+    background-image: url("/static/images/Screenshot%202026-04-25%20034318.jpg");
+}
+
 .button-map::after {
     content: "";
     position: absolute;

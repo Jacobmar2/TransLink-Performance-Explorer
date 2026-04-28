@@ -31,6 +31,14 @@ Comparing ridership of 144 and 145
 
 ![144 and 145 Comparison](static/images/image.png)
 
+3D Data Maps
+
+![SkyTrain Station Usage Map 3D](static/images/Screenshot%202026-04-21%20192417.jpg)
+
+![Bus Stop Usage Map 3D](static/images/Screenshot%202026-04-23%20214925.jpg)
+
+![SkyTrain Segment Usage Map 3D](static/images/Screenshot%202026-04-25%20034318.jpg)
+
 ## Notes
 
 ● Image credit for My 2 Stations goes to Wikimedia Commons, where all images are licensed under Creative Commons. Images are found from the station's main Wikipedia page.

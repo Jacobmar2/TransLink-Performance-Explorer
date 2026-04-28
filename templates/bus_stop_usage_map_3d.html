@@ -146,6 +146,73 @@
             gap: 8px;
         }
 
+        .top-right-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .map-info-wrap {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+        }
+
+        .map-info-button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 34px;
+            height: 34px;
+            border: 1px solid rgba(121, 204, 145, 0.42);
+            border-radius: 999px;
+            background: rgba(4, 20, 12, 0.8);
+            color: #edf9f0;
+            text-decoration: none;
+            font-size: 1rem;
+            font-weight: 800;
+            line-height: 1;
+            box-shadow: 0 8px 18px rgba(0, 0, 0, 0.26);
+            cursor: help;
+            transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+        }
+
+        .map-info-button:hover {
+            background: rgba(20, 65, 39, 0.9);
+            border-color: rgba(161, 227, 178, 0.68);
+            transform: translateY(-1px);
+        }
+
+        .map-info-tooltip {
+            position: absolute;
+            right: calc(100% + 10px);
+            top: 50%;
+            transform: translateY(-50%) translateY(-4px);
+            min-width: 210px;
+            max-width: 280px;
+            padding: 10px 12px;
+            border: 1px solid rgba(121, 204, 145, 0.42);
+            border-radius: 10px;
+            background: linear-gradient(180deg, rgba(8, 34, 22, 0.98), rgba(7, 24, 46, 0.98));
+            color: #edf9f0;
+            font-size: 0.8rem;
+            line-height: 1.35;
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.34);
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+            white-space: nowrap;
+            transition: opacity 0.16s ease, visibility 0.16s ease, transform 0.16s ease;
+            z-index: 4;
+        }
+
+        .map-info-wrap:hover .map-info-tooltip,
+        .map-info-wrap:focus-within .map-info-tooltip {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(-50%) translateY(0);
+        }
+
         .home-link {
             display: inline-block;
             text-decoration: none;
@@ -316,6 +383,95 @@
             flex-wrap: wrap;
         }
 
+        .panel-row-3 {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        .height-controls-cluster {
+            display: flex;
+            align-items: flex-end;
+            gap: 14px;
+            flex-wrap: nowrap;
+        }
+
+        .bar-size-mode {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex: 0 0 auto;
+        }
+
+        .bar-size-label {
+            color: #dff7e4;
+            font-size: 0.82rem;
+            font-weight: 700;
+            letter-spacing: 0.01em;
+        }
+
+        .bar-size-buttons {
+            display: inline-flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .bar-size-button {
+            border: 1px solid rgba(121, 204, 145, 0.36);
+            border-radius: 999px;
+            padding: 7px 11px;
+            background: rgba(6, 22, 14, 0.94);
+            color: #edf9f0;
+            font-size: 0.78rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+        }
+
+        .bar-size-button:hover {
+            transform: translateY(-1px);
+            border-color: rgba(161, 227, 178, 0.7);
+        }
+
+        .bar-size-button.is-active {
+            background: linear-gradient(180deg, rgba(58, 140, 82, 0.98), rgba(24, 74, 42, 0.98));
+            border-color: rgba(178, 238, 191, 0.9);
+            color: #ffffff;
+        }
+
+        .height-slider-wrap {
+            margin-top: 10px;
+            max-width: 420px;
+        }
+
+        .height-slider-wrap.row-3 {
+            margin-top: 0;
+            min-width: 280px;
+            max-width: 360px;
+            width: 360px;
+            flex: 0 1 360px;
+        }
+
+        .height-slider-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 8px;
+            color: #dff7e4;
+            font-size: 0.82rem;
+            font-weight: 700;
+            letter-spacing: 0.01em;
+        }
+
+        .height-slider {
+            width: 100%;
+            accent-color: #72d88e;
+            cursor: pointer;
+        }
+
         .title-visibility-button {
             border: 1px solid rgba(121, 204, 145, 0.38);
             border-radius: 999px;
@@ -482,6 +638,16 @@
             .top-right-controls {
                 align-items: stretch;
             }
+
+            .height-controls-cluster {
+                flex-wrap: wrap;
+            }
+
+            .height-slider-wrap.row-3 {
+                width: min(360px, 100%);
+                min-width: 0;
+                flex-basis: 100%;
+            }
         }
     </style>
 </head>
@@ -490,13 +656,30 @@
     <div class="map-fog" aria-hidden="true"></div>
 
     <div class="overlay">
-        <h1>3D Bus Stop Usage Map</h1>
-        <p>Stops are pulled from the TSPR open-data archive</p>
-        <p class="note">Total usage mode uses stop-wide boarding, alighting, or combined usage totals. Bus line mode filters to the selected route.</p>
+        <h1>3D Bus Stop Usage Map (2024)</h1>
+        <p>Stops are pulled from the TSPR catalog data table</p>
+        <p class="note">Complete map reveals stop-wide boarding, alighting, or combined usage totals. For stop usage by bus line, select bus line in the control panel.</p>
     </div>
 
     <div class="top-right-controls">
-        <a href="/" class="home-link">Back to Home</a>
+        <div class="top-right-actions">
+            <span class="map-info-wrap">
+                <button
+                    type="button"
+                    class="map-info-button"
+                    aria-describedby="map-info-tooltip"
+                    aria-label="Map controls info"
+                >
+                    ℹ
+                </button>
+                <span id="map-info-tooltip" class="map-info-tooltip" role="tooltip">
+                    Hold left click to move map.<br>
+                    Hold right click to move viewing angle.<br>
+                    Zoom in bay cluster to see individual bays.<br>
+                </span>
+            </span>
+            <a href="/" class="home-link">Back to Home</a>
+        </div>
     </div>
 
     <div class="legend" aria-label="Usage intensity legend">
@@ -515,11 +698,11 @@
         <div class="control-panel-body">
             <div class="panel-row panel-row-1">
                 <div>
-                    <h2 class="control-panel-title">Total Usage Options</h2>
+                    <h2 class="control-panel-title">Usage Options</h2>
                     <div class="metric-buttons" role="group" aria-label="Total usage metric selection">
-                        <button type="button" class="metric-button is-active" data-metric="boardings">Total boardings</button>
+                        <button type="button" class="metric-button is-active" data-metric="boardings">Boardings</button>
                         <button type="button" class="metric-button" data-metric="alightings">Alightings</button>
-                        <button type="button" class="metric-button" data-metric="total_usage">Total usage</button>
+                        <button type="button" class="metric-button" data-metric="total_usage">Total Usage</button>
                     </div>
                 </div>
 
@@ -552,6 +735,24 @@
                         <button id="title-show-button" class="title-visibility-button is-active" type="button" aria-pressed="true">Show Title</button>
                     </div>
                 </div>
+
+                <div class="height-controls-cluster">
+                    <div class="bar-size-mode" role="group" aria-label="Bar size mode">
+                        <span class="bar-size-label">Bar Size</span>
+                        <div class="bar-size-buttons">
+                            <button type="button" class="bar-size-button is-active" data-bar-size-mode="default">Default</button>
+                            <button type="button" class="bar-size-button" data-bar-size-mode="to_scale">To Scale</button>
+                        </div>
+                    </div>
+
+                    <div class="height-slider-wrap row-3">
+                        <div class="height-slider-row">
+                            <span>Bar Height Scale</span>
+                            <span id="height-slider-value">100%</span>
+                        </div>
+                        <input id="height-scale-slider" class="height-slider" type="range" min="15" max="300" step="1" value="100" aria-label="Bar height scale">
+                    </div>
+                </div>
             </div>
         </div>
     </section>
@@ -560,6 +761,6 @@
 
     <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
     <script src="https://unpkg.com/deck.gl@9.0.34/dist.min.js"></script>
-    <script src="{{ url_for('static', filename='js/bus_stop_usage_map_3d.js', v='20260422-2') }}"></script>
+    <script src="{{ url_for('static', filename='js/bus_stop_usage_map_3d.js', v='20260423-2') }}"></script>
 </body>
 </html>

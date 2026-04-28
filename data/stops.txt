@@ -6404,7 +6404,7 @@ stop_id,stop_code,stop_name,stop_desc,stop_lat,stop_lon,zone_id,stop_url,locatio
 6455,56394,Scottsdale Exchange @ Bay 1,,49.137407,-122.88851,BUS ZN,,0,,1
 6456,56395,Surrey Central Station @ Bay 1 Unloading Only,,49.188852,-122.848203,BUS ZN,,0,,1
 6457,56396,Southbound King George Blvd @ 10 Ave,,49.020917,-122.763123,BUS ZN,,0,,2
-6458,56397,Scott Rd Station @ Bay 2,,49.204407,-122.875132,BUS ZN,,0,,1
+6458,56397,Scott Road Station @ Bay 2,,49.204407,-122.875132,BUS ZN,,0,,1
 6459,56398,Westbound 64 Ave @ King George Blvd,,49.119126,-122.846971,BUS ZN,,0,,1
 646,50640,Dunbar Loop @ Bay 2,,49.234661,-123.185757,BUS ZN,,0,,1
 6460,56399,Westbound 64 Ave @ 134 St,,49.119102,-122.851463,BUS ZN,,0,,1
