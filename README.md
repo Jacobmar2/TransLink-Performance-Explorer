@@ -47,14 +47,21 @@ Comparing ridership of 144 and 145
 
 ● Uses MIT License
 
-## How to use (as of now)
+## How to Host Locally
 
-1. Download files to your computer
+1. Download ZIP and extract files into a selected folder.
 
-2. On terminal, navigate to the file "TransLink-Performance-Explorer" or "TransLink-Performance-Explorer-main" (the deeper folder if another folder of the same name found within it)
+2. Using a terminal (with command prompt or an IDE of your choice), navigate to the selected folder, then to the Translink-Performance-Explorer-main folder, by typing the following:
 
-3. Type command: python app.py
+```bash
+cd Translink-Performance-Explorer-main
+```
 
-4. On browser, open: http://127.0.0.1:5000/
+3. Type in terminal: 
 
-5. Use as a webapp!
+```bash
+python app.py
+```
+
+
+4. Open your browser at http://127.0.0.1:5000/ and use as a webapp!
