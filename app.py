@@ -5,6 +5,7 @@ import csv
 import sqlite3
 import re
 import logging
+import numpy as np
 from collections import Counter, OrderedDict
 from datetime import datetime, timedelta
 from functools import lru_cache
@@ -13,6 +14,22 @@ from difflib import SequenceMatcher
 # Configure logging to help diagnose production issues
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+def _sanitize_for_json(obj):
+    """Convert numpy/pandas types to JSON-serializable Python types."""
+    if isinstance(obj, dict):
+        return {k: _sanitize_for_json(v) for k, v in obj.items()}
+    elif isinstance(obj, (list, tuple)):
+        return [_sanitize_for_json(item) for item in obj]
+    elif isinstance(obj, (np.integer, np.int64, np.int32)):
+        return int(obj)
+    elif isinstance(obj, (np.floating, np.float64, np.float32)):
+        return float(obj)
+    elif isinstance(obj, np.bool_):
+        return bool(obj)
+    elif pd.isna(obj):
+        return None
+    return obj
 
 app = Flask(__name__)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -2109,8 +2126,9 @@ def bus_line_options():
         logger.info(f"[api] bus_line_options returning {len(options)} options for year {year}")
         return jsonify(options)
     except Exception as e:
-        logger.error(f"[api] Error in bus_line_options: {str(e)}", exc_info=True)
-        return jsonify({"error": str(e)}), 500
+        error_msg = str(e) if e else "Unknown error"
+        logger.error(f"[api] Error in bus_line_options: {error_msg}")
+        return jsonify({"error": error_msg}), 500
 
 
 @app.route("/api/bus-stop-usage-map-3d-data")
@@ -2119,15 +2137,29 @@ def bus_stop_usage_map_3d_data():
     try:
         year = request.args.get('year', default=2024, type=int)
         logger.info(f"[api] bus_stop_usage_map_3d_data called with year={year}")
+        
         if request.args.get('refresh', default='0') == '1':
             logger.info("[api] Cache clear requested")
             _load_bus_stop_usage_map_2024_data.cache_clear()
+        
+        logger.info(f"[api] Loading data...")
         result = _load_bus_stop_usage_map_2024_data(year)
-        logger.info(f"[api] Returning {len(result.get('stops', []))} stops")
-        return jsonify(result)
+        stops_count = len(result.get('stops', []))
+        logger.info(f"[api] Data loaded: {stops_count} stops")
+        
+        logger.info(f"[api] Sanitizing data for JSON...")
+        sanitized_result = _sanitize_for_json(result)
+        logger.info(f"[api] Data sanitized")
+        
+        logger.info(f"[api] Converting to JSON response...")
+        response = jsonify(sanitized_result)
+        logger.info(f"[api] Response created successfully, returning {stops_count} stops")
+        return response
+        
     except Exception as e:
-        logger.error(f"[api] Error in bus_stop_usage_map_3d_data: {str(e)}", exc_info=True)
-        return jsonify({"error": str(e)}), 500
+        error_msg = str(e) if e else "Unknown error"
+        logger.error(f"[api] Error in bus_stop_usage_map_3d_data: {error_msg}")
+        return jsonify({"error": error_msg}), 500
 
 
 @app.route("/api/daily-boardings-data")

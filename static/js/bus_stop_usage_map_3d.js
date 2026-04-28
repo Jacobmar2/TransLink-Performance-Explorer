@@ -852,12 +852,17 @@
 
     const loadBusData = Promise.all([
         fetch(apiUrl, { cache: "no-store" }).then((res) => {
+            console.log("[bus-map] API response for bus-stop data:", res.status, res.statusText);
             if (!res.ok) {
                 throw new Error(`${res.status} ${res.statusText}`.trim());
             }
-            return res.json();
+            return res.json().then((data) => {
+                console.log("[bus-map] API data received:", data ? Object.keys(data) : null);
+                return data;
+            });
         }),
         fetch(busLineOptionsUrl, { cache: "no-store" }).then((res) => {
+            console.log("[bus-map] API response for bus-line options:", res.status, res.statusText);
             if (!res.ok) {
                 return [];
             }
@@ -897,8 +902,11 @@
         populateBusLineOptions(busLineOptions);
         syncControlState();
         dataReady = true;
+        console.log("[bus-map] Data loaded successfully");
+        console.log("[bus-map] Stops loaded:", stops.length);
+        console.log("[bus-map] Bus line options:", busLineOptions.length);
     }).catch((error) => {
-        console.error(error);
+        console.error("[bus-map] Error loading data:", error);
         if (tooltip) {
             const reason = error && error.message ? ` (${error.message})` : "";
             tooltip.textContent = `Could not load bus stop data${reason}.`;
