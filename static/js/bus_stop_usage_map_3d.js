@@ -854,7 +854,23 @@
         fetch(apiUrl, { cache: "no-store" }).then((res) => {
             console.log("[bus-map] API response for bus-stop data:", res.status, res.statusText);
             if (!res.ok) {
-                throw new Error(`${res.status} ${res.statusText}`.trim());
+                   // Try to read error details from response body
+                   return res.text().then((text) => {
+                       let errorMsg = `${res.status} ${res.statusText}`.trim();
+                       try {
+                           const errorData = JSON.parse(text);
+                           if (errorData.error) {
+                               errorMsg = `${res.status}: ${errorData.error}`;
+                           }
+                       } catch (e) {
+                           // Response wasn't JSON, use status text
+                           if (text && text.length > 0) {
+                               errorMsg = `${res.status}: ${text.substring(0, 200)}`;
+                           }
+                       }
+                       console.error("[bus-map] API error details:", errorMsg);
+                       throw new Error(errorMsg);
+                   });
             }
             return res.json().then((data) => {
                 console.log("[bus-map] API data received:", data ? Object.keys(data) : null);
