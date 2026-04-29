@@ -61,6 +61,7 @@ def bus_lines():
 
 
 BUS_YEARLINE_2024_PATH = os.path.join(DATA_DIR, "tspr2024_bus_yearline.csv")
+BUS_LINE_SHAPES_DIR = os.path.join(DATA_DIR, "bus lines")
 BUS_KEYINDICATORS_PATH = os.path.join(DATA_DIR, "tspr2022_bus_keyindicators_year.csv")
 BUS_OPEN_ARCHIVE_PATH = os.path.join(DATA_DIR, "TSPR_OpenData_Archive_8554786340162954844.csv")
 BUS_COVID_2020_TOTAL_PATH = os.path.join(DATA_DIR, "covid years", "tspr-2020---total-bus-boardings-by-route.csv")
@@ -1700,6 +1701,263 @@ def _format_bus_line_label(line_code, year=None):
     return display_code
 
 
+def _extract_bus_line_shape_code_and_name(raw_name):
+    text = str(raw_name or '').strip()
+    if not text:
+        return None, None
+
+    match = re.match(r'^([A-Za-z0-9/]+)\s*-\s*(.+)$', text)
+    if not match:
+        return None, text
+
+    return _normalize_bus_line_code(match.group(1)), match.group(2).strip()
+
+
+def _read_bus_line_shape_csv(csv_path):
+    rows = []
+
+    try:
+        with open(csv_path, newline='', encoding='utf-8-sig') as handle:
+            reader = csv.reader(handle)
+            header = next(reader, None)
+            if not header:
+                return rows
+
+            for row in reader:
+                if not row:
+                    continue
+
+                if len(row) < 2:
+                    continue
+
+                wkt = row[0].strip()
+                name = row[1].strip()
+                description = ','.join(part.strip() for part in row[2:]) if len(row) > 2 else None
+
+                rows.append({
+                    'WKT': wkt,
+                    'name': name,
+                    'description': description
+                })
+    except Exception:
+        return rows
+
+    return rows
+
+
+def _hsl_to_rgb(hue, saturation, lightness):
+    hue = (float(hue) % 360.0) / 360.0
+    saturation = max(0.0, min(1.0, float(saturation)))
+    lightness = max(0.0, min(1.0, float(lightness)))
+
+    if saturation == 0:
+        channel = int(round(lightness * 255))
+        return [channel, channel, channel]
+
+    def hue_to_rgb(p, q, t):
+        if t < 0:
+            t += 1
+        if t > 1:
+            t -= 1
+        if t < 1 / 6:
+            return p + (q - p) * 6 * t
+        if t < 1 / 2:
+            return q
+        if t < 2 / 3:
+            return p + (q - p) * (2 / 3 - t) * 6
+        return p
+
+    q = lightness * (1 + saturation) if lightness < 0.5 else lightness + saturation - lightness * saturation
+    p = 2 * lightness - q
+    red = hue_to_rgb(p, q, hue + 1 / 3)
+    green = hue_to_rgb(p, q, hue)
+    blue = hue_to_rgb(p, q, hue - 1 / 3)
+    return [int(round(red * 255)), int(round(green * 255)), int(round(blue * 255))]
+
+
+def _generate_bus_line_color(index, line_code):
+    code_text = str(line_code or '').strip()
+    seed = sum((position + 1) * ord(character) for position, character in enumerate(code_text))
+    hue = (seed * 37 + index * 19) % 360
+    return _hsl_to_rgb(hue, 0.72, 0.55)
+
+
+@lru_cache(maxsize=1)
+def _load_bus_line_usage_map_2024_data(year=2024):
+    if year != 2024:
+        return {
+            'year': year,
+            'metric_keys': [],
+            'lines': [],
+            'bounds': None
+        }
+
+    if not os.path.isdir(BUS_LINE_SHAPES_DIR):
+        return {
+            'year': year,
+            'metric_keys': [],
+            'lines': [],
+            'bounds': None
+        }
+
+    bus_rows = _load_bus_data_for_year(year)
+    if bus_rows.empty:
+        return {
+            'year': year,
+            'metric_keys': [],
+            'lines': [],
+            'bounds': None
+        }
+
+    stat_lookup = {
+        _normalize_bus_line_code(row['line']): row
+        for _, row in bus_rows.iterrows()
+    }
+
+    # Helper function to find stat lookup entry and the actual code for a line code
+    # Handles multi-numbered lines (e.g., "5/6" or "005/006") when geometry has individual lines (e.g., "5")
+    def find_stat_for_line_code(code):
+        if code in stat_lookup:
+            return stat_lookup[code], code
+        
+        # Check if this individual line number is part of a multi-numbered code
+        # e.g., if code="5", check for "005/006", etc.
+        # Normalize code for comparison (remove leading zeros for numeric codes)
+        code_normalized = str(int(code)) if code.isdigit() else code
+        
+        for stat_code in stat_lookup:
+            if '/' in stat_code:
+                parts = stat_code.split('/')
+                # Check if our code matches any part of the multi-number (comparing normalized values)
+                for part in parts:
+                    part_normalized = str(int(part)) if part.isdigit() else part
+                    if code_normalized == part_normalized:
+                        return stat_lookup[stat_code], stat_code
+        
+        return None, None
+
+    shape_rows_by_code = {}
+    code_to_group = {}  # Maps individual line code to its group code (for multi-numbered lines)
+    
+    for filename in sorted(os.listdir(BUS_LINE_SHAPES_DIR)):
+        if not filename.lower().endswith('.csv'):
+            continue
+
+        csv_path = os.path.join(BUS_LINE_SHAPES_DIR, filename)
+        for row in _read_bus_line_shape_csv(csv_path):
+            coords = _parse_linestring_wkt(row.get('WKT'))
+            if len(coords) < 2:
+                continue
+
+            line_code, route_name = _extract_bus_line_shape_code_and_name(row.get('name'))
+            if not line_code:
+                continue
+            
+            stat_row, actual_code = find_stat_for_line_code(line_code)
+            if stat_row is None:
+                continue
+
+            # Keep individual lines separate, but remember their group code (for coloring)
+            if line_code not in shape_rows_by_code:
+                shape_rows_by_code[line_code] = {
+                    'line': line_code,
+                    'group_code': actual_code,  # For multi-numbered lines, this is the grouped code
+                    'line_name': route_name,
+                    'shape_name': str(row.get('name') or '').strip(),
+                    'description': None if pd.isna(row.get('description')) else str(row.get('description')).strip(),
+                    'coordinates': coords
+                }
+                code_to_group[line_code] = actual_code
+            else:
+                # If we see the same line again, keep the one with more details
+                if route_name and len(route_name) > len(shape_rows_by_code[line_code].get('line_name') or ''):
+                    shape_rows_by_code[line_code]['line_name'] = route_name
+
+    if not shape_rows_by_code:
+        return {
+            'year': year,
+            'metric_keys': [],
+            'lines': [],
+            'bounds': None
+        }
+
+    metric_keys = [
+        'annual_boardings',
+        'weekday',
+        'saturday',
+        'sunday',
+        'revenue_hours',
+        'service_hours',
+        'boardings_per_revenue_hour',
+        'peak_passenger_load',
+        'peak_load_factor',
+        'capacity_utilization',
+        'overcrowded_revenue_hours',
+        'overcrowded_trips_percent'
+    ]
+
+    all_longitudes = []
+    all_latitudes = []
+    lines = []
+    
+    # Create a sorted list of unique group codes (for consistent color indexing)
+    group_codes = []
+    for line_code in sorted(shape_rows_by_code.keys(), key=_bus_line_sort_key):
+        group_code = shape_rows_by_code[line_code].get('group_code', line_code)
+        if group_code not in group_codes:
+            group_codes.append(group_code)
+
+    for line_code in sorted(shape_rows_by_code.keys(), key=_bus_line_sort_key):
+        stats, _ = find_stat_for_line_code(line_code)
+        shape_row = shape_rows_by_code[line_code]
+        group_code = shape_row.get('group_code', line_code)
+        
+        # Use group code index for color (so multi-numbered lines get same color)
+        color_index = group_codes.index(group_code) if group_code in group_codes else 0
+
+        for lon, lat in shape_row['coordinates']:
+            all_longitudes.append(lon)
+            all_latitudes.append(lat)
+
+        lines.append({
+            'line': line_code,
+            'line_label': _format_bus_line_label(line_code, year),
+            'line_name': shape_row['line_name'] or _get_bus_line_name(line_code, year),
+            'shape_name': shape_row['shape_name'],
+            'description': shape_row['description'],
+            'color': _generate_bus_line_color(color_index, group_code),
+            'coordinates': shape_row['coordinates'],
+            'metrics': {
+                'annual_boardings': _safe_float(stats.get('annual_boardings')),
+                'weekday': _safe_float(stats.get('weekday')),
+                'saturday': _safe_float(stats.get('saturday')),
+                'sunday': _safe_float(stats.get('sunday')),
+                'revenue_hours': _safe_float(stats.get('revenue_hours')),
+                'service_hours': _safe_float(stats.get('service_hours')),
+                'boardings_per_revenue_hour': _safe_float(stats.get('boardings_per_revenue_hour')),
+                'peak_passenger_load': _safe_float(stats.get('peak_passenger_load')),
+                'peak_load_factor': _safe_float(stats.get('peak_load_factor')),
+                'capacity_utilization': _safe_float(stats.get('capacity_utilization')),
+                'overcrowded_revenue_hours': _safe_float(stats.get('overcrowded_revenue_hours')),
+                'overcrowded_trips_percent': _safe_float(stats.get('overcrowded_trips_percent'))
+            }
+        })
+
+    bounds = None
+    if all_longitudes and all_latitudes:
+        bounds = [
+            [min(all_longitudes), min(all_latitudes)],
+            [max(all_longitudes), max(all_latitudes)]
+        ]
+
+    return {
+        'year': year,
+        'metric_keys': metric_keys,
+        'lines': lines,
+        'bounds': bounds
+    }
+
+
 DEEP_TIME_RANGE_TO_START = {
     '4-6': 4,
     '6-9': 6,
@@ -2136,6 +2394,29 @@ def bus_line_options():
     except Exception as e:
         error_msg = str(e) if e else "Unknown error"
         logger.error(f"[api] Error in bus_line_options: {error_msg}")
+        return jsonify({"error": error_msg}), 500
+
+
+@app.route("/api/bus-line-usage-map-3d-data")
+def bus_line_usage_map_3d_data():
+    """API endpoint for 2024 bus line geometry joined to 2024 line stats."""
+    try:
+        year = request.args.get('year', default=2024, type=int)
+        logger.info(f"[api] bus_line_usage_map_3d_data called with year={year}")
+
+        if year != 2024:
+            return jsonify({'error': 'Only 2024 bus line usage map data is available.'}), 400
+
+        if request.args.get('refresh', default='0') == '1':
+            logger.info("[api] Cache clear requested")
+            _load_bus_line_usage_map_2024_data.cache_clear()
+
+        result = _load_bus_line_usage_map_2024_data(year)
+        logger.info(f"[api] Bus line usage map loaded with {len(result.get('lines', []))} lines")
+        return jsonify(_sanitize_for_json(result))
+    except Exception as e:
+        error_msg = str(e) if e else "Unknown error"
+        logger.error(f"[api] Error in bus_line_usage_map_3d_data: {error_msg}")
         return jsonify({"error": error_msg}), 500
 
 

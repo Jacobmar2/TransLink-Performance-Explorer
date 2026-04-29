@@ -58,7 +58,7 @@
     let activeHourlyTimeMode = "none";
     let activeTimeSliderIndex = 0;
     let playbackTimerId = null;
-    let playbackSpeed = 0.5;
+    let playbackSpeed = 1;
     let playbackLoopMode = "same-day-type";
     let playbackActive = false;
 
