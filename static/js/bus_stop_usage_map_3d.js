@@ -326,9 +326,10 @@
         });
 
         const clusteredStops = [];
-        groupedBayStops.forEach((group) => {
+        groupedBayStops.forEach((group, clusterKey) => {
             clusteredStops.push({
                 ...aggregateBayStops(group)[0],
+                __clusterKey: clusterKey,
                 __renderSize: BAY_CLUSTER_RADIUS,
                 __renderMode: "bay-cluster"
             });
@@ -413,6 +414,28 @@
         return getLeafMetricValue(stop);
     };
 
+    const getStopHoverKey = (stop) => {
+        if (!stop) {
+            return null;
+        }
+
+        const renderMode = String(stop.__renderMode || "").trim();
+
+        if (renderMode === "bay-cluster" || stop.is_bay_cluster) {
+            return `cluster:${String(stop.__clusterKey || stop.bay_cluster_id || stop.stop_number || stop.stop_name || "").trim()}`;
+        }
+
+        if (renderMode === "bay") {
+            return `bay:${String(stop.stop_number || stop.stop_name || "").trim()}`;
+        }
+
+        if (stop.stop_number) {
+            return `stop:${String(stop.stop_number).trim()}`;
+        }
+
+        return `name:${String(stop.stop_name || "").trim().toLowerCase()}`;
+    };
+
     const getFillColor = (value, maxValue) => {
         if (value <= 0) {
             return [120, 120, 120, 190];
@@ -443,6 +466,16 @@
         const safeMax = Math.max(maxValue, value, 2000);
         const t = Math.max(0, Math.min(1, (value - 2000) / Math.max(1, safeMax - 2000)));
         return blend(orange, red, t);
+    };
+
+    const brightenColor = (color, amount) => {
+        const factor = Math.max(0, Math.min(1, amount));
+        return [
+            Math.round(color[0] + (255 - color[0]) * factor),
+            Math.round(color[1] + (255 - color[1]) * factor),
+            Math.round(color[2] + (255 - color[2]) * factor),
+            color[3]
+        ];
     };
 
     const getHeightScalePercent = () => {
@@ -539,14 +572,19 @@
         const renderStops = getRenderedStops();
         const metricValues = visibleStops.map((stop) => getMetricValue(stop));
         const maxValue = metricValues.reduce((max, value) => Math.max(max, value), 0);
+        const hoveredKey = getStopHoverKey(hoverInfo && hoverInfo.object ? hoverInfo.object : null);
 
         const renderData = renderStops.map((stop) => {
             const value = getMetricValue(stop);
+            const isHovered = hoveredKey && hoveredKey === getStopHoverKey(stop);
+            const fillColor = getFillColor(value, maxValue);
             return {
                 ...stop,
                 __value: value,
                 __height: getHeight(value, maxValue),
-                __fillColor: getFillColor(value, maxValue)
+                __fillColor: fillColor,
+                __isHovered: isHovered,
+                __hoverFillColor: isHovered ? brightenColor(fillColor, 0.46) : fillColor
             };
         });
 
@@ -567,7 +605,7 @@
                 opacity: 0.95,
                 getPosition: (d) => [Number(d.lon), Number(d.lat)],
                 getElevation: (d) => d.__height,
-                getFillColor: (d) => d.__fillColor,
+                getFillColor: (d) => d.__isHovered ? d.__hoverFillColor : d.__fillColor,
                 getLineColor: [15, 54, 29, 255],
                 lineWidthMinPixels: 1,
                 material: {
@@ -580,11 +618,13 @@
                     if (!info || !info.object) {
                         hoverInfo = null;
                         hideTooltip();
+                        renderMap();
                         return;
                     }
 
                     hoverInfo = info;
                     showTooltip(info, info.object.__value || 0);
+                    renderMap();
                 }
             }));
         }
@@ -600,7 +640,7 @@
                 opacity: 0.95,
                 getPosition: (d) => [Number(d.lon), Number(d.lat)],
                 getElevation: (d) => d.__height,
-                getFillColor: (d) => d.__fillColor,
+                getFillColor: (d) => d.__isHovered ? d.__hoverFillColor : d.__fillColor,
                 getLineColor: [15, 54, 29, 255],
                 lineWidthMinPixels: 1,
                 material: {
@@ -613,11 +653,13 @@
                     if (!info || !info.object) {
                         hoverInfo = null;
                         hideTooltip();
+                        renderMap();
                         return;
                     }
 
                     hoverInfo = info;
                     showTooltip(info, info.object.__value || 0);
+                    renderMap();
                 }
             }));
         }
@@ -955,6 +997,12 @@
     map.on("load", attachOverlay);
 
     map.on("zoomend", () => {
+        renderMap();
+    });
+
+    map.on("mouseleave", () => {
+        hoverInfo = null;
+        hideTooltip();
         renderMap();
     });
 

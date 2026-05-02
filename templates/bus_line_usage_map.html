@@ -355,15 +355,16 @@
             text-align: center;
         }
 
-        .metric-buttons {
+        .metric-buttons,
+        .filter-buttons {
             display: flex;
             flex-wrap: wrap;
             gap: 6px;
         }
 
-        .metric-button {
+        .metric-button,
+        .filter-button {
             border: 1px solid rgba(121, 204, 145, 0.36);
-            border-radius: 999px;
             padding: 8px 12px;
             background: rgba(6, 22, 14, 0.94);
             color: #edf9f0;
@@ -373,12 +374,26 @@
             transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
         }
 
-        .metric-button:hover {
+        .filter-button {
+            border-radius: 0;
+        }
+
+        .filter-button[data-filter-value="all"] {
+            border-radius: 999px;
+        }
+
+        .metric-button {
+            border-radius: 999px;
+        }
+
+        .metric-button:hover,
+        .filter-button:hover {
             transform: translateY(-1px);
             border-color: rgba(161, 227, 178, 0.7);
         }
 
-        .metric-button.is-active {
+        .metric-button.is-active,
+        .filter-button.is-active {
             background: linear-gradient(180deg, rgba(58, 140, 82, 0.98), rgba(24, 74, 42, 0.98));
             border-color: rgba(178, 238, 191, 0.9);
             color: #ffffff;
@@ -522,6 +537,30 @@
                     <button type="button" class="metric-button" data-metric="capacity_utilization">Capacity Utilization</button>
                     <button type="button" class="metric-button" data-metric="overcrowded_revenue_hours">Overcrowding Revenue Hours</button>
                     <button type="button" class="metric-button" data-metric="overcrowded_trips_percent">% Over Crowded Trips</button>
+                    <button type="button" class="metric-button" data-metric="on_time_performance">% On Time Performance</button>
+                    <button type="button" class="metric-button" data-metric="bus_bunching_percentage">% Bus Bunching</button>
+                    <button type="button" class="metric-button" data-metric="avg_speed_kph">Avg Speed</button>
+                </div>
+            </div>
+
+            <div class="panel-row">
+                <h2 class="control-panel-title">Sub Region</h2>
+                <div id="sub-region-buttons" class="filter-buttons" role="group" aria-label="Sub region filter selection">
+                    <button type="button" class="filter-button is-active" data-filter-group="sub_region_of_primary_service" data-filter-value="all">All</button>
+                </div>
+            </div>
+
+            <div class="panel-row">
+                <h2 class="control-panel-title">Predominant Vehicle Type</h2>
+                <div id="vehicle-type-buttons" class="filter-buttons" role="group" aria-label="Predominant vehicle type filter selection">
+                    <button type="button" class="filter-button is-active" data-filter-group="predominant_vehicle_type" data-filter-value="all">All</button>
+                </div>
+            </div>
+
+            <div class="panel-row">
+                <h2 class="control-panel-title">TSG Service Type</h2>
+                <div id="service-type-buttons" class="filter-buttons" role="group" aria-label="TSG service type filter selection">
+                    <button type="button" class="filter-button is-active" data-filter-group="tsg_service_type" data-filter-value="all">All</button>
                 </div>
             </div>
         </div>

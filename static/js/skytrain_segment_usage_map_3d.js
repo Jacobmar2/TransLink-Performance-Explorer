@@ -69,16 +69,37 @@
     let mapReady = false;
     let dataReady = false;
     let overlayAttached = false;
+    let hoverInfo = null;
 
     const toNumber = (value) => {
         const parsed = Number(value);
         return Number.isFinite(parsed) ? parsed : 0;
     };
 
+    const getSegmentHoverKey = (segment) => {
+        if (!segment) {
+            return null;
+        }
+
+        return [segment.from_station, segment.to_station, segment.direction, segment.line]
+            .map((part) => String(part || "").trim().toLowerCase())
+            .join("|");
+    };
+
     const formatNumber = (value) => {
         return new Intl.NumberFormat("en-CA", {
             maximumFractionDigits: 0
         }).format(value);
+    };
+
+    const brightenColor = (color, amount) => {
+        const factor = Math.max(0, Math.min(1, amount));
+        return [
+            Math.round(color[0] + (255 - color[0]) * factor),
+            Math.round(color[1] + (255 - color[1]) * factor),
+            Math.round(color[2] + (255 - color[2]) * factor),
+            color[3]
+        ];
     };
 
     const minutePad = (value) => String(value).padStart(2, "0");
@@ -414,8 +435,11 @@
                 billboard: false,
                 opacity: 0.16,
                 getPath: (d) => d.__pathMid,
-                getColor: (d) => [d.__fillColor[0], d.__fillColor[1], d.__fillColor[2], 95],
-                getWidth: (d) => d.__tubeWidth * 2.0,
+                getColor: (d) => {
+                    const color = d.__isHovered ? d.__hoverFillColor : d.__fillColor;
+                    return [color[0], color[1], color[2], 95];
+                },
+                getWidth: (d) => (d.__isHovered ? d.__hoverTubeWidth : d.__tubeWidth) * 2.0,
                 parameters: {
                     depthTest: false,
                     depthMask: false
@@ -433,10 +457,11 @@
                 opacity: 1,
                 getPath: (d) => d.__pathBase,
                 getColor: (d) => {
-                    const darker = shadeColor(d.__fillColor, -0.18);
+                    const baseColor = d.__isHovered ? d.__hoverFillColor : d.__fillColor;
+                    const darker = shadeColor(baseColor, d.__isHovered ? 0.1 : -0.18);
                     return [darker[0], darker[1], darker[2], 255];
                 },
-                getWidth: (d) => d.__tubeWidth,
+                getWidth: (d) => (d.__isHovered ? d.__hoverTubeWidth : d.__tubeWidth),
                 parameters: {
                     depthTest: false,
                     depthMask: false
@@ -453,8 +478,8 @@
                 billboard: false,
                 opacity: 1,
                 getPath: (d) => d.__pathMid,
-                getColor: (d) => d.__fillColor,
-                getWidth: (d) => d.__tubeWidth * 0.9,
+                getColor: (d) => (d.__isHovered ? d.__hoverFillColor : d.__fillColor),
+                getWidth: (d) => (d.__isHovered ? d.__hoverTubeWidth : d.__tubeWidth) * 0.9,
                 parameters: {
                     depthTest: false,
                     depthMask: false
@@ -472,10 +497,11 @@
                 opacity: 0.92,
                 getPath: (d) => d.__pathTop,
                 getColor: (d) => {
-                    const lighter = shadeColor(d.__fillColor, 0.36);
+                    const baseColor = d.__isHovered ? d.__hoverFillColor : d.__fillColor;
+                    const lighter = shadeColor(baseColor, d.__isHovered ? 0.5 : 0.36);
                     return [lighter[0], lighter[1], lighter[2], 255];
                 },
-                getWidth: (d) => d.__tubeWidth * 0.24,
+                getWidth: (d) => (d.__isHovered ? d.__hoverTubeWidth : d.__tubeWidth) * 0.24,
                 parameters: {
                     depthTest: false,
                     depthMask: false
@@ -508,6 +534,9 @@
             const metricValue = profile.getValue(segment);
             const ratio = Math.max(0, Math.min(1, metricValue / effectiveMax));
             const tubeHeight = toTubeHeight(metricValue, effectiveMax);
+            const hoveredKey = getSegmentHoverKey(hoverInfo && hoverInfo.object ? hoverInfo.object : null);
+            const isHovered = hoveredKey && hoveredKey === getSegmentHoverKey(segment);
+            const fillColor = toColor(metricValue, effectiveMax, profile.colorLow, profile.colorHigh);
 
             const pathBase = segment.coordinates.map((coord) => [coord[0], coord[1], 1]);
             const pathMid = segment.coordinates.map((coord) => [coord[0], coord[1], 1 + tubeHeight * 0.48]);
@@ -520,7 +549,10 @@
                 __tooltipLabel: profile.tooltipLabel,
                 __tubeWidth: toTubeWidth(metricValue, effectiveMax),
                 __tubeHeight: tubeHeight,
-                __fillColor: toColor(metricValue, effectiveMax, profile.colorLow, profile.colorHigh),
+                __fillColor: fillColor,
+                __isHovered: isHovered,
+                __hoverFillColor: isHovered ? brightenColor(fillColor, 0.3) : fillColor,
+                __hoverTubeWidth: isHovered ? toTubeWidth(metricValue, effectiveMax) * 1.15 : toTubeWidth(metricValue, effectiveMax),
                 __pathBase: pathBase,
                 __pathMid: pathMid,
                 __pathTop: pathTop
@@ -667,13 +699,17 @@
         });
 
         if (!pickInfo || !pickInfo.object) {
+            hoverInfo = null;
             tooltip.style.display = "none";
+            renderCurrentView();
             return;
         }
 
         const segment = pickInfo.object;
         const metricValue = toNumber(segment.__metricValue);
         const ratio = toNumber(segment.__ratio) * 100;
+
+        hoverInfo = pickInfo;
 
         tooltip.innerHTML = [
             `<strong>${segment.from_station} &mdash; ${segment.to_station}</strong>`,
@@ -684,10 +720,13 @@
         tooltip.style.display = "block";
         tooltip.style.left = `${event.originalEvent.clientX + 14}px`;
         tooltip.style.top = `${event.originalEvent.clientY + 14}px`;
+        renderCurrentView();
     });
 
     map.on("mouseleave", () => {
+        hoverInfo = null;
         tooltip.style.display = "none";
+        renderCurrentView();
     });
 
     metricButtons.forEach((button) => {

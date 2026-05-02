@@ -128,6 +128,7 @@
     let dataReady = false;
     let revealRetryTimerId = null;
     let revealRetryCount = 0;
+    let hoverInfo = null;
     const maxRevealRetries = 6;
 
     const normalizeStationName = (value) => {
@@ -135,6 +136,14 @@
             .replace(/[\u2013\u2014\u2212]/g, "-")
             .replace(/\s+/g, " ")
             .trim();
+    };
+
+    const getStationHoverKey = (station) => {
+        if (!station) {
+            return null;
+        }
+
+        return normalizeStationName(station.station_name || station.__station_name || "").toLowerCase() || null;
     };
 
     const toNumber = (value) => {
@@ -468,6 +477,16 @@
         return [red, green, blue, alpha];
     };
 
+    const brightenColor = (color, amount) => {
+        const factor = Math.max(0, Math.min(1, amount));
+        return [
+            Math.round(color[0] + (255 - color[0]) * factor),
+            Math.round(color[1] + (255 - color[1]) * factor),
+            Math.round(color[2] + (255 - color[2]) * factor),
+            color[3]
+        ];
+    };
+
     const getHeightMeters = (value, maxValue, heightFactor, includeBase = true) => {
         if (maxValue <= 0) {
             return includeBase ? 120 : 0;
@@ -493,7 +512,7 @@
                 opacity: 0.95,
                 getPosition: (d) => [Number(d.lon), Number(d.lat)],
                 getElevation: (d) => d.__elevation,
-                getFillColor: (d) => d.__fillColor,
+                getFillColor: (d) => d.__isHovered ? d.__hoverFillColor : d.__fillColor,
                 getLineColor: [171, 212, 255, 255],
                 lineWidthMinPixels: 1,
                 material: {
@@ -516,7 +535,7 @@
                 opacity: 0.96,
                 getPosition: (d) => [Number(d.lon), Number(d.lat), 0],
                 getElevation: (d) => d.__boardingElevation,
-                getFillColor: (d) => d.__boardingFillColor,
+                getFillColor: (d) => d.__isHovered ? d.__hoverBoardingFillColor : d.__boardingFillColor,
                 getLineColor: [171, 212, 255, 255],
                 lineWidthMinPixels: 1,
                 material: {
@@ -536,7 +555,7 @@
                 opacity: 0.96,
                 getPosition: (d) => [Number(d.lon), Number(d.lat), d.__boardingElevation],
                 getElevation: (d) => d.__alightingElevation,
-                getFillColor: (d) => d.__alightingFillColor,
+                getFillColor: (d) => d.__isHovered ? d.__hoverAlightingFillColor : d.__alightingFillColor,
                 getLineColor: [171, 212, 255, 255],
                 lineWidthMinPixels: 1,
                 material: {
@@ -583,7 +602,6 @@
         const targetRenderData = stations.map((station) => {
             const value = profile.getValue(station);
             const ratio = effectiveMax > 0 ? Math.max(0, Math.min(1, value / effectiveMax)) : 0;
-
             let boardingsHourlyValue = 0;
             let alightingsHourlyValue = 0;
 
@@ -594,27 +612,37 @@
                 alightingsHourlyValue = toNumber(daySeries.alightings && daySeries.alightings[profile.selectedHour]);
             }
 
+            const hoveredKey = getStationHoverKey(hoverInfo && hoverInfo.object ? hoverInfo.object : null);
+            const isHovered = hoveredKey && hoveredKey === getStationHoverKey(station);
+            const fillColor = toColor(value, effectiveMax, profile.colorLow, profile.colorHigh);
+            const boardingFillColor = toColor(
+                boardingsHourlyValue,
+                effectiveMax,
+                hourlyUsageConfig.boardings.colorLow,
+                hourlyUsageConfig.boardings.colorHigh
+            );
+            const alightingFillColor = toColor(
+                alightingsHourlyValue,
+                effectiveMax,
+                hourlyUsageConfig.alightings.colorLow,
+                hourlyUsageConfig.alightings.colorHigh
+            );
+
             return {
                 ...station,
                 __metricValue: value,
                 __ratio: ratio,
                 __tooltipLabel: profile.tooltipLabel,
                 __elevation: getHeightMeters(value, effectiveMax, profile.heightFactor),
-                __fillColor: toColor(value, effectiveMax, profile.colorLow, profile.colorHigh),
+                __fillColor: fillColor,
+                __isHovered: isHovered,
+                __hoverFillColor: isHovered ? brightenColor(fillColor, 0.3) : fillColor,
                 __boardingElevation: getHeightMeters(boardingsHourlyValue, effectiveMax, profile.heightFactor, false),
                 __alightingElevation: getHeightMeters(alightingsHourlyValue, effectiveMax, profile.heightFactor, false),
-                __boardingFillColor: toColor(
-                    boardingsHourlyValue,
-                    effectiveMax,
-                    hourlyUsageConfig.boardings.colorLow,
-                    hourlyUsageConfig.boardings.colorHigh
-                ),
-                __alightingFillColor: toColor(
-                    alightingsHourlyValue,
-                    effectiveMax,
-                    hourlyUsageConfig.alightings.colorLow,
-                    hourlyUsageConfig.alightings.colorHigh
-                )
+                __boardingFillColor: boardingFillColor,
+                __hoverBoardingFillColor: isHovered ? brightenColor(boardingFillColor, 0.3) : boardingFillColor,
+                __alightingFillColor: alightingFillColor,
+                __hoverAlightingFillColor: isHovered ? brightenColor(alightingFillColor, 0.3) : alightingFillColor
             };
         });
 
@@ -986,7 +1014,9 @@
         });
 
         if (!picks || !picks.object) {
+            hoverInfo = null;
             tooltip.style.display = "none";
+            renderCurrentView(true);
             return;
         }
 
@@ -994,6 +1024,8 @@
         const metricValue = toNumber(station.__metricValue);
         const scaled = toNumber(station.__ratio) * 100;
         const tooltipLabel = station.__tooltipLabel || "Usage";
+
+        hoverInfo = picks;
 
         tooltip.innerHTML = [
             `<strong>${station.station_name}</strong>`,
@@ -1004,10 +1036,13 @@
         tooltip.style.display = "block";
         tooltip.style.left = `${event.originalEvent.clientX + 14}px`;
         tooltip.style.top = `${event.originalEvent.clientY + 14}px`;
+        renderCurrentView(true);
     });
 
     map.on("mouseleave", () => {
+        hoverInfo = null;
         tooltip.style.display = "none";
+        renderCurrentView(true);
     });
 
     metricButtons.forEach((button) => {

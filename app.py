@@ -558,6 +558,8 @@ def _load_bus_stop_usage_map_2024_data(year=2024):
         t = str(text or '').lower()
         t = t.replace('@', ' ')
         t = re.sub(r'\b(stn)\b', 'station', t)
+        if 'production station' in t or 'production way' in t:
+            t = 'production way station'
         t = re.sub(r'[^a-z0-9\- ]+', ' ', t)
         t = re.sub(r'\s+', ' ', t).strip()
         return t
@@ -579,6 +581,8 @@ def _load_bus_stop_usage_map_2024_data(year=2024):
                     continue
 
                 cluster_name_root = re.sub(r'\s*(?:-|–|—)?\s*\bbay\b.*$', '', stop_name, flags=re.IGNORECASE).strip()
+                if re.search(r'\bproduction station\b', cluster_name_root, flags=re.IGNORECASE):
+                    cluster_name_root = re.sub(r'\bProduction Station\b', 'Production Way Station', cluster_name_root, flags=re.IGNORECASE)
                 normalized_root = _normalize_station_name(cluster_name_root or stop_name).lower()
                 cluster_key = f"parent:{parent_station}" if parent_station else f"name:{normalized_root}"
 
@@ -1614,6 +1618,18 @@ def _load_bus_data_for_year(year):
     return combined
 
 
+def _unique_nonempty_strings(values):
+    seen = OrderedDict()
+
+    for value in values:
+        text = str(value or '').strip()
+        if not text or text.lower() == 'nan':
+            continue
+        seen.setdefault(text, text)
+
+    return list(seen.values())
+
+
 def _normalize_bus_line_code(raw_code):
     code = str(raw_code).strip()
     if re.fullmatch(r'\d+', code):
@@ -1692,6 +1708,47 @@ def _get_bus_line_name(line_code, year=None):
     return fallback_names.get(normalized_code)
 
 
+@lru_cache(maxsize=1)
+def _load_bus_line_archive_lookup():
+    by_code = {}
+    filter_options = {
+        'sub_region_of_primary_service': [],
+        'predominant_vehicle_type': [],
+        'tsg_service_type': []
+    }
+
+    if not os.path.exists(BUS_OPEN_ARCHIVE_PATH):
+        return by_code, filter_options
+
+    df = pd.read_csv(BUS_OPEN_ARCHIVE_PATH, dtype=str)
+    line_col = _pick_col(df.columns, ['Line', 'Lineno_renamed', 'line_no'])
+    if not line_col:
+        return by_code, filter_options
+
+    for _, row in df.iterrows():
+        code_raw = row.get(line_col)
+        if pd.isna(code_raw):
+            continue
+
+        code = _normalize_bus_line_code(code_raw)
+        if not code:
+            continue
+
+        by_code.setdefault(code, row)
+
+    filter_options['sub_region_of_primary_service'] = _unique_nonempty_strings(
+        df.get('Sub_Region_of_Primary_Service', pd.Series(dtype=str)).tolist()
+    )
+    filter_options['predominant_vehicle_type'] = _unique_nonempty_strings(
+        df.get('Predominant_Vehicle_Type', pd.Series(dtype=str)).tolist()
+    )
+    filter_options['tsg_service_type'] = _unique_nonempty_strings(
+        df.get('TSG_Service_Type', pd.Series(dtype=str)).tolist()
+    )
+
+    return by_code, filter_options
+
+
 def _format_bus_line_label(line_code, year=None):
     normalized_code = _normalize_bus_line_code(line_code)
     display_code = _format_bus_line_display_code(normalized_code)
@@ -1708,7 +1765,11 @@ def _extract_bus_line_shape_code_and_name(raw_name):
 
     match = re.match(r'^([A-Za-z0-9/]+)\s*-\s*(.+)$', text)
     if not match:
-        return None, text
+        code_match = re.match(r'^([A-Za-z]?\d+(?:/\d+)?)\s+(.+)$', text)
+        if not code_match:
+            return None, text
+
+        return _normalize_bus_line_code(code_match.group(1)), code_match.group(2).strip()
 
     return _normalize_bus_line_code(match.group(1)), match.group(2).strip()
 
@@ -1777,6 +1838,9 @@ def _hsl_to_rgb(hue, saturation, lightness):
 
 def _generate_bus_line_color(index, line_code):
     code_text = str(line_code or '').strip()
+    if code_text.upper().startswith('R'):
+        return [82, 200, 117]
+
     seed = sum((position + 1) * ord(character) for position, character in enumerate(code_text))
     hue = (seed * 37 + index * 19) % 360
     return _hsl_to_rgb(hue, 0.72, 0.55)
@@ -1789,7 +1853,12 @@ def _load_bus_line_usage_map_2024_data(year=2024):
             'year': year,
             'metric_keys': [],
             'lines': [],
-            'bounds': None
+            'bounds': None,
+            'filter_options': {
+                'sub_region_of_primary_service': [],
+                'predominant_vehicle_type': [],
+                'tsg_service_type': []
+            }
         }
 
     if not os.path.isdir(BUS_LINE_SHAPES_DIR):
@@ -1797,7 +1866,12 @@ def _load_bus_line_usage_map_2024_data(year=2024):
             'year': year,
             'metric_keys': [],
             'lines': [],
-            'bounds': None
+            'bounds': None,
+            'filter_options': {
+                'sub_region_of_primary_service': [],
+                'predominant_vehicle_type': [],
+                'tsg_service_type': []
+            }
         }
 
     bus_rows = _load_bus_data_for_year(year)
@@ -1806,13 +1880,35 @@ def _load_bus_line_usage_map_2024_data(year=2024):
             'year': year,
             'metric_keys': [],
             'lines': [],
-            'bounds': None
+            'bounds': None,
+            'filter_options': {
+                'sub_region_of_primary_service': [],
+                'predominant_vehicle_type': [],
+                'tsg_service_type': []
+            }
         }
 
+    archive_lookup, archive_filter_options = _load_bus_line_archive_lookup()
     stat_lookup = {
         _normalize_bus_line_code(row['line']): row
         for _, row in bus_rows.iterrows()
     }
+
+    def find_archive_for_line_code(code):
+        if code in archive_lookup:
+            return archive_lookup[code], code
+
+        code_normalized = str(int(code)) if code.isdigit() else code
+
+        for archive_code, archive_row in archive_lookup.items():
+            if '/' in archive_code:
+                parts = archive_code.split('/')
+                for part in parts:
+                    part_normalized = str(int(part)) if part.isdigit() else part
+                    if code_normalized == part_normalized:
+                        return archive_row, archive_code
+
+        return None, None
 
     # Helper function to find stat lookup entry and the actual code for a line code
     # Handles multi-numbered lines (e.g., "5/6" or "005/006") when geometry has individual lines (e.g., "5")
@@ -1878,7 +1974,12 @@ def _load_bus_line_usage_map_2024_data(year=2024):
             'year': year,
             'metric_keys': [],
             'lines': [],
-            'bounds': None
+            'bounds': None,
+            'filter_options': {
+                'sub_region_of_primary_service': [],
+                'predominant_vehicle_type': [],
+                'tsg_service_type': []
+            }
         }
 
     metric_keys = [
@@ -1893,7 +1994,10 @@ def _load_bus_line_usage_map_2024_data(year=2024):
         'peak_load_factor',
         'capacity_utilization',
         'overcrowded_revenue_hours',
-        'overcrowded_trips_percent'
+        'overcrowded_trips_percent',
+        'on_time_performance',
+        'bus_bunching_percentage',
+        'avg_speed_kph'
     ]
 
     all_longitudes = []
@@ -1911,6 +2015,8 @@ def _load_bus_line_usage_map_2024_data(year=2024):
         stats, _ = find_stat_for_line_code(line_code)
         shape_row = shape_rows_by_code[line_code]
         group_code = shape_row.get('group_code', line_code)
+        archive_row, actual_archive_code = find_archive_for_line_code(line_code)
+        source_row = archive_row if archive_row is not None else {}
         
         # Use group code index for color (so multi-numbered lines get same color)
         color_index = group_codes.index(group_code) if group_code in group_codes else 0
@@ -1921,10 +2027,14 @@ def _load_bus_line_usage_map_2024_data(year=2024):
 
         lines.append({
             'line': line_code,
+            'group_code': group_code,
             'line_label': _format_bus_line_label(line_code, year),
             'line_name': shape_row['line_name'] or _get_bus_line_name(line_code, year),
             'shape_name': shape_row['shape_name'],
             'description': shape_row['description'],
+            'sub_region_of_primary_service': None if pd.isna(source_row.get('Sub_Region_of_Primary_Service')) else str(source_row.get('Sub_Region_of_Primary_Service')).strip(),
+            'predominant_vehicle_type': None if pd.isna(source_row.get('Predominant_Vehicle_Type')) else str(source_row.get('Predominant_Vehicle_Type')).strip(),
+            'tsg_service_type': None if pd.isna(source_row.get('TSG_Service_Type')) else str(source_row.get('TSG_Service_Type')).strip(),
             'color': _generate_bus_line_color(color_index, group_code),
             'coordinates': shape_row['coordinates'],
             'metrics': {
@@ -1939,9 +2049,14 @@ def _load_bus_line_usage_map_2024_data(year=2024):
                 'peak_load_factor': _safe_float(stats.get('peak_load_factor')),
                 'capacity_utilization': _safe_float(stats.get('capacity_utilization')),
                 'overcrowded_revenue_hours': _safe_float(stats.get('overcrowded_revenue_hours')),
-                'overcrowded_trips_percent': _safe_float(stats.get('overcrowded_trips_percent'))
+                'overcrowded_trips_percent': _safe_float(stats.get('overcrowded_trips_percent')),
+                'on_time_performance': _safe_float(stats.get('on_time_performance')),
+                'bus_bunching_percentage': _safe_float(stats.get('bus_bunching_percentage')),
+                'avg_speed_kph': _safe_float(stats.get('avg_speed_kph'))
             }
         })
+
+    filter_options = archive_filter_options
 
     bounds = None
     if all_longitudes and all_latitudes:
@@ -1954,7 +2069,8 @@ def _load_bus_line_usage_map_2024_data(year=2024):
         'year': year,
         'metric_keys': metric_keys,
         'lines': lines,
-        'bounds': bounds
+        'bounds': bounds,
+        'filter_options': filter_options
     }
 
 
