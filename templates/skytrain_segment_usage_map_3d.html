@@ -188,7 +188,7 @@
             justify-content: flex-start;
             gap: 8px;
             flex-wrap: wrap;
-            margin: 10px 0 0 0;
+            margin: 0px 0 0 0;
         }
 
         .title-controls-label {
@@ -549,10 +549,12 @@
             display: flex;
             flex-wrap: wrap;
             gap: 10px;
-            margin-top: 8px;
+            margin-top: 4px;
+            margin-bottom: 8px;
         }
 
         .metric-button,
+        .daily-usage-button,
         .hourly-button {
             text-align: center;
             border: 1px solid rgba(134, 187, 255, 0.42);
@@ -567,12 +569,14 @@
         }
 
         .metric-button:hover,
+        .daily-usage-button:hover,
         .hourly-button:hover {
             transform: translateY(-1px);
             border-color: rgba(166, 208, 255, 0.65);
         }
 
         .metric-button.is-active,
+        .daily-usage-button.is-active,
         .hourly-button.is-active {
             background: linear-gradient(180deg, rgba(43, 92, 162, 0.98), rgba(21, 54, 103, 0.98));
             border-color: rgba(166, 208, 255, 0.9);
@@ -752,6 +756,12 @@
                         <button type="button" class="metric-button is-active" data-metric="weekday">Average usage (MF)</button>
                         <button type="button" class="metric-button" data-metric="saturday">Average usage (Sat)</button>
                         <button type="button" class="metric-button" data-metric="sunday">Average usage (SunHol)</button>
+                    </div>
+                    <p class="control-group-title">Usage Measure</p>
+                    <div class="metric-buttons" role="group" aria-label="Daily average usage measure selection">
+                        <button type="button" class="daily-usage-button is-active" data-daily-usage="total">Total</button>
+                        <button type="button" class="daily-usage-button" data-daily-usage="inbound">Inbound</button>
+                        <button type="button" class="daily-usage-button" data-daily-usage="outbound">Outbound</button>
                     </div>
                     <div class="height-slider-wrap">
                         <div class="height-slider-row">

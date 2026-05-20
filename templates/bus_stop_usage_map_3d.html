@@ -296,9 +296,9 @@
         .panel-row-1 {
             display: flex;
             justify-content: center;
-            gap: 220px;
+            gap: 60px;
             align-items: start;
-            flex-wrap: wrap;
+            flex-wrap: nowrap;
         }
 
         .panel-row-1 > div {
@@ -322,7 +322,8 @@
         }
 
         .metric-buttons,
-        .daytype-buttons {
+        .daytype-buttons,
+        .cluster-mode-buttons {
             display: flex;
             flex-wrap: wrap;
             gap: 6px;
@@ -703,6 +704,14 @@
                         <button type="button" class="metric-button is-active" data-metric="boardings">Boardings</button>
                         <button type="button" class="metric-button" data-metric="alightings">Alightings</button>
                         <button type="button" class="metric-button" data-metric="total_usage">Total Usage</button>
+                    </div>
+                </div>
+
+                <div>
+                    <h2 class="control-panel-title">Stop Grouping</h2>
+                    <div class="cluster-mode-buttons" role="group" aria-label="Stop clustering mode">
+                        <button type="button" class="mode-button cluster-mode-button is-active" data-cluster-mode="cluster">Cluster</button>
+                        <button type="button" class="mode-button cluster-mode-button" data-cluster-mode="individual">Individual</button>
                     </div>
                 </div>
 

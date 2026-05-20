@@ -21,9 +21,17 @@ performance data. It allows users to easily explore and compare performance metr
 
 ● Deep Bus Line Comparison: Compares any 2 bus line stat subsections. That is, by day of the week (MF, Sat, Sun), Season (Fall, Summer), and Time Range (4, 6, 9, 15, 18, 21, 24). Here, you can compare not only different bus lines of the same subsection (day, season, and time range shared), but also same bus line of different subsections, or even mix it up (ex. compare if a bus line has more ridership late night than another during rush hour).
 
-## Possible Future Features
+● Am I Faster: Takes your running time for a given distance and reveals the bus lines that you are faster than
 
-● Fun minigame: Bus line/SkyTrain station trivia: which bus line has more riders/the most amount of riders? Other questions: Which has more overcrowding? Higher speed?
+## 3D Map Features
+
+● 3D SkyTrain Station Usage Map: Reveals the usage of each SkyTrain station in a 3D map, where the height of each station corresponds to its ridership. This allows users to easily visualize and compare the popularity of different stations across the network, as well as create a "breathing" effect that occurs over peak hours over a day.
+
+● 3D Bus Stop Usage Map: Reveals the usage of each bus stop in a 3D map, where the height of each stop corresponds to its usage (boardings, alightings, total).
+
+● 3D Skytrain Segment Usage Map: Reveals the usage of each SkyTrain segment in a 3D map, where the size of each segment tube corresponds to its ridership usage.
+
+● 3D Bus Line Usage Map: Reveals the usage of each bus line in a 3D map, where the width or color of each line corresponds to its ridership, usage, crowding, speed, ontime performance and more.
 
 ## Preview
 
@@ -44,6 +52,12 @@ Comparing ridership of 144 and 145
 ## Notes
 
 ● Image credit for My 2 Stations goes to Wikimedia Commons, where all images are licensed under Creative Commons. Images are found from the station's main Wikipedia page.
+
+● SkyTrain Stations and Bus Stops are located using TransLink's GTFS data and TSPR Catalog, which provides the latitude and longitude of each station and stop.
+
+● SkyTrain Segments were manually made using google my maps.
+
+● Bus Lines were mapped using ![this provided google my maps](https://www.google.com/maps/d/viewer?hl=en&mid=1pmQlG8105ELNbdnWDOfuMOfXEcETQqFX&ll=49.23984696853358%2C-122.68972059999999&z=10)
 
 ● Not affiliated or supported by TransLink
 

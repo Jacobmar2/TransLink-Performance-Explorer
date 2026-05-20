@@ -4,6 +4,7 @@
     window.__skytrainSegmentTubesRendered = false;
 
     const metricButtons = Array.from(document.querySelectorAll(".metric-button"));
+    const dailyUsageButtons = Array.from(document.querySelectorAll("[data-daily-usage]"));
     const modeButtons = Array.from(document.querySelectorAll(".mode-button"));
     const hourlyDayTypeButtons = Array.from(document.querySelectorAll("[data-hourly-daytype]"));
     const hourlyUsageButtons = Array.from(document.querySelectorAll("[data-hourly-usage]"));
@@ -53,6 +54,7 @@
 
     let activeMode = "total";
     let activeTotalMetric = "weekday";
+    let activeDailyUsage = "total";
     let activeHourlyDayType = "weekday";
     let activeHourlyUsage = "total";
     let activeHourlyTimeMode = "none";
@@ -176,20 +178,26 @@
     const getCurrentProfile = () => {
         if (activeMode === "total") {
             const dayKey = activeTotalMetric;
-            const cfg = usageConfig.total;
+            const usageKey = activeDailyUsage;
+            const cfg = usageConfig[usageKey];
+            const dayLabel = dayTypeConfig[dayKey].label;
 
             return {
-                label: `Average Hourly Segment Usage (${dayTypeConfig[dayKey].label})`,
-                tooltipLabel: `Average Hourly Segment Usage (${dayTypeConfig[dayKey].label})`,
+                label: `${cfg.label} (Daily total, ${dayLabel})`,
+                tooltipLabel: `${cfg.label} (Daily total, ${dayLabel})`,
                 colorLow: cfg.colorLow,
                 colorHigh: cfg.colorHigh,
                 getValue: (segment) => {
-                    const series = segment.usage[dayKey] && segment.usage[dayKey].total ? segment.usage[dayKey].total : [];
+                    const daySeries = segment.usage[dayKey] || {};
+                    const series = daySeries[usageKey] || [];
                     if (!series.length) {
                         return 0;
                     }
-                    const sum = series.reduce((acc, value) => acc + toNumber(value), 0);
-                    return sum / series.length;
+                    let sum = 0;
+                    for (let idx = 0; idx < series.length; idx += 4) {
+                        sum += toNumber(series[idx]);
+                    }
+                    return sum;
                 }
             };
         }
@@ -229,6 +237,22 @@
         });
 
         return maxValue > 0 ? maxValue : 1;
+    };
+
+    const getSegmentPeakValue = (segment, dayKey, usageKey) => {
+        if (!segment || !dayKey || !usageKey) {
+            return 0;
+        }
+
+        const daySeries = segment.usage[dayKey] || {};
+        const usageSeries = Array.isArray(daySeries[usageKey]) ? daySeries[usageKey] : [];
+        let maxValue = 0;
+
+        usageSeries.forEach((value) => {
+            maxValue = Math.max(maxValue, toNumber(value));
+        });
+
+        return maxValue;
     };
 
     const toColor = (value, maxValue, low, high) => {
@@ -296,6 +320,10 @@
     const syncButtons = () => {
         metricButtons.forEach((button) => {
             button.classList.toggle("is-active", button.dataset.metric === activeTotalMetric);
+        });
+
+        dailyUsageButtons.forEach((button) => {
+            button.classList.toggle("is-active", button.dataset.dailyUsage === activeDailyUsage);
         });
 
         modeButtons.forEach((button) => {
@@ -537,6 +565,10 @@
             const hoveredKey = getSegmentHoverKey(hoverInfo && hoverInfo.object ? hoverInfo.object : null);
             const isHovered = hoveredKey && hoveredKey === getSegmentHoverKey(segment);
             const fillColor = toColor(metricValue, effectiveMax, profile.colorLow, profile.colorHigh);
+            const segmentPeak = activeMode === "hourly"
+                ? getSegmentPeakValue(segment, profile.dayKey, profile.usageKey)
+                : 0;
+            const segmentPeakRatio = segmentPeak > 0 ? Math.max(0, Math.min(1, metricValue / segmentPeak)) : 0;
 
             const pathBase = segment.coordinates.map((coord) => [coord[0], coord[1], 1]);
             const pathMid = segment.coordinates.map((coord) => [coord[0], coord[1], 1 + tubeHeight * 0.48]);
@@ -546,6 +578,7 @@
                 ...segment,
                 __metricValue: metricValue,
                 __ratio: ratio,
+                __segmentPeakRatio: segmentPeakRatio,
                 __tooltipLabel: profile.tooltipLabel,
                 __tubeWidth: toTubeWidth(metricValue, effectiveMax),
                 __tubeHeight: tubeHeight,
@@ -711,11 +744,18 @@
 
         hoverInfo = pickInfo;
 
-        tooltip.innerHTML = [
+        const tooltipLines = [
             `<strong>${segment.from_station} &mdash; ${segment.to_station}</strong>`,
             `${segment.__tooltipLabel}: ${formatNumber(metricValue)}`,
             `Relative usage: ${ratio.toFixed(1)}%`
-        ].join("<br>");
+        ];
+
+        if (activeMode === "hourly") {
+            const segmentRatio = toNumber(segment.__segmentPeakRatio) * 100;
+            tooltipLines.push(`Relative segment usage: ${segmentRatio.toFixed(1)}%`);
+        }
+
+        tooltip.innerHTML = tooltipLines.join("<br>");
 
         tooltip.style.display = "block";
         tooltip.style.left = `${event.originalEvent.clientX + 14}px`;
@@ -737,6 +777,18 @@
             }
             activeMode = "total";
             activeTotalMetric = metric;
+            renderCurrentView();
+        });
+    });
+
+    dailyUsageButtons.forEach((button) => {
+        button.addEventListener("click", () => {
+            const usage = button.dataset.dailyUsage;
+            if (!usage || !usageConfig[usage]) {
+                return;
+            }
+            activeMode = "total";
+            activeDailyUsage = usage;
             renderCurrentView();
         });
     });

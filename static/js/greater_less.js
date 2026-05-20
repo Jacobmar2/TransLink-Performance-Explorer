@@ -22,6 +22,9 @@ const lessDropdown = document.getElementById('lessDropdown');
 const entityScopeButtons = document.querySelectorAll('#entityScopeButtons .daily-btn');
 const featureButtons = document.querySelectorAll('#comparisonFeatureButtons .daily-btn');
 const searchBtn = document.getElementById('searchBtn');
+const revealMapBtn = document.getElementById('revealMapBtn');
+const greaterLessMapWrap = document.getElementById('greaterLessMapWrap');
+const greaterLessMapFrame = document.getElementById('greaterLessMapFrame');
 const sortSwapBtn = document.getElementById('sortSwapBtn');
 const resultsStatus = document.getElementById('resultsStatus');
 const resultsTableBody = document.getElementById('resultsTableBody');
@@ -29,6 +32,78 @@ const metricColumnHeader = document.getElementById('metricColumnHeader');
 const rangeWarning = document.getElementById('rangeWarning');
 const rangeSwapWrap = document.getElementById('rangeSwapWrap');
 const rangeSwapBtn = document.getElementById('rangeSwapBtn');
+
+let lastSearchContext = null;
+let mapHistoryStateActive = false;
+
+function buildSearchContext(datasets) {
+    const feature = getActiveFeature();
+    const metricLabel = getActiveFeatureLabel();
+    const greaterBound = getBoundDefinition('greater', feature, datasets);
+    const lessBound = getBoundDefinition('less', feature, datasets);
+
+    return {
+        feature,
+        metricLabel,
+        greaterBound,
+        lessBound,
+        lower: greaterBound ? greaterBound.value : null,
+        upper: lessBound ? lessBound.value : null,
+        referenceKeys: [
+            greaterBound && greaterBound.source === 'dropdown' ? greaterBound.entityKey : null,
+            lessBound && lessBound.source === 'dropdown' ? lessBound.entityKey : null
+        ].filter(Boolean)
+    };
+}
+
+function buildSearchParams(context) {
+    return new URLSearchParams({
+        year: '2024',
+        feature: context.feature,
+        scope: currentEntityScope,
+        lower: context.lower === null ? '' : String(context.lower),
+        upper: context.upper === null ? '' : String(context.upper),
+        greater_ref: context.referenceKeys[0] || '',
+        less_ref: context.referenceKeys[1] || ''
+    });
+}
+
+function updateMapVisibility(isVisible) {
+    if (!greaterLessMapWrap) {
+        return;
+    }
+
+    greaterLessMapWrap.hidden = !isVisible;
+    greaterLessMapWrap.classList.toggle('is-fullscreen', isVisible);
+    document.body.style.overflow = isVisible ? 'hidden' : '';
+    if (revealMapBtn) {
+        revealMapBtn.textContent = isVisible ? 'Refresh 3D map' : 'Reveal 3D map';
+    }
+
+    if (isVisible) {
+        if (location.hash !== '#map') {
+            location.hash = '#map';
+        }
+        mapHistoryStateActive = true;
+    } else if (mapHistoryStateActive && location.hash === '#map') {
+        history.replaceState(null, '', window.location.pathname + window.location.search);
+        mapHistoryStateActive = false;
+    }
+}
+
+function loadGreaterLessMap(context) {
+    if (!greaterLessMapFrame) {
+        return;
+    }
+
+    const params = buildSearchParams(context);
+    greaterLessMapFrame.src = '/greater-less-map?' + params.toString();
+    updateMapVisibility(true);
+
+    if (greaterLessMapWrap && typeof greaterLessMapWrap.scrollIntoView === 'function') {
+        greaterLessMapWrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+}
 
 function refreshModeDisplays() {
     const greaterUsesDropdown = greaterMode === 'dropdown';
@@ -440,34 +515,15 @@ function swapLeftRightValues() {
 }
 
 function runSearch() {
-    const feature = getActiveFeature();
-    const metricLabel = getActiveFeatureLabel();
-    lastMetricLabel = metricLabel;
+    lastMetricLabel = getActiveFeatureLabel();
 
     resultsStatus.textContent = 'Searching...';
 
     getAllDatasetsForCurrentYear()
         .then(datasets => {
-            const greaterBound = getBoundDefinition('greater', feature, datasets);
-            const lessBound = getBoundDefinition('less', feature, datasets);
-
-            const lower = greaterBound ? greaterBound.value : null;
-            const upper = lessBound ? lessBound.value : null;
-
-            const referenceKeys = [
-                greaterBound && greaterBound.source === 'dropdown' ? greaterBound.entityKey : null,
-                lessBound && lessBound.source === 'dropdown' ? lessBound.entityKey : null
-            ].filter(Boolean);
-
-            const params = new URLSearchParams({
-                year: '2024',
-                feature,
-                scope: currentEntityScope,
-                lower: lower === null ? '' : String(lower),
-                upper: upper === null ? '' : String(upper),
-                greater_ref: referenceKeys[0] || '',
-                less_ref: referenceKeys[1] || ''
-            });
+            const context = buildSearchContext(datasets);
+            lastSearchContext = context;
+            const params = buildSearchParams(context);
 
             return fetch('/api/greater-less-search?' + params.toString())
                 .then(response => {
@@ -476,14 +532,18 @@ function runSearch() {
                     }
                     return response.json();
                 })
-                .then(data => ({ data, referenceKeys }));
+                .then(data => ({ data, context }));
         })
-        .then(({ data, referenceKeys }) => {
+        .then(({ data, context }) => {
             const rows = sortRows(data.rows || []);
             lastSearchRows = rows;
 
-            renderResultsTable(rows, metricLabel, referenceKeys);
+            renderResultsTable(rows, context.metricLabel, context.referenceKeys);
             resultsStatus.textContent = rows.length + ' record(s) found.';
+
+            if (greaterLessMapWrap && !greaterLessMapWrap.hidden) {
+                loadGreaterLessMap(context);
+            }
         })
         .catch(error => {
             console.error(error);
@@ -628,6 +688,32 @@ searchBtn.addEventListener('click', function() {
     runSearch();
 });
 
+if (revealMapBtn) {
+    revealMapBtn.addEventListener('click', function() {
+        getAllDatasetsForCurrentYear()
+            .then(datasets => {
+                const context = buildSearchContext(datasets);
+                lastSearchContext = context;
+                loadGreaterLessMap(context);
+            })
+            .catch(error => {
+                console.error(error);
+                resultsStatus.textContent = 'Could not load the map. Please try again.';
+            });
+    });
+}
+
+window.addEventListener('hashchange', function() {
+    if (location.hash !== '#map' && greaterLessMapWrap && !greaterLessMapWrap.hidden) {
+        updateMapVisibility(false);
+        if (greaterLessMapFrame) {
+            greaterLessMapFrame.src = '';
+        }
+        mapHistoryStateActive = false;
+    }
+});
+
+
 sortSwapBtn.addEventListener('click', function() {
     currentSortOrder = currentSortOrder === 'desc' ? 'asc' : 'desc';
     const titleText = currentSortOrder === 'desc' ? 'Sort: highest to lowest' : 'Sort: lowest to highest';
@@ -652,3 +738,4 @@ refreshModeDisplays();
 updateTextboxPlaceholders();
 load2024EntityOptions();
 updateRangeWarning();
+updateMapVisibility(false);

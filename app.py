@@ -1740,7 +1740,11 @@ def _load_bus_line_archive_lookup():
         df.get('Sub_Region_of_Primary_Service', pd.Series(dtype=str)).tolist()
     )
     filter_options['predominant_vehicle_type'] = _unique_nonempty_strings(
-        df.get('Predominant_Vehicle_Type', pd.Series(dtype=str)).tolist()
+        [
+            value
+            for value in df.get('Predominant_Vehicle_Type', pd.Series(dtype=str)).tolist()
+            if str(value).strip().lower() != 'seabus'
+        ]
     )
     filter_options['tsg_service_type'] = _unique_nonempty_strings(
         df.get('TSG_Service_Type', pd.Series(dtype=str)).tolist()
@@ -3002,6 +3006,16 @@ def greater_less_search():
 @app.route("/greater-less")
 def greater_less():
     return render_template("greater_less.html")
+
+
+@app.route("/greater-less-map")
+def greater_less_map():
+    return render_template("greater_less_map.html")
+
+
+@app.route("/am-i-faster")
+def am_i_faster():
+    return render_template("am_i_faster.html")
 
 
 @app.route("/similar-to")

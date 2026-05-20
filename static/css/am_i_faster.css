@@ -1,0 +1,58 @@
+.am-i-faster-panel {
+    width: min(95vw, 1100px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.9em;
+}
+
+.distance-selectors {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+    width: 100%;
+}
+
+.distance-selectors .daily-btn {
+    margin: 0;
+}
+
+.time-inputs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    justify-content: center;
+    width: 100%;
+}
+
+.time-input-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35em;
+    width: min(180px, 100%);
+}
+
+.time-input-field label {
+    color: #0f3850;
+    text-align: center;
+}
+
+.time-input-field input {
+    width: 100%;
+    padding: 0.8em 0.9em;
+    border-radius: 0.6em;
+    border: 1px solid #b8c6d1;
+    font-size: 1em;
+    box-sizing: border-box;
+}
+
+.am-i-faster-table-wrap {
+    width: min(95vw, 880px);
+}
+
+@media (max-width: 700px) {
+    .time-input-field {
+        width: min(150px, 100%);
+    }
+}

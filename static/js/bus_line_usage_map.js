@@ -26,6 +26,11 @@
     const legendMin = document.getElementById("legend-min");
     const legendMax = document.getElementById("legend-max");
     const tooltip = document.getElementById("map-tooltip");
+    const titleHeading = document.querySelector(".overlay h1");
+    const titleDescriptions = Array.from(document.querySelectorAll(".overlay p"));
+    const legendElement = document.querySelector(".legend");
+    const titleHideButton = document.getElementById("title-hide-button");
+    const titleShowButton = document.getElementById("title-show-button");
 
     const metricConfig = {
         annual_boardings: { label: "Annual Boardings" },
@@ -83,6 +88,7 @@
     let hoverInfo = null;
     let activeMetric = "annual_boardings";
     let lineWidthPercent = 100;
+    let titleVisible = true;
 
     const numberFormatter = new Intl.NumberFormat("en-CA", {
         maximumFractionDigits: 2
@@ -215,6 +221,30 @@
         toggleButton.textContent = isCollapsed ? "Open Control Panel" : "Close Control Panel";
     };
 
+    const syncTitleVisibility = () => {
+        if (titleHeading) {
+            titleHeading.hidden = !titleVisible;
+        }
+
+        titleDescriptions.forEach((node) => {
+            node.hidden = !titleVisible;
+        });
+
+        if (legendElement) {
+            legendElement.hidden = !titleVisible;
+        }
+
+        if (titleHideButton) {
+            titleHideButton.classList.toggle("is-active", !titleVisible);
+            titleHideButton.setAttribute("aria-pressed", titleVisible ? "false" : "true");
+        }
+
+        if (titleShowButton) {
+            titleShowButton.classList.toggle("is-active", titleVisible);
+            titleShowButton.setAttribute("aria-pressed", titleVisible ? "true" : "false");
+        }
+    };
+
     const updateLegend = (minValue, maxValue) => {
         if (legendTitle) {
             const metricLabel = metricConfig[activeMetric]?.label || "Metric";
@@ -298,6 +328,24 @@
         const rawValue = metrics[activeMetric];
         const numericValue = Number(rawValue);
         return Number.isFinite(numericValue) ? numericValue : 0;
+    };
+
+    const normalizeLineCode = (value) => {
+        const text = String(value || "").trim();
+        if (!text) {
+            return "";
+        }
+
+        if (/^\d+$/.test(text)) {
+            return String(Number(text));
+        }
+
+        return text;
+    };
+
+    const isPriorityLine = (line) => {
+        const key = normalizeLineCode(line?.group_code || line?.line || "");
+        return key === "9" || key === "41";
     };
 
     const getHoveredLineKey = () => {
@@ -545,6 +593,23 @@
         }
 
         const visibleLines = lines.filter(matchesSelectedFilters);
+        const hoveredLineKey = getHoveredLineKey();
+        const sortedLines = visibleLines
+            .map((line, index) => ({ line, index }))
+            .sort((left, right) => {
+                const leftHovered = hoveredLineKey && hoveredLineKey === normalizeLineCode(left.line?.group_code || left.line?.line || "") ? 1 : 0;
+                const rightHovered = hoveredLineKey && hoveredLineKey === normalizeLineCode(right.line?.group_code || right.line?.line || "") ? 1 : 0;
+                if (leftHovered !== rightHovered) {
+                    return leftHovered - rightHovered;
+                }
+                const leftPriority = isPriorityLine(left.line) ? 1 : 0;
+                const rightPriority = isPriorityLine(right.line) ? 1 : 0;
+                if (leftPriority !== rightPriority) {
+                    return leftPriority - rightPriority;
+                }
+                return left.index - right.index;
+            })
+            .map((entry) => entry.line);
         const values = visibleLines.map((line) => getMetricValue(line));
         const maxValue = values.length ? Math.max(...values, 1) : 1;
         const minValue = values.length ? Math.min(...values) : 0;
@@ -553,14 +618,13 @@
 
         updateLegend(minValue, useColorScale ? colorScaleMaxValue : maxValue);
 
-        const renderData = visibleLines.map((line) => {
+        const renderData = sortedLines.map((line) => {
             const metricValue = getMetricValue(line);
             const baseColor = Array.isArray(line.color) ? line.color : [82, 200, 117];
             const fillColor = useColorScale
                 ? getPerformanceColor(metricValue, minValue, colorScaleMaxValue, metricConfig[activeMetric]?.higherIsBetter !== false)
                 : (metricValue === 0 ? [126, 136, 142] : baseColor);
             const tubeWidth = useColorScale ? getUniformTubeWidth() : getTubeWidth(metricValue, maxValue);
-            const hoveredLineKey = getHoveredLineKey();
             const lineKey = String(line.group_code || line.line || "").trim();
             const isHovered = hoveredLineKey && hoveredLineKey === lineKey;
 
@@ -580,7 +644,7 @@
                 __tubeWidth: tubeWidth,
                 __fillColor: fillColor,
                 __isHovered: isHovered,
-                __hoverFillColor: isHovered ? brightenColor(fillColor, useColorScale ? 0.22 : 0.35) : fillColor,
+                __hoverFillColor: isHovered ? brightenColor(fillColor, useColorScale ? 0.42 : 0.35) : fillColor,
                 __hoverTubeWidth: useColorScale ? tubeWidth : (isHovered ? tubeWidth * 1.15 : tubeWidth)
             };
         });
@@ -673,7 +737,22 @@
             syncLineWidthControl();
         }
 
+        if (titleHideButton) {
+            titleHideButton.addEventListener("click", () => {
+                titleVisible = false;
+                syncTitleVisibility();
+            });
+        }
+
+        if (titleShowButton) {
+            titleShowButton.addEventListener("click", () => {
+                titleVisible = true;
+                syncTitleVisibility();
+            });
+        }
+
         syncMetricButtons();
+        syncTitleVisibility();
         initializeMap();
         await loadData();
     } catch (error) {

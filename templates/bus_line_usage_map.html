@@ -322,7 +322,7 @@
         .line-width-control {
             display: grid;
             grid-template-columns: 1fr auto;
-            gap: 12px;
+            gap: 10px;
             align-items: center;
         }
 
@@ -330,6 +330,13 @@
             display: flex;
             flex-direction: column;
             gap: 4px;
+            max-width: 600px;
+        }
+
+        .line-width-slider-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
 
         .line-width-label-text {
@@ -353,6 +360,36 @@
             font-size: 0.84rem;
             font-weight: 700;
             text-align: center;
+        }
+
+        .title-controls-inline {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 22px;
+        }
+
+        .title-visibility-button {
+            border: 1px solid rgba(121, 204, 145, 0.36);
+            border-radius: 999px;
+            padding: 6px 10px;
+            background: rgba(6, 22, 14, 0.94);
+            color: #edf9f0;
+            font-size: 0.74rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+        }
+
+        .title-visibility-button:hover {
+            transform: translateY(-1px);
+            border-color: rgba(161, 227, 178, 0.7);
+        }
+
+        .title-visibility-button.is-active {
+            background: linear-gradient(180deg, rgba(58, 140, 82, 0.98), rgba(24, 74, 42, 0.98));
+            border-color: rgba(178, 238, 191, 0.9);
+            color: #ffffff;
         }
 
         .metric-buttons,
@@ -517,9 +554,16 @@
                 <div class="line-width-control">
                     <label class="line-width-label" for="line-width-slider">
                         <span class="line-width-label-text">Scale every route tube</span>
-                        <input id="line-width-slider" class="line-width-slider" type="range" min="15" max="300" step="1" value="100" aria-label="Bus line width" aria-valuemin="15" aria-valuemax="300" aria-valuenow="100">
+                        <div class="line-width-slider-row">
+                            <input id="line-width-slider" class="line-width-slider" type="range" min="15" max="300" step="1" value="100" aria-label="Bus line width" aria-valuemin="15" aria-valuemax="300" aria-valuenow="100">
+                            <div id="line-width-value" class="line-width-value" aria-live="polite">100%</div>
+                        </div>
                     </label>
-                    <div id="line-width-value" class="line-width-value" aria-live="polite">100%</div>
+                    <div class="title-controls-inline" role="group" aria-label="Title visibility controls">
+                        <span class="line-width-label-text">Map Title</span>
+                        <button id="title-hide-button" class="title-visibility-button" type="button" aria-pressed="false">Hide Title</button>
+                        <button id="title-show-button" class="title-visibility-button is-active" type="button" aria-pressed="true">Show Title</button>
+                    </div>
                 </div>
             </div>
             <div class="panel-row">

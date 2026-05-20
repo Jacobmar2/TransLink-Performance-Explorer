@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Greater/Less 3D Map</title>
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background:
+                radial-gradient(circle at top left, rgba(34, 103, 169, 0.22), transparent 34%),
+                radial-gradient(circle at 82% 18%, rgba(154, 77, 0, 0.16), transparent 28%),
+                linear-gradient(180deg, #02060b 0%, #050c14 48%, #020409 100%);
+            color: #e6f2ff;
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        #map {
+            position: fixed;
+            inset: 0;
+        }
+
+        .map-caption {
+            position: fixed;
+            top: 18px;
+            left: 18px;
+            z-index: 3;
+            max-width: min(620px, calc(100vw - 36px));
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+        }
+
+        .map-caption h1 {
+            margin: 0 0 6px 0;
+            font-size: clamp(1.05rem, 2.2vw, 1.45rem);
+            color: #c9e4ff;
+        }
+
+        .map-caption p {
+            margin: 0;
+            font-size: 0.95rem;
+            color: #d8e8ff;
+            line-height: 1.4;
+        }
+
+        .map-caption .note {
+            margin-top: 8px;
+            color: #b8cde0;
+            font-size: 0.84rem;
+        }
+
+        .legend {
+            position: fixed;
+            left: 18px;
+            bottom: 18px;
+            z-index: 3;
+            background: rgba(3, 10, 20, 0.78);
+            border: 1px solid rgba(134, 187, 255, 0.34);
+            border-radius: 12px;
+            padding: 12px 14px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+            backdrop-filter: blur(8px);
+            width: min(340px, calc(100vw - 36px));
+        }
+
+        .legend-title {
+            margin: 0 0 8px 0;
+            color: #c9e4ff;
+            font-size: 0.95rem;
+            font-weight: 700;
+        }
+
+        .legend-gradient {
+            height: 12px;
+            width: 100%;
+            border-radius: 999px;
+            background: linear-gradient(90deg, #3f8cff 0%, #63a8ff 45%, #9fd6ff 100%);
+            margin-bottom: 6px;
+        }
+
+        .legend-labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.82rem;
+            color: #d3e6ff;
+        }
+
+        .top-right-controls {
+            position: fixed;
+            top: 18px;
+            right: 18px;
+            z-index: 3;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 8px;
+        }
+
+        .top-right-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .map-info-wrap {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+        }
+
+        .map-info-button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 34px;
+            height: 34px;
+            border: 1px solid rgba(134, 187, 255, 0.38);
+            border-radius: 999px;
+            background: rgba(9, 22, 42, 0.92);
+            color: #dcecff;
+            text-decoration: none;
+            font-size: 1rem;
+            font-weight: 800;
+            line-height: 1;
+            box-shadow: 0 8px 18px rgba(0, 0, 0, 0.26);
+            cursor: help;
+        }
+
+        .map-info-tooltip {
+            position: absolute;
+            right: calc(100% + 10px);
+            top: 50%;
+            transform: translateY(-50%) translateY(-4px);
+            min-width: 220px;
+            max-width: 300px;
+            padding: 10px 12px;
+            border: 1px solid rgba(134, 187, 255, 0.38);
+            border-radius: 10px;
+            background: linear-gradient(180deg, rgba(8, 20, 39, 0.98), rgba(8, 34, 65, 0.98));
+            color: #dcecff;
+            font-size: 0.8rem;
+            line-height: 1.35;
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.34);
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+            white-space: nowrap;
+            transition: opacity 0.16s ease, visibility 0.16s ease, transform 0.16s ease;
+            z-index: 4;
+        }
+
+        .map-info-wrap:hover .map-info-tooltip,
+        .map-info-wrap:focus-within .map-info-tooltip {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(-50%) translateY(0);
+        }
+
+        .home-link {
+            display: inline-block;
+            text-decoration: none;
+            color: #edf9f0;
+            background: rgba(9, 22, 42, 0.92);
+            border: 1px solid rgba(134, 187, 255, 0.38);
+            border-radius: 10px;
+            padding: 10px 12px;
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+
+        .status-pill {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 7px 10px;
+            border-radius: 999px;
+            background: rgba(9, 22, 42, 0.92);
+            border: 1px solid rgba(134, 187, 255, 0.36);
+            color: #dcecff;
+            font-size: 0.8rem;
+            font-weight: 700;
+        }
+
+        @media (max-width: 640px) {
+            .overlay,
+            .legend {
+                width: min(100vw - 36px, 100vw);
+            }
+
+            .top-right-controls {
+                top: 12px;
+                right: 12px;
+            }
+        }
+    </style>
+    <style>
+        /* Simple tooltip for the iframe map — styled to match SkyTrain hover chrome */
+        .map-tooltip {
+            position: fixed;
+            pointer-events: none;
+            z-index: 9999;
+            background: rgba(7, 18, 34, 0.96);
+            color: #e6f6ff;
+            padding: 8px 10px;
+            border-radius: 8px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.45);
+            font-size: 0.9rem;
+            line-height: 1.2;
+            display: none;
+            min-width: 120px;
+            max-width: 340px;
+            border: 1px solid rgba(134, 187, 255, 0.42); /* blue border like SkyTrain maps */
+            box-sizing: border-box;
+        }
+
+        .map-tooltip.is-visible {
+            display: block;
+        }
+
+        .map-tooltip-title {
+            margin: 0 0 6px 0;
+            color: #c9e4ff;
+            font-size: 0.95rem;
+            font-weight: 700;
+        }
+
+        .map-tooltip-line {
+            margin: 2px 0 0 0;
+        }
+    </style>
+</head>
+<body>
+    <div id="map" aria-label="Greater/Less 3D map"></div>
+
+    <div id="map-tooltip" class="map-tooltip" role="status" aria-hidden="true"></div>
+
+    <div class="map-caption">
+        <h1 id="mapTitle">Greater/Less 3D Map</h1>
+        <p id="mapDescription">Loading matched bus lines and SkyTrain stations.</p>
+    </div>
+
+    <div class="top-right-controls">
+        <div class="top-right-actions">
+            <span class="map-info-wrap">
+                <button type="button" class="map-info-button" aria-describedby="map-info-tooltip" aria-label="Map controls info">ℹ</button>
+                <span id="map-info-tooltip" class="map-info-tooltip" role="tooltip">
+                    Hold left click to move map.<br>
+                    Hold right click to move viewing angle.<br>
+                    Hover a line/stn to see its current metric value.
+                </span>
+            </span>
+            <a href="/greater-less" target="_top" class="home-link">Back to Greater/Less</a>
+        </div>
+        <span id="mapStatus" class="status-pill" aria-live="polite">Loading</span>
+    </div>
+
+    <div class="legend" aria-label="Usage intensity legend">
+        <p id="legend-title" class="legend-title">Station boardings intensity</p>
+        <div class="legend-gradient"></div>
+        <div class="legend-labels">
+            <span id="legend-min">Lower</span>
+            <span id="legend-max">Higher</span>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+    <script src="https://unpkg.com/deck.gl@9.0.34/dist.min.js"></script>
+    <script src="{{ url_for('static', filename='js/greater_less_map.js') }}"></script>
+</body>
+</html>

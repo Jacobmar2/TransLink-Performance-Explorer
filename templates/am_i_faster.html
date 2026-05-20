@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Am I faster</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/greater_less.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/am_i_faster.css') }}">
+</head>
+<body>
+
+    <div class="card">
+        <h2>Am I faster</h2>
+        <p style="margin:0.4em 0 0 0;font-weight:700;line-height:1.4;">
+            Pick a distance, enter your finish time, and see which 2024 bus lines you are faster than.
+        </p>
+    </div>
+
+    <div class="am-i-faster-panel">
+        <div class="distance-selectors" id="distanceButtons">
+            <button type="button" class="daily-btn daily-btn-active" data-distance-label="100m" data-distance-meters="100">100m</button>
+            <button type="button" class="daily-btn" data-distance-label="200m" data-distance-meters="200">200m</button>
+            <button type="button" class="daily-btn" data-distance-label="400m" data-distance-meters="400">400m</button>
+            <button type="button" class="daily-btn" data-distance-label="800m" data-distance-meters="800">800m</button>
+            <button type="button" class="daily-btn" data-distance-label="Mile" data-distance-meters="1609.344">Mile</button>
+            <button type="button" class="daily-btn" data-distance-label="5k" data-distance-meters="5000">5k</button>
+            <button type="button" class="daily-btn" data-distance-label="10k" data-distance-meters="10000">10k</button>
+            <button type="button" class="daily-btn" data-distance-label="Half marathon" data-distance-meters="21097.5">Half marathon</button>
+            <button type="button" class="daily-btn" data-distance-label="Marathon" data-distance-meters="42195">Marathon</button>
+        </div>
+
+        <div class="time-inputs">
+            <div class="time-input-field">
+                <label for="hoursInput"><strong>Hours</strong></label>
+                <input id="hoursInput" type="number" min="0" step="1" inputmode="numeric" placeholder="0">
+            </div>
+            <div class="time-input-field">
+                <label for="minsInput"><strong>Mins</strong></label>
+                <input id="minsInput" type="number" min="0" step="1" inputmode="numeric" placeholder="0">
+            </div>
+            <div class="time-input-field">
+                <label for="secsInput"><strong>Secs</strong></label>
+                <input id="secsInput" type="number" min="0" step="1" inputmode="numeric" placeholder="0">
+            </div>
+        </div>
+
+        <div class="results-controls">
+            <button type="button" class="button-card-2" id="searchBtn" style="width:220px;margin:0;">Search</button>
+        </div>
+
+        <div class="results-status" id="resultsStatus"></div>
+
+        <div class="results-table-wrap am-i-faster-table-wrap">
+            <table class="results-table" id="resultsTable">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Speed</th>
+                        <th id="timeColumnHeader">Time</th>
+                    </tr>
+                </thead>
+                <tbody id="resultsTableBody">
+                    <tr>
+                        <td colspan="3">No results yet. Select a distance and enter your time.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/am_i_faster.js') }}"></script>
+
+    <a href="/" class="button-card back-button">
+        &laquo; Back to Home
+    </a>
+
+</body>
+</html>

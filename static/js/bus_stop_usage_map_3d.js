@@ -39,6 +39,7 @@
     const heightScaleSlider = document.getElementById("height-scale-slider");
     const heightSliderValue = document.getElementById("height-slider-value");
     const barSizeButtons = Array.from(document.querySelectorAll("[data-bar-size-mode]"));
+    const clusterModeButtons = Array.from(document.querySelectorAll(".cluster-mode-button"));
     const titleHeading = document.querySelector(".overlay h1");
     const titleDescriptions = Array.from(document.querySelectorAll(".overlay p"));
     const legendElement = document.querySelector(".legend");
@@ -55,6 +56,7 @@
     let currentDayType = "weekday";
     let currentBusLine = "";
     let barSizeMode = "default";
+    let clusterMode = "cluster";
     let hoverInfo = null;
     let titleVisible = true;
 
@@ -283,6 +285,14 @@
     const getRenderedStops = () => {
         const visibleStops = getVisibleStops();
         const zoom = map && typeof map.getZoom === "function" ? map.getZoom() : 0;
+
+        if (clusterMode === "individual") {
+            return visibleStops.map((stop) => ({
+                ...stop,
+                __renderSize: isBayStop(stop) ? BAY_SINGLE_RADIUS : BASE_COLUMN_RADIUS,
+                __renderMode: isBayStop(stop) ? "bay" : "regular"
+            }));
+        }
 
         if (zoom >= BAY_CLUSTER_ZOOM_THRESHOLD) {
             return visibleStops.map((stop) => ({
@@ -590,7 +600,9 @@
 
         const regularData = renderData.filter((stop) => stop.__renderMode === "regular");
         const bayData = renderData.filter((stop) => stop.__renderMode !== "regular");
-        const bayRadius = map.getZoom() >= BAY_CLUSTER_ZOOM_THRESHOLD ? BAY_SINGLE_RADIUS : BAY_CLUSTER_RADIUS;
+        const bayRadius = clusterMode === "individual"
+            ? BAY_SINGLE_RADIUS
+            : (map.getZoom() >= BAY_CLUSTER_ZOOM_THRESHOLD ? BAY_SINGLE_RADIUS : BAY_CLUSTER_RADIUS);
 
         const layers = [];
 
@@ -718,6 +730,7 @@
     const syncControlState = () => {
         setActiveButton(metricButtons, metricButtons.find((button) => button.dataset.metric === currentMetric) || metricButtons[0]);
         setActiveButton(daytypeButtons, daytypeButtons.find((button) => button.dataset.daytype === currentDayType) || daytypeButtons[0]);
+        setActiveButton(clusterModeButtons, clusterModeButtons.find((button) => button.dataset.clusterMode === clusterMode) || clusterModeButtons[0]);
     };
 
     const clearBusLineSelection = () => {
@@ -795,6 +808,12 @@
         focusMapOnSelectedBusLine();
     };
 
+    const updateClusterMode = (mode) => {
+        clusterMode = mode;
+        syncControlState();
+        renderMap();
+    };
+
     if (toggleButton && panel) {
         toggleButton.addEventListener("click", () => {
             const isCollapsed = panel.classList.toggle("is-collapsed");
@@ -818,6 +837,17 @@
     if (revealMapButton) {
         revealMapButton.addEventListener("click", clearBusLineSelection);
     }
+
+    clusterModeButtons.forEach((button) => {
+        button.addEventListener("click", () => {
+            const mode = button.dataset.clusterMode;
+            if (mode !== "cluster" && mode !== "individual") {
+                return;
+            }
+
+            updateClusterMode(mode);
+        });
+    });
 
     barSizeButtons.forEach((button) => {
         button.addEventListener("click", () => {
