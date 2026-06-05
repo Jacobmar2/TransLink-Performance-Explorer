@@ -2098,6 +2098,18 @@ DEEP_TIME_RANGE_TO_HOURS = {
     '24-4': 4
 }
 
+DEEP_BUS_LINE_USAGE_MAP_METRIC_KEYS = [
+    'annual_revenue_hours',
+    'annual_service_hours',
+    'trips_per_clock_hour_per_direction',
+    'boardings_per_revenue_hour',
+    'boardings_per_trip',
+    'avg_peak_passenger_load_north_east',
+    'avg_peak_passenger_load_south_west',
+    'avg_peak_load_factor_north_east',
+    'avg_peak_load_factor_south_west'
+]
+
 DEEP_TIME_PAIR_TO_BUCKET = {
     (4, 6): '4-6',
     (6, 9): '6-9',
@@ -2374,6 +2386,134 @@ def _build_deep_side_payload_legacy(legacy_df, year, line_code, day_norm, season
     }
 
 
+def _build_deep_bus_line_map_metrics(base_df, peak_df, line_code, day_norm, season_norm, hour_start):
+    section_rows = base_df[
+        (base_df['year_norm'] == 2023) &
+        (base_df['line_norm'] == line_code) &
+        (base_df['day_norm'] == day_norm) &
+        (base_df['season_norm'] == season_norm) &
+        (base_df['hour_start_norm'] == hour_start)
+    ] if not base_df.empty else pd.DataFrame()
+
+    peak_rows = peak_df[
+        (peak_df['year_norm'] == 2023) &
+        (peak_df['line_norm'] == line_code) &
+        (peak_df['day_norm'] == day_norm) &
+        (peak_df['season_norm'] == season_norm) &
+        (peak_df['hour_start_norm'] == hour_start)
+    ] if not peak_df.empty else pd.DataFrame()
+
+    direction_metrics = {}
+    if not peak_rows.empty and 'direction_norm' in peak_rows.columns:
+        for direction_name, group in peak_rows.groupby('direction_norm'):
+            direction_name = str(direction_name).strip().upper()
+            if not direction_name:
+                continue
+            direction_metrics[direction_name] = {
+                'peak_passenger_load': _mean_or_none(group, 'Average_Peak_Passenger_Load'),
+                'peak_load_factor': _mean_or_none(group, 'Average_Peak_Load_Factor')
+            }
+
+    def _mean_direction_values(direction_names, metric_name):
+        values = []
+        for direction_name in direction_names:
+            direction_value = direction_metrics.get(direction_name, {}).get(metric_name)
+            if direction_value is not None:
+                values.append(direction_value)
+        return _mean_list_or_none(values)
+
+    return {
+        'annual_revenue_hours': _mean_or_none(section_rows, 'Annual_Revenue_Hours'),
+        'annual_service_hours': _mean_or_none(section_rows, 'Annual_Service_Hours'),
+        'trips_per_clock_hour_per_direction': _mean_or_none(section_rows, 'Average_Trips_Per_Clock_Hour_Per_Direction'),
+        'boardings_per_revenue_hour': _mean_or_none(section_rows, 'Average_Boardings_Per_Revenue_Hour'),
+        'boardings_per_trip': _mean_or_none(section_rows, 'Average_Boardings_Per_Trip'),
+        'avg_peak_passenger_load_north_east': _mean_direction_values(['NORTH', 'EAST'], 'peak_passenger_load'),
+        'avg_peak_passenger_load_south_west': _mean_direction_values(['SOUTH', 'WEST'], 'peak_passenger_load'),
+        'avg_peak_load_factor_north_east': _mean_direction_values(['NORTH', 'EAST'], 'peak_load_factor'),
+        'avg_peak_load_factor_south_west': _mean_direction_values(['SOUTH', 'WEST'], 'peak_load_factor')
+    }
+
+
+@lru_cache(maxsize=128)
+def _load_bus_line_usage_map_2023_deep_data(day_norm='MF', season_norm='Fall', time_range='4-6'):
+    base_payload = _load_bus_line_usage_map_2024_data(2024)
+    base_lines = base_payload.get('lines', []) if isinstance(base_payload, dict) else []
+
+    base_df = _load_deep_2023_base_df()
+    peak_df = _load_deep_2023_peak_df()
+
+    if not base_lines:
+        return {
+            'year': 2023,
+            'mode': 'deep',
+            'day': day_norm,
+            'season': season_norm,
+            'time_range': time_range,
+            'metric_keys': DEEP_BUS_LINE_USAGE_MAP_METRIC_KEYS,
+            'lines': [],
+            'bounds': None,
+            'filter_options': {
+                'sub_region_of_primary_service': [],
+                'predominant_vehicle_type': [],
+                'tsg_service_type': []
+            }
+        }
+
+    lines = []
+    all_longitudes = []
+    all_latitudes = []
+
+    for base_line in base_lines:
+        line_code = _normalize_bus_line_code(base_line.get('line'))
+        if not line_code:
+            continue
+
+        group_code = _normalize_bus_line_code(base_line.get('group_code'))
+        lookup_code = group_code or line_code
+
+        deep_line = dict(base_line)
+        deep_line['line_label'] = _format_bus_line_label(line_code, 2023)
+        deep_line['metrics'] = _build_deep_bus_line_map_metrics(
+            base_df,
+            peak_df,
+            lookup_code,
+            day_norm,
+            season_norm,
+            _normalize_deep_start_hour(time_range)
+        )
+
+        lines.append(deep_line)
+
+        for lon, lat in deep_line.get('coordinates', []):
+            all_longitudes.append(lon)
+            all_latitudes.append(lat)
+
+    bounds = base_payload.get('bounds') if isinstance(base_payload, dict) else None
+    if not bounds and all_longitudes and all_latitudes:
+        bounds = [
+            [min(all_longitudes), min(all_latitudes)],
+            [max(all_longitudes), max(all_latitudes)]
+        ]
+
+    return {
+        'year': 2023,
+        'mode': 'deep',
+        'day': day_norm,
+        'season': season_norm,
+        'time_range': time_range,
+        'time_span_hours': DEEP_TIME_RANGE_TO_HOURS.get(time_range),
+        'metric_keys': DEEP_BUS_LINE_USAGE_MAP_METRIC_KEYS,
+        'lines': lines,
+        'bounds': bounds,
+        'filter_options': {
+            'sub_region_of_primary_service': [],
+            'predominant_vehicle_type': [],
+            'tsg_service_type': []
+        }
+    }
+
+
 @app.route('/api/deep-bus-line-compare-2023')
 def deep_bus_line_compare_2023():
     try:
@@ -2519,21 +2659,35 @@ def bus_line_options():
 
 @app.route("/api/bus-line-usage-map-3d-data")
 def bus_line_usage_map_3d_data():
-    """API endpoint for 2024 bus line geometry joined to 2024 line stats."""
+    """API endpoint for annual 2024 map data and 2023 deep bus line stats."""
     try:
         year = request.args.get('year', default=2024, type=int)
+        mode = str(request.args.get('mode', default='annual', type=str) or 'annual').strip().lower()
         logger.info(f"[api] bus_line_usage_map_3d_data called with year={year}")
-
-        if year != 2024:
-            return jsonify({'error': 'Only 2024 bus line usage map data is available.'}), 400
 
         if request.args.get('refresh', default='0') == '1':
             logger.info("[api] Cache clear requested")
             _load_bus_line_usage_map_2024_data.cache_clear()
+            _load_bus_line_usage_map_2023_deep_data.cache_clear()
 
-        result = _load_bus_line_usage_map_2024_data(year)
-        logger.info(f"[api] Bus line usage map loaded with {len(result.get('lines', []))} lines")
-        return jsonify(_sanitize_for_json(result))
+        if year == 2024 and mode != 'deep':
+            result = _load_bus_line_usage_map_2024_data(year)
+            logger.info(f"[api] Bus line usage map loaded with {len(result.get('lines', []))} lines")
+            return jsonify(_sanitize_for_json(result))
+
+        if year == 2023 or mode == 'deep':
+            day_norm = _normalize_deep_day(request.args.get('day', default='MF', type=str)) or 'MF'
+            season_norm = _normalize_deep_season(request.args.get('season', default='Fall', type=str)) or 'Fall'
+            time_range = request.args.get('time_range', default='4-6', type=str).strip() or '4-6'
+
+            if time_range not in DEEP_TIME_RANGE_TO_START:
+                return jsonify({'error': 'time_range must be one of: 4-6, 6-9, 9-15, 15-18, 18-21, 21-24, 24-4'}), 400
+
+            result = _load_bus_line_usage_map_2023_deep_data(day_norm, season_norm, time_range)
+            logger.info(f"[api] Deep bus line usage map loaded with {len(result.get('lines', []))} lines")
+            return jsonify(_sanitize_for_json(result))
+
+        return jsonify({'error': 'Only 2024 annual or 2023 deep bus line usage map data is available.'}), 400
     except Exception as e:
         error_msg = str(e) if e else "Unknown error"
         logger.error(f"[api] Error in bus_line_usage_map_3d_data: {error_msg}")

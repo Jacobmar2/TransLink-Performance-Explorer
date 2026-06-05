@@ -1,6 +1,7 @@
 (async function initializeBusLineUsageMap() {
-    const apiUrl = "/api/bus-line-usage-map-3d-data?year=2024";
-    const metricButtons = Array.from(document.querySelectorAll(".metric-button"));
+    const apiBaseUrl = "/api/bus-line-usage-map-3d-data";
+    const mapModeButtons = Array.from(document.querySelectorAll(".map-mode-button"));
+    const mapModePanels = Array.from(document.querySelectorAll("[data-map-mode-panel]"));
     const filterConfigs = [
         {
             key: "sub_region_of_primary_service",
@@ -31,6 +32,11 @@
     const legendElement = document.querySelector(".legend");
     const titleHideButton = document.getElementById("title-hide-button");
     const titleShowButton = document.getElementById("title-show-button");
+    const modeTitle = document.getElementById("map-mode-title");
+    const modeDescription = document.getElementById("map-mode-description");
+    const pageHeading = document.getElementById("map-mode-heading");
+    const pageDetail = document.getElementById("map-mode-detail");
+    const pageSummary = document.getElementById("map-mode-summary");
 
     const metricConfig = {
         annual_boardings: { label: "Annual Boardings" },
@@ -47,7 +53,15 @@
         overcrowded_trips_percent: { label: "% Over Crowded Trips" },
         on_time_performance: { label: "% On Time Performance", visualMode: "color", higherIsBetter: true },
         bus_bunching_percentage: { label: "% Bus Bunching", visualMode: "color", higherIsBetter: false },
-        avg_speed_kph: { label: "Avg Speed", visualMode: "color", higherIsBetter: true }
+        avg_speed_kph: { label: "Avg Speed", visualMode: "color", higherIsBetter: true },
+        annual_revenue_hours: { label: "Annual Revenue Hours" },
+        annual_service_hours: { label: "Annual Service Hours" },
+        trips_per_clock_hour_per_direction: { label: "Trips per Clock Hour per Direction" },
+        boardings_per_trip: { label: "Boardings per Trip" },
+        avg_peak_passenger_load_north_east: { label: "Avg Peak Passenger Load (North/East)" },
+        avg_peak_passenger_load_south_west: { label: "Avg Peak Passenger Load (South/West)" },
+        avg_peak_load_factor_north_east: { label: "Avg Peak Load Factor (North/East)" },
+        avg_peak_load_factor_south_west: { label: "Avg Peak Load Factor (South/West)" }
     };
 
     const percentMetrics = new Set([
@@ -55,7 +69,9 @@
         "capacity_utilization",
         "overcrowded_trips_percent",
         "on_time_performance",
-        "bus_bunching_percentage"
+        "bus_bunching_percentage",
+        "avg_peak_load_factor_north_east",
+        "avg_peak_load_factor_south_west"
     ]);
 
     const colorScaleMetrics = new Set([
@@ -85,10 +101,21 @@
         predominant_vehicle_type: [],
         tsg_service_type: []
     };
+    let activeMapMode = "annual";
+    let activeMetricByMode = {
+        annual: "annual_boardings",
+        deep: "annual_revenue_hours"
+    };
     let hoverInfo = null;
-    let activeMetric = "annual_boardings";
+    let activeMetric = activeMetricByMode[activeMapMode];
     let lineWidthPercent = 100;
     let titleVisible = true;
+    let currentRequestId = 0;
+    let deepSelections = {
+        day: "MF",
+        season: "Fall",
+        timeRange: "4-6"
+    };
 
     const numberFormatter = new Intl.NumberFormat("en-CA", {
         maximumFractionDigits: 2
@@ -127,6 +154,84 @@
 
         button.classList.toggle("is-active", isActive);
         button.setAttribute("aria-pressed", String(Boolean(isActive)));
+    };
+
+    const getMetricButtonsForMode = (mode) => Array.from(
+        document.querySelectorAll(`.metric-button[data-map-mode="${mode}"]`)
+    );
+
+    const getDeepButtonsForGroup = (groupName) => Array.from(
+        document.querySelectorAll(`.deep-mode-button[data-deep-group="${groupName}"]`)
+    );
+
+    const syncMapModeButtons = () => {
+        mapModeButtons.forEach((button) => {
+            setButtonActiveState(button, (button.dataset.mapMode || "annual") === activeMapMode);
+        });
+
+        mapModePanels.forEach((panelElement) => {
+            panelElement.hidden = (panelElement.dataset.mapModePanel || "annual") !== activeMapMode;
+        });
+
+        if (modeTitle) {
+            modeTitle.textContent = activeMapMode === "deep" ? "2023 Deep Stats" : "2024 Metrics";
+        }
+
+        if (modeDescription) {
+            modeDescription.textContent = activeMapMode === "deep"
+                ? "Switch the time slice, then color or thicken all lines by the selected 2023 deep metric."
+                : "Switch between annual and day-based 2024 metrics while keeping the same line geometry.";
+        }
+
+        if (pageHeading) {
+            pageHeading.textContent = activeMapMode === "deep"
+                ? "3D Bus Line Usage Map (2023 Deep Stats)"
+                : "3D Bus Line Usage Map (2024)";
+        }
+
+        if (pageDetail) {
+            pageDetail.textContent = activeMapMode === "deep"
+                ? "Each line keeps a fixed color while tube width scales to the selected 2023 bus-line metric and time range."
+                : "Each line keeps a fixed color while tube width scales to the selected 2024 bus-line metric.";
+        }
+
+        if (pageSummary) {
+            const metricLabel = metricConfig[activeMetric]?.label || "Metric";
+            if (activeMapMode === "deep") {
+                const dayLabel = deepSelections.day || "MF";
+                const seasonLabel = deepSelections.season || "Fall";
+                const timeLabel = deepSelections.timeRange || "4-6";
+                pageSummary.textContent = `Showing results for ${metricLabel} during ${seasonLabel} ${dayLabel} hours of ${timeLabel}`;
+            } else {
+                pageSummary.textContent = `Showing results for ${metricLabel}`;
+            }
+        }
+    };
+
+    const syncSummaryLine = () => {
+        if (!pageSummary) {
+            return;
+        }
+
+        const metricLabel = metricConfig[activeMetric]?.label || "Metric";
+        if (activeMapMode === "deep") {
+            const dayLabel = deepSelections.day || "MF";
+            const seasonLabel = deepSelections.season || "Fall";
+            const timeLabel = deepSelections.timeRange || "4-6";
+            pageSummary.textContent = `Showing results for ${metricLabel} during ${seasonLabel} ${dayLabel} hours of ${timeLabel}`;
+        } else {
+            pageSummary.textContent = `Showing results for ${metricLabel}`;
+        }
+    };
+
+    const syncDeepSelectionButtons = () => {
+        ["day", "season", "timeRange"].forEach((groupName) => {
+            const buttons = getDeepButtonsForGroup(groupName);
+            const selectedValue = deepSelections[groupName];
+            buttons.forEach((button) => {
+                setButtonActiveState(button, (button.dataset.value || "") === selectedValue);
+            });
+        });
     };
 
     const normalizeFilterValue = (value) => {
@@ -176,6 +281,7 @@
     };
 
     const syncMetricButtons = () => {
+        const metricButtons = getMetricButtonsForMode(activeMapMode);
         const activeButton = metricButtons.find((button) => button.dataset.metric === activeMetric) || metricButtons[0];
         setActiveButton(metricButtons, activeButton);
     };
@@ -466,6 +572,24 @@
         tooltip.innerHTML = "";
     };
 
+    const positionTooltip = (event) => {
+        if (!tooltip || !event) {
+            return;
+        }
+
+        const padding = 14;
+        const viewportPadding = 18;
+        const tooltipWidth = tooltip.offsetWidth || 300;
+        const tooltipHeight = tooltip.offsetHeight || 120;
+        const maxLeft = window.innerWidth - tooltipWidth - viewportPadding;
+        const maxTop = window.innerHeight - tooltipHeight - viewportPadding;
+        const left = Math.min(event.x + padding, maxLeft);
+        const top = Math.min(event.y + padding, maxTop);
+
+        tooltip.style.left = `${Math.max(viewportPadding, left)}px`;
+        tooltip.style.top = `${Math.max(viewportPadding, top)}px`;
+    };
+
     const showTooltip = (event) => {
         if (!tooltip || !event || !event.object) {
             hoverInfo = null;
@@ -492,8 +616,7 @@
         ].join("");
         tooltip.classList.add("is-visible");
         tooltip.setAttribute("aria-hidden", "false");
-        tooltip.style.left = `${Math.min(window.innerWidth - 20, Math.max(16, event.x + 16))}px`;
-        tooltip.style.top = `${Math.min(window.innerHeight - 20, Math.max(16, event.y + 16))}px`;
+        positionTooltip(event);
     };
 
     const buildLayers = (renderData) => {
@@ -652,6 +775,7 @@
         overlay.setProps({
             layers: buildLayers(renderData)
         });
+        syncSummaryLine();
     };
 
     const fitMapBounds = () => {
@@ -671,7 +795,8 @@
     };
 
     const loadData = async () => {
-        const response = await fetch(`${apiUrl}&refresh=1`);
+        const requestId = ++currentRequestId;
+        const response = await fetch(buildDataUrl());
         if (!response.ok) {
             throw new Error(`Failed to load bus line usage data (${response.status})`);
         }
@@ -681,12 +806,28 @@
             throw new Error(payload.error);
         }
 
+        if (requestId !== currentRequestId) {
+            return;
+        }
+
         lines = Array.isArray(payload.lines) ? payload.lines : [];
         bounds = Array.isArray(payload.bounds) ? payload.bounds : null;
+
         filterOptions = payload.filter_options && typeof payload.filter_options === "object"
             ? payload.filter_options
             : collectFilterOptionsFromLines(lines);
+        if (activeMapMode !== "annual") {
+            const hasAnyFilters = Object.values(filterOptions).some((values) => Array.isArray(values) && values.length);
+            if (!hasAnyFilters) {
+                filterOptions = collectFilterOptionsFromLines(lines);
+            }
+        }
         populateFilterButtons(filterOptions);
+
+        if (payload.time_range) {
+            deepSelections.timeRange = payload.time_range;
+        }
+
         dataReady = true;
         fitMapBounds();
         renderCurrentView();
@@ -724,6 +865,34 @@
         });
     };
 
+    const buildDataUrl = () => {
+        if (activeMapMode === "deep") {
+            const params = new URLSearchParams({
+                year: "2023",
+                mode: "deep",
+                day: deepSelections.day,
+                season: deepSelections.season,
+                time_range: deepSelections.timeRange
+            });
+            return `${apiBaseUrl}?${params.toString()}`;
+        }
+
+        return `${apiBaseUrl}?year=2024`;
+    };
+
+    const setMapMode = async (mode) => {
+        if (mode !== "annual" && mode !== "deep") {
+            return;
+        }
+
+        activeMapMode = mode;
+        activeMetric = activeMetricByMode[activeMapMode] || activeMetric;
+        syncMapModeButtons();
+        syncMetricButtons();
+        syncDeepSelectionButtons();
+        await loadData();
+    };
+
     try {
         if (lineWidthSlider) {
             lineWidthPercent = Number(lineWidthSlider.value) || 100;
@@ -751,6 +920,8 @@
             });
         }
 
+        syncMapModeButtons();
+        syncDeepSelectionButtons();
         syncMetricButtons();
         syncTitleVisibility();
         initializeMap();
@@ -775,12 +946,34 @@
         console.error(error);
     }
 
-    document.addEventListener("click", (event) => {
-        const metricButton = event.target.closest(".metric-button");
+    document.addEventListener("click", async (event) => {
+        const modeButton = event.target.closest(".map-mode-button");
+        if (modeButton) {
+            await setMapMode(modeButton.dataset.mapMode || "annual");
+            return;
+        }
+
+        const metricButton = event.target.closest(`.metric-button[data-map-mode="${activeMapMode}"]`);
         if (metricButton) {
             activeMetric = metricButton.dataset.metric || "annual_boardings";
+            activeMetricByMode[activeMapMode] = activeMetric;
             syncMetricButtons();
             renderCurrentView();
+            return;
+        }
+
+        const deepButton = event.target.closest(".deep-mode-button");
+        if (deepButton) {
+            const groupName = deepButton.dataset.deepGroup;
+            const selectedValue = deepButton.dataset.value || "";
+            if (groupName && Object.prototype.hasOwnProperty.call(deepSelections, groupName)) {
+                deepSelections[groupName] = selectedValue;
+                syncDeepSelectionButtons();
+
+                if (activeMapMode === "deep") {
+                    await loadData();
+                }
+            }
             return;
         }
 

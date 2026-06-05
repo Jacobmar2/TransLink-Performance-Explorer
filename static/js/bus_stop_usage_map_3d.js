@@ -549,6 +549,24 @@
         tooltip.innerHTML = "";
     };
 
+    const positionTooltip = (info) => {
+        if (!tooltip || !info) {
+            return;
+        }
+
+        const padding = 14;
+        const viewportPadding = 18;
+        const tooltipWidth = tooltip.offsetWidth || 260;
+        const tooltipHeight = tooltip.offsetHeight || 120;
+        const maxLeft = window.innerWidth - tooltipWidth - viewportPadding;
+        const maxTop = window.innerHeight - tooltipHeight - viewportPadding;
+        const left = Math.min(info.x + padding, maxLeft);
+        const top = Math.min(info.y + padding, maxTop);
+
+        tooltip.style.left = `${Math.max(viewportPadding, left)}px`;
+        tooltip.style.top = `${Math.max(viewportPadding, top)}px`;
+    };
+
     const showTooltip = (info, value) => {
         if (!tooltip) {
             return;
@@ -559,16 +577,19 @@
         const lineLabel = busLines.length === 0 
             ? "Bus Line(s): N/A"
             : `Bus Line${busLines.length === 1 ? "" : "s"}: ${busLines.join(", ")}`;
+        const stopNumberValue = String(stop.stop_number || "").trim();
+        const shouldShowStopNumber = stopNumberValue && !stop.is_bay_cluster && String(stop.__renderMode || "") !== "bay-cluster" && !(Number(stop.bay_count || 0) > 1);
+        const stopNumberLabel = shouldShowStopNumber ? `<p class="map-tooltip-line">Stop #${stopNumberValue}</p>` : "";
         const clusterLabel = stop.bay_count > 1 ? `<p class="map-tooltip-line">Bay cluster: ${numberFormatter.format(stop.bay_count)} bays</p>` : "";
 
         tooltip.innerHTML = [
             `<p class="map-tooltip-title">${stop.stop_name}</p>`,
+            stopNumberLabel,
             `<p class="map-tooltip-line">${getMetricLabel()} (${getDayLabel()}): ${numberFormatter.format(value)}</p>`,
             clusterLabel,
             `<p class="map-tooltip-line">${lineLabel}</p>`
         ].filter(Boolean).join("");
-        tooltip.style.left = `${Math.min(info.x + 14, window.innerWidth - 280)}px`;
-        tooltip.style.top = `${Math.min(info.y + 14, window.innerHeight - 120)}px`;
+        positionTooltip(info);
         tooltip.classList.add("is-visible");
         tooltip.setAttribute("aria-hidden", "false");
     };

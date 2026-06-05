@@ -124,7 +124,7 @@
 
     const formatTimeRangeLabel = (slotIndex) => {
         const start = slotToTimeParts(slotIndex);
-        const endSlot = (slotIndex + 1) % 96;
+        const endSlot = (slotIndex + 4) % 96;
         const end = slotToTimeParts(endSlot);
         return `${formatTime(start.hour24, start.minute)} - ${formatTime(end.hour24, end.minute)}`;
     };
@@ -683,8 +683,29 @@
     tooltip.style.padding = "10px 12px";
     tooltip.style.color = "#e8f4ff";
     tooltip.style.fontSize = "0.85rem";
+    tooltip.style.minWidth = "180px";
+    tooltip.style.maxWidth = "260px";
     tooltip.style.boxShadow = "0 10px 24px rgba(0, 0, 0, 0.35)";
     document.body.appendChild(tooltip);
+
+    const positionTooltip = (event) => {
+        if (!tooltip || !event || !event.originalEvent) {
+            return;
+        }
+
+        const { clientX, clientY } = event.originalEvent;
+        const padding = 14;
+        const viewportPadding = 18;
+        const tooltipWidth = tooltip.offsetWidth || 260;
+        const tooltipHeight = tooltip.offsetHeight || 120;
+        const maxLeft = window.innerWidth - tooltipWidth - viewportPadding;
+        const maxTop = window.innerHeight - tooltipHeight - viewportPadding;
+        const left = Math.min(clientX + padding, maxLeft);
+        const top = Math.min(clientY + padding, maxTop);
+
+        tooltip.style.left = `${Math.max(viewportPadding, left)}px`;
+        tooltip.style.top = `${Math.max(viewportPadding, top)}px`;
+    };
 
     try {
         const response = await fetch(apiUrl, { cache: "no-store" });
@@ -758,8 +779,7 @@
         tooltip.innerHTML = tooltipLines.join("<br>");
 
         tooltip.style.display = "block";
-        tooltip.style.left = `${event.originalEvent.clientX + 14}px`;
-        tooltip.style.top = `${event.originalEvent.clientY + 14}px`;
+        positionTooltip(event);
         renderCurrentView();
     });
 

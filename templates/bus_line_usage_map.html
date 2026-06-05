@@ -319,6 +319,12 @@
             font-weight: 700;
         }
 
+        .deep-layer-title {
+            color: #d9f2df;
+            font-size: 0.88rem;
+            font-weight: 700;
+        }
+
         .line-width-control {
             display: grid;
             grid-template-columns: 1fr auto;
@@ -399,8 +405,33 @@
             gap: 6px;
         }
 
+        .panel-divider {
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(121, 204, 145, 0.35), transparent);
+            margin: 16px 0;
+        }
+
+        .map-mode-toggle {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .deep-slice-controls {
+            padding-left: 18px;
+        }
+
+        .control-panel-note {
+            margin: 0 0 10px 0;
+            color: #bce6c5;
+            font-size: 0.84rem;
+            line-height: 1.35;
+        }
+
         .metric-button,
-        .filter-button {
+        .filter-button,
+        .map-mode-button,
+        .deep-mode-button {
             border: 1px solid rgba(121, 204, 145, 0.36);
             padding: 8px 12px;
             background: rgba(6, 22, 14, 0.94);
@@ -423,17 +454,33 @@
             border-radius: 999px;
         }
 
+        .map-mode-button {
+            border-radius: 999px;
+        }
+
+        .deep-mode-button {
+            border-radius: 999px;
+        }
+
         .metric-button:hover,
-        .filter-button:hover {
+        .filter-button:hover,
+        .map-mode-button:hover,
+        .deep-mode-button:hover {
             transform: translateY(-1px);
             border-color: rgba(161, 227, 178, 0.7);
         }
 
         .metric-button.is-active,
-        .filter-button.is-active {
+        .filter-button.is-active,
+        .map-mode-button.is-active,
+        .deep-mode-button.is-active {
             background: linear-gradient(180deg, rgba(58, 140, 82, 0.98), rgba(24, 74, 42, 0.98));
             border-color: rgba(178, 238, 191, 0.9);
             color: #ffffff;
+        }
+
+        .map-mode-panel[hidden] {
+            display: none !important;
         }
 
         .map-tooltip {
@@ -505,9 +552,9 @@
     <div class="map-fog" aria-hidden="true"></div>
 
     <div class="overlay">
-        <h1>3D Bus Line Usage Map (2024)</h1>
-        <p>Each line keeps a fixed color while tube width scales to the selected 2024 bus-line metric.</p>
-        <p class="note">Use the panel below to switch between annual, daily, revenue, load, and overcrowding metrics.</p>
+        <h1 id="map-mode-heading">3D Bus Line Usage Map (2024)</h1>
+        <p id="map-mode-detail">Each line keeps a fixed color while tube width scales to the selected 2024 bus-line metric.</p>
+        <p id="map-mode-summary" class="note">Use the panel below to switch between annual, daily, revenue, load, and overcrowding metrics.</p>
     </div>
 
     <div class="top-right-controls">
@@ -567,25 +614,89 @@
                 </div>
             </div>
             <div class="panel-row">
-                <h2 class="control-panel-title">2024 Metrics</h2>
-                <div class="metric-buttons" role="group" aria-label="Bus line metric selection">
-                    <button type="button" class="metric-button is-active" data-metric="annual_boardings">Annual Boardings</button>
-                    <button type="button" class="metric-button" data-metric="weekday">MF Daily Boardings</button>
-                    <button type="button" class="metric-button" data-metric="saturday">Sat Daily Boardings</button>
-                    <button type="button" class="metric-button" data-metric="sunday">Sun Daily Boardings</button>
-                    <button type="button" class="metric-button" data-metric="revenue_hours">Annual Revenue Hours</button>
-                    <button type="button" class="metric-button" data-metric="service_hours">Annual Service Hours</button>
-                    <button type="button" class="metric-button" data-metric="boardings_per_revenue_hour">Boardings per Revenue Hour</button>
-                    <button type="button" class="metric-button" data-metric="peak_passenger_load">Peak Passenger Load</button>
-                    <button type="button" class="metric-button" data-metric="peak_load_factor">Peak Load Factor</button>
-                    <button type="button" class="metric-button" data-metric="capacity_utilization">Capacity Utilization</button>
-                    <button type="button" class="metric-button" data-metric="overcrowded_revenue_hours">Overcrowding Revenue Hours</button>
-                    <button type="button" class="metric-button" data-metric="overcrowded_trips_percent">% Over Crowded Trips</button>
-                    <button type="button" class="metric-button" data-metric="on_time_performance">% On Time Performance</button>
-                    <button type="button" class="metric-button" data-metric="bus_bunching_percentage">% Bus Bunching</button>
-                    <button type="button" class="metric-button" data-metric="avg_speed_kph">Avg Speed</button>
+                <h2 class="control-panel-title">Map Mode</h2>
+                <div class="map-mode-toggle" role="group" aria-label="Map mode selection">
+                    <button type="button" class="map-mode-button is-active" data-map-mode="annual">2024 Metrics</button>
+                    <button type="button" class="map-mode-button" data-map-mode="deep">2023 Deep Stats</button>
                 </div>
             </div>
+
+            <div class="map-mode-panel" data-map-mode-panel="annual">
+                <div class="panel-row">
+                    <h2 id="map-mode-title" class="control-panel-title">2024 Metrics</h2>
+                    <p id="map-mode-description" class="control-panel-note">Switch between annual and day-based 2024 metrics while keeping the same line geometry.</p>
+                    <div class="metric-buttons" role="group" aria-label="Bus line metric selection">
+                        <button type="button" class="metric-button is-active" data-map-mode="annual" data-metric="annual_boardings">Annual Boardings</button>
+                        <button type="button" class="metric-button" data-map-mode="annual" data-metric="weekday">MF Daily Boardings</button>
+                        <button type="button" class="metric-button" data-map-mode="annual" data-metric="saturday">Sat Daily Boardings</button>
+                        <button type="button" class="metric-button" data-map-mode="annual" data-metric="sunday">Sun Daily Boardings</button>
+                        <button type="button" class="metric-button" data-map-mode="annual" data-metric="revenue_hours">Annual Revenue Hours</button>
+                        <button type="button" class="metric-button" data-map-mode="annual" data-metric="service_hours">Annual Service Hours</button>
+                        <button type="button" class="metric-button" data-map-mode="annual" data-metric="boardings_per_revenue_hour">Boardings per Revenue Hour</button>
+                        <button type="button" class="metric-button" data-map-mode="annual" data-metric="peak_passenger_load">Peak Passenger Load</button>
+                        <button type="button" class="metric-button" data-map-mode="annual" data-metric="peak_load_factor">Peak Load Factor</button>
+                        <button type="button" class="metric-button" data-map-mode="annual" data-metric="capacity_utilization">Capacity Utilization</button>
+                        <button type="button" class="metric-button" data-map-mode="annual" data-metric="overcrowded_revenue_hours">Overcrowding Revenue Hours</button>
+                        <button type="button" class="metric-button" data-map-mode="annual" data-metric="overcrowded_trips_percent">% Over Crowded Trips</button>
+                        <button type="button" class="metric-button" data-map-mode="annual" data-metric="on_time_performance">% On Time Performance</button>
+                        <button type="button" class="metric-button" data-map-mode="annual" data-metric="bus_bunching_percentage">% Bus Bunching</button>
+                        <button type="button" class="metric-button" data-map-mode="annual" data-metric="avg_speed_kph">Avg Speed</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="map-mode-panel" data-map-mode-panel="deep" hidden>
+                <div class="panel-row">
+                    <h2 class="control-panel-title">2023 Deep Stats</h2>
+                    <p class="control-panel-note">Choose a time slice, then switch between the given line-wide deep metrics.</p>
+                    <div class="deep-slice-controls">
+                        <div class="deep-layer-group">
+                            <div class="deep-layer-title">By day of the week</div>
+                            <div class="deep-layer-buttons">
+                                <button type="button" class="deep-option-btn deep-mode-button deep-day-btn deep-option-btn-active" data-deep-group="day" data-value="MF">MF</button>
+                                <button type="button" class="deep-option-btn deep-mode-button deep-day-btn" data-deep-group="day" data-value="SAT">Sat</button>
+                                <button type="button" class="deep-option-btn deep-mode-button deep-day-btn" data-deep-group="day" data-value="SUN">Sun</button>
+                            </div>
+                        </div>
+                        <div class="deep-layer-group">
+                            <div class="deep-layer-title">Season</div>
+                            <div class="deep-layer-buttons">
+                                <button type="button" class="deep-option-btn deep-mode-button deep-season-btn deep-option-btn-active" data-deep-group="season" data-value="Fall">Fall</button>
+                                <button type="button" class="deep-option-btn deep-mode-button deep-season-btn" data-deep-group="season" data-value="Summer">Summer</button>
+                            </div>
+                        </div>
+                        <div class="deep-layer-group">
+                            <div class="deep-layer-title">Time Range</div>
+                            <div class="deep-layer-buttons">
+                                <button type="button" class="deep-option-btn deep-mode-button deep-time-btn deep-option-btn-active" data-deep-group="timeRange" data-value="4-6">4-6</button>
+                                <button type="button" class="deep-option-btn deep-mode-button deep-time-btn" data-deep-group="timeRange" data-value="6-9">6-9</button>
+                                <button type="button" class="deep-option-btn deep-mode-button deep-time-btn" data-deep-group="timeRange" data-value="9-15">9-15</button>
+                                <button type="button" class="deep-option-btn deep-mode-button deep-time-btn" data-deep-group="timeRange" data-value="15-18">15-18</button>
+                                <button type="button" class="deep-option-btn deep-mode-button deep-time-btn" data-deep-group="timeRange" data-value="18-21">18-21</button>
+                                <button type="button" class="deep-option-btn deep-mode-button deep-time-btn" data-deep-group="timeRange" data-value="21-24">21-24</button>
+                                <button type="button" class="deep-option-btn deep-mode-button deep-time-btn" data-deep-group="timeRange" data-value="24-4">24-4</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel-row">
+                    <h2 class="control-panel-title">Deep Metrics</h2>
+                    <div class="metric-buttons" role="group" aria-label="Deep bus line metric selection">
+                        <button type="button" class="metric-button is-active" data-map-mode="deep" data-metric="annual_revenue_hours">Annual Revenue Hours</button>
+                        <button type="button" class="metric-button" data-map-mode="deep" data-metric="annual_service_hours">Annual Service Hours</button>
+                        <button type="button" class="metric-button" data-map-mode="deep" data-metric="trips_per_clock_hour_per_direction">Trips per Clock Hour per Direction</button>
+                        <button type="button" class="metric-button" data-map-mode="deep" data-metric="boardings_per_revenue_hour">Boardings per Revenue Hour</button>
+                        <button type="button" class="metric-button" data-map-mode="deep" data-metric="boardings_per_trip">Boardings per Trip</button>
+                        <button type="button" class="metric-button" data-map-mode="deep" data-metric="avg_peak_passenger_load_north_east">Avg Peak Passenger Load (North/East)</button>
+                        <button type="button" class="metric-button" data-map-mode="deep" data-metric="avg_peak_passenger_load_south_west">Avg Peak Passenger Load (South/West)</button>
+                        <button type="button" class="metric-button" data-map-mode="deep" data-metric="avg_peak_load_factor_north_east">Avg Peak Load Factor (North/East)</button>
+                        <button type="button" class="metric-button" data-map-mode="deep" data-metric="avg_peak_load_factor_south_west">Avg Peak Load Factor (South/West)</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel-divider" role="presentation"></div>
 
             <div class="panel-row">
                 <h2 class="control-panel-title">Sub Region</h2>

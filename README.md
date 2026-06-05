@@ -55,9 +55,9 @@ Comparing ridership of 144 and 145
 
 ● SkyTrain Stations and Bus Stops are located using TransLink's GTFS data and TSPR Catalog, which provides the latitude and longitude of each station and stop.
 
-● SkyTrain Segments were manually made using google my maps.
+● SkyTrain Segments were manually made using Google My Maps.
 
-● Bus Lines were mapped using this provided google my maps: https://www.google.com/maps/d/viewer?hl=en&mid=1pmQlG8105ELNbdnWDOfuMOfXEcETQqFX&ll=49.23984696853358%2C-122.68972059999999&z=10
+● Bus Lines were mapped using this Google My Maps: https://www.google.com/maps/d/viewer?hl=en&mid=1pmQlG8105ELNbdnWDOfuMOfXEcETQqFX&ll=49.23984696853358%2C-122.68972059999999&z=10
 
 ● Not affiliated or supported by TransLink
 

@@ -129,6 +129,7 @@
     let revealRetryTimerId = null;
     let revealRetryCount = 0;
     let hoverInfo = null;
+    let lastHoverKey = null;
     const maxRevealRetries = 6;
 
     const normalizeStationName = (value) => {
@@ -236,6 +237,37 @@
 
     const getHourlyReferenceMax = (dayTypeKey, usageKey) => {
         return hourlyReferenceMaxByDayTypeUsage.get(`${dayTypeKey}:${usageKey}`) || 1;
+    };
+
+    const getStationHourlyMax = (station, dayTypeKey, usageKey) => {
+        if (!station) {
+            return 0;
+        }
+
+        const stationHourly = station.__hourly || {};
+        const daySeries = stationHourly[dayTypeKey] || {};
+
+        const getSeriesMax = (series) => {
+            if (!Array.isArray(series)) {
+                return 0;
+            }
+            return series.reduce((maxValue, value) => Math.max(maxValue, toNumber(value)), 0);
+        };
+
+        if (usageKey === "boardings") {
+            return getSeriesMax(daySeries.boardings);
+        }
+
+        if (usageKey === "alightings") {
+            return getSeriesMax(daySeries.alightings);
+        }
+
+        const boardings = Array.isArray(daySeries.boardings) ? daySeries.boardings : [];
+        const alightings = Array.isArray(daySeries.alightings) ? daySeries.alightings : [];
+        return boardings.reduce((maxValue, value, index) => {
+            const combined = toNumber(value) + toNumber(alightings[index]);
+            return Math.max(maxValue, combined);
+        }, 0);
     };
 
     const getDayTypeKeys = () => Object.keys(hourlyDayTypeConfig);
@@ -723,6 +755,42 @@
         }
     };
 
+    const updateHoverState = () => {
+        if (!overlay || !currentRenderData.length) {
+            return;
+        }
+
+        const hoveredKey = getStationHoverKey(hoverInfo && hoverInfo.object ? hoverInfo.object : null);
+        if (hoveredKey === lastHoverKey) {
+            return;
+        }
+
+        lastHoverKey = hoveredKey;
+        currentRenderData = currentRenderData.map((row) => {
+            const isHovered = hoveredKey && hoveredKey === getStationHoverKey(row);
+            if (row.__isHovered === isHovered) {
+                return row;
+            }
+
+            const fillColor = row.__fillColor;
+            const boardingFillColor = row.__boardingFillColor;
+            const alightingFillColor = row.__alightingFillColor;
+
+            return {
+                ...row,
+                __isHovered: isHovered,
+                __hoverFillColor: isHovered ? brightenColor(fillColor, 0.3) : fillColor,
+                __hoverBoardingFillColor: isHovered ? brightenColor(boardingFillColor, 0.3) : boardingFillColor,
+                __hoverAlightingFillColor: isHovered ? brightenColor(alightingFillColor, 0.3) : alightingFillColor
+            };
+        });
+
+        overlay.setProps({ layers: buildLayers(currentRenderData) });
+        if (map && map.isStyleLoaded && map.isStyleLoaded()) {
+            map.triggerRepaint();
+        }
+    };
+
     const revealBars = () => {
         if (!overlay || !map || !stations.length) {
             return;
@@ -812,8 +880,29 @@
     tooltip.style.padding = "10px 12px";
     tooltip.style.color = "#e8f4ff";
     tooltip.style.fontSize = "0.85rem";
+    tooltip.style.minWidth = "180px";
+    tooltip.style.maxWidth = "260px";
     tooltip.style.boxShadow = "0 10px 24px rgba(0, 0, 0, 0.35)";
     document.body.appendChild(tooltip);
+
+    const positionTooltip = (event) => {
+        if (!tooltip || !event || !event.originalEvent) {
+            return;
+        }
+
+        const { clientX, clientY } = event.originalEvent;
+        const padding = 14;
+        const viewportPadding = 18;
+        const tooltipWidth = tooltip.offsetWidth || 260;
+        const tooltipHeight = tooltip.offsetHeight || 120;
+        const maxLeft = window.innerWidth - tooltipWidth - viewportPadding;
+        const maxTop = window.innerHeight - tooltipHeight - viewportPadding;
+        const left = Math.min(clientX + padding, maxLeft);
+        const top = Math.min(clientY + padding, maxTop);
+
+        tooltip.style.left = `${Math.max(viewportPadding, left)}px`;
+        tooltip.style.top = `${Math.max(viewportPadding, top)}px`;
+    };
 
     try {
         const [stationResponse, hourlyResponse] = await Promise.all([
@@ -1016,7 +1105,7 @@
         if (!picks || !picks.object) {
             hoverInfo = null;
             tooltip.style.display = "none";
-            renderCurrentView(true);
+            updateHoverState();
             return;
         }
 
@@ -1024,25 +1113,35 @@
         const metricValue = toNumber(station.__metricValue);
         const scaled = toNumber(station.__ratio) * 100;
         const tooltipLabel = station.__tooltipLabel || "Usage";
+        let stationRelativeLine = "";
+
+        if (activeMode === "hourly") {
+            const dayCfg = hourlyDayTypeConfig[activeHourlyDayType];
+            const usageCfg = hourlyUsageConfig[activeHourlyUsage];
+            const usageKey = usageCfg && usageCfg.referenceKey ? usageCfg.referenceKey : activeHourlyUsage;
+            const stationMax = getStationHourlyMax(station, dayCfg.apiKey, usageKey);
+            const relative = stationMax > 0 ? (metricValue / stationMax) * 100 : 0;
+            stationRelativeLine = `Relative station height: ${relative.toFixed(1)}%`;
+        }
 
         hoverInfo = picks;
 
         tooltip.innerHTML = [
             `<strong>${station.station_name}</strong>`,
             `${tooltipLabel}: ${formatBoardings(metricValue)}`,
-            `Relative height: ${scaled.toFixed(1)}%`
-        ].join("<br>");
+            `Relative height: ${scaled.toFixed(1)}%`,
+            stationRelativeLine
+        ].filter(Boolean).join("<br>");
 
         tooltip.style.display = "block";
-        tooltip.style.left = `${event.originalEvent.clientX + 14}px`;
-        tooltip.style.top = `${event.originalEvent.clientY + 14}px`;
-        renderCurrentView(true);
+        positionTooltip(event);
+        updateHoverState();
     });
 
     map.on("mouseleave", () => {
         hoverInfo = null;
         tooltip.style.display = "none";
-        renderCurrentView(true);
+        updateHoverState();
     });
 
     metricButtons.forEach((button) => {
