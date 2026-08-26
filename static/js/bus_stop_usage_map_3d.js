@@ -915,10 +915,10 @@
                 cartoDark: {
                     type: "raster",
                     tiles: [
-                        "https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+                        "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}"
                     ],
                     tileSize: 256,
-                    attribution: "&copy; OpenStreetMap contributors &copy; CARTO"
+                    attribution: "Tiles &copy; Esri"
                 }
             },
             layers: [
