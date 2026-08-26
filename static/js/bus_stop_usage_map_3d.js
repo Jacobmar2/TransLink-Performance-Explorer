@@ -1065,6 +1065,34 @@
 
     renderMap();
 
+    const refreshMapAfterRestore = () => {
+        if (!map || !overlay) {
+            return;
+        }
+
+        if (map && map.resize) {
+            map.resize();
+        }
+
+        if (map && map.isStyleLoaded && map.isStyleLoaded()) {
+            map.triggerRepaint();
+        }
+
+        renderMap();
+    };
+
+    window.addEventListener("pageshow", (event) => {
+        if (event.persisted) {
+            refreshMapAfterRestore();
+        }
+    });
+
+    document.addEventListener("visibilitychange", () => {
+        if (!document.hidden) {
+            refreshMapAfterRestore();
+        }
+    });
+
     window.addEventListener("resize", () => {
         if (map && map.resize) {
             map.resize();

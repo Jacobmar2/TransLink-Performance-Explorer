@@ -3,8 +3,8 @@ let currentHoursType = 'revenue'; // Track the current hours type selected
 let currentMetricType = 'boardings_per_revenue_hour'; // Track the current metric type selected
 let currentLineA = ''; // Track the current line A
 let currentLineB = ''; // Track the current line B
-let selectedYearLine1 = 2024;
-let selectedYearLine2 = 2024;
+let selectedYearLine1 = 2025;
+let selectedYearLine2 = 2025;
 let dataLoaded = false;
 let loadingYears = new Set();
 

@@ -39,8 +39,17 @@ logger.info(f"BASE_DIR: {BASE_DIR}")
 logger.info(f"DATA_DIR: {DATA_DIR}")
 logger.info(f"DATA_DIR exists: {os.path.exists(DATA_DIR)}")
 
-app.config["UPLOAD_FOLDER"] = os.path.join(BASE_DIR, "uploads")
+app.config["UPLOAD_FOLDER"] = os.path.join(BASE_DIR, "/tmp/uploads")
 os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
+
+
+@app.after_request
+def disable_browser_stale_cache(response):
+    """Keep the map and its data fresh across long idle gaps and browser history restores."""
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
 
 @app.route("/howto")
 def howto():
@@ -61,6 +70,7 @@ def bus_lines():
 
 
 BUS_YEARLINE_2024_PATH = os.path.join(DATA_DIR, "tspr2024_bus_yearline.csv")
+BUS_YEARLINE_2025_PATH = os.path.join(DATA_DIR, "tspr2025_bus_yearline.csv")
 BUS_LINE_SHAPES_DIR = os.path.join(DATA_DIR, "bus lines")
 BUS_KEYINDICATORS_PATH = os.path.join(DATA_DIR, "tspr2022_bus_keyindicators_year.csv")
 BUS_OPEN_ARCHIVE_PATH = os.path.join(DATA_DIR, "TSPR_OpenData_Archive_8554786340162954844.csv")
@@ -69,7 +79,9 @@ BUS_COVID_2020_DAILY_PATH = os.path.join(DATA_DIR, "covid years", "tspr-2020---a
 BUS_COVID_2021_TOTAL_PATH = os.path.join(DATA_DIR, "covid years", "tspr-fall-2021-total-bus-boardings-by-route.csv")
 BUS_COVID_2021_DAILY_PATH = os.path.join(DATA_DIR, "covid years", "tspr-fall-2021-avg-daily-bus-boardings-by-route-and-day-type.csv")
 BUS_DEEP_2023_PATH = os.path.join(DATA_DIR, "tspr2023_bus_yearlinedaytypeseasontimerange(2).csv")
+BUS_DEEP_2025_PATH = os.path.join(DATA_DIR, "tspr2025_bus_yearlinedaytypeseasontimerange.csv")
 BUS_DEEP_2023_PEAK_PATH = os.path.join(DATA_DIR, "tspr2023_bus_peakload_yearlinedaytypeseasontimerangedirection.csv")
+BUS_DEEP_2025_PEAK_PATH = os.path.join(DATA_DIR, "tspr2025_bus_peakload_yearlinedaytypeseasontimerangedirection.csv")
 BUS_DEEP_LEGACY_PATH = os.path.join(DATA_DIR, "TSPR2022_Bus_KeyIndicators_YearLinenoDaytypeSeasonTimerange.csv")
 
 
@@ -126,6 +138,7 @@ def _build_bus_standard_df(df):
 
 
 STATION_YEAR_2024_PATH = os.path.join(DATA_DIR, "tspr2024_skytrain_yearstation.csv")
+STATION_YEAR_2025_PATH = os.path.join(DATA_DIR, "tspr2025_skytrain_yearstation.csv")
 STATION_BOARDINGS_2022_PATH = os.path.join(DATA_DIR, "tspr2022_rail_skytrain_boardings_stationyear.csv")
 STATION_DAILY_2022_PATH = os.path.join(DATA_DIR, "tspr2022_rail_skytrain_avgdailyboardings_stationyeardaytype(1).csv")
 SEGMENT_SHAPES_PATH = os.path.join(DATA_DIR, "SkyTrain segments map- segments.csv")
@@ -335,6 +348,11 @@ def _load_skytrain_segment_usage_map_2024_data():
     for (seg_id, from_long, to_long), seg_df in grouped:
         # Skip Commercial-Broadway to Commercial Drive segment (SegID 59)
         if int(seg_id) == 59:
+            continue
+
+        from_norm = _normalize_segment_station_label(from_long)
+        to_norm = _normalize_segment_station_label(to_long)
+        if {from_norm, to_norm} == {"aberdeen", "bridgeport"}:
             continue
         
         match = _best_shape_match_for_usage_segment(from_long, to_long, shape_rows)
@@ -916,8 +934,9 @@ def _load_station_standard_rows_for_year(year):
             }
         return merged_rows[station_key]
 
-    # Source 1: 2024 wide file
-    df_2024 = pd.read_csv(STATION_YEAR_2024_PATH)
+    # Source 1: modern wide file (prefer 2025 if available, otherwise fallback to 2024)
+    station_year_path = STATION_YEAR_2025_PATH if os.path.exists(STATION_YEAR_2025_PATH) else STATION_YEAR_2024_PATH
+    df_2024 = pd.read_csv(station_year_path)
     df_2024_year = df_2024[pd.to_numeric(df_2024['CalendarYear'], errors='coerce') == year]
     for _, row in df_2024_year.iterrows():
         station_name = _normalize_station_name(row['StationName'])
@@ -1006,10 +1025,12 @@ def _load_bus_standard_rows_for_year(year):
     # Merge order defines precedence: later source overrides earlier source for duplicate line-year values.
     merged_rows = OrderedDict()
 
-    bus_sources = [
-        _build_bus_standard_df(pd.read_csv(BUS_YEARLINE_2024_PATH)),
-        _build_bus_standard_df(pd.read_csv(BUS_KEYINDICATORS_PATH))
-    ]
+    bus_sources = []
+    if os.path.exists(BUS_YEARLINE_2025_PATH):
+        bus_sources.append(_build_bus_standard_df(pd.read_csv(BUS_YEARLINE_2025_PATH)))
+    if os.path.exists(BUS_YEARLINE_2024_PATH):
+        bus_sources.append(_build_bus_standard_df(pd.read_csv(BUS_YEARLINE_2024_PATH)))
+    bus_sources.append(_build_bus_standard_df(pd.read_csv(BUS_KEYINDICATORS_PATH)))
 
     for source_df in bus_sources:
         source_rows = source_df[source_df['year'] == year]
@@ -1600,16 +1621,18 @@ def my_2_years_compare():
 def _load_bus_data_for_year(year):
     df_2024 = _build_bus_standard_df(pd.read_csv(BUS_YEARLINE_2024_PATH))
     df_key = _build_bus_standard_df(pd.read_csv(BUS_KEYINDICATORS_PATH))
+    df_2025 = _build_bus_standard_df(pd.read_csv(BUS_YEARLINE_2025_PATH)) if os.path.exists(BUS_YEARLINE_2025_PATH) else pd.DataFrame()
 
     rows_2024 = df_2024[df_2024['year'] == year]
+    rows_2025 = df_2025[df_2025['year'] == year] if not df_2025.empty else pd.DataFrame()
 
     # Product rule: for 2022, only use tspr2024_bus_yearline.csv.
     if year == 2022:
         combined = rows_2024.copy()
     else:
         rows_key = df_key[df_key['year'] == year]
-        # Keep 2024 rows first so they win on duplicate line IDs.
-        combined = pd.concat([rows_2024, rows_key], ignore_index=True)
+        # Prefer newer yearline data first, then fallback to the older 2024 file.
+        combined = pd.concat([rows_2025, rows_2024, rows_key], ignore_index=True)
 
     if combined.empty:
         return combined
@@ -2194,11 +2217,12 @@ def _normalize_peak_load_factor_percent(value):
 
 
 @lru_cache(maxsize=1)
-def _load_deep_2023_base_df():
-    if not os.path.exists(BUS_DEEP_2023_PATH):
+def _load_deep_base_df():
+    deep_base_path = BUS_DEEP_2025_PATH if os.path.exists(BUS_DEEP_2025_PATH) else BUS_DEEP_2023_PATH
+    if not os.path.exists(deep_base_path):
         return pd.DataFrame()
 
-    df = pd.read_csv(BUS_DEEP_2023_PATH)
+    df = pd.read_csv(deep_base_path)
     if df.empty:
         return df
 
@@ -2221,11 +2245,12 @@ def _load_deep_2023_base_df():
 
 
 @lru_cache(maxsize=1)
-def _load_deep_2023_peak_df():
-    if not os.path.exists(BUS_DEEP_2023_PEAK_PATH):
+def _load_deep_peak_df():
+    deep_peak_path = BUS_DEEP_2025_PEAK_PATH if os.path.exists(BUS_DEEP_2025_PEAK_PATH) else BUS_DEEP_2023_PEAK_PATH
+    if not os.path.exists(deep_peak_path):
         return pd.DataFrame()
 
-    df = pd.read_csv(BUS_DEEP_2023_PEAK_PATH)
+    df = pd.read_csv(deep_peak_path)
     if df.empty:
         return df
 
@@ -2440,8 +2465,8 @@ def _load_bus_line_usage_map_2023_deep_data(day_norm='MF', season_norm='Fall', t
     base_payload = _load_bus_line_usage_map_2024_data(2024)
     base_lines = base_payload.get('lines', []) if isinstance(base_payload, dict) else []
 
-    base_df = _load_deep_2023_base_df()
-    peak_df = _load_deep_2023_peak_df()
+    base_df = _load_deep_base_df()
+    peak_df = _load_deep_peak_df()
 
     if not base_lines:
         return {
@@ -2535,8 +2560,8 @@ def deep_bus_line_compare_2023():
 
         if not line1 or not line2:
             return jsonify({'error': 'line1 and line2 are required'}), 400
-        if year1 not in {2019, 2022, 2023} or year2 not in {2019, 2022, 2023}:
-            return jsonify({'error': 'year1 and year2 must be one of: 2019, 2022, 2023'}), 400
+        if year1 not in {2019, 2022, 2023, 2024, 2025} or year2 not in {2019, 2022, 2023, 2024, 2025}:
+            return jsonify({'error': 'year1 and year2 must be one of: 2019, 2022, 2023, 2024, 2025'}), 400
         if not day1 or not day2:
             return jsonify({'error': 'day1 and day2 are required'}), 400
         if not season1 or not season2:
@@ -2546,21 +2571,21 @@ def deep_bus_line_compare_2023():
         if start1 is None or start2 is None:
             return jsonify({'error': 'Invalid time range values'}), 400
 
-        base_df = _load_deep_2023_base_df()
-        peak_df = _load_deep_2023_peak_df()
+        base_df = _load_deep_base_df()
+        peak_df = _load_deep_peak_df()
         legacy_df = _load_deep_legacy_df()
 
-        if (year1 in {2022, 2023} or year2 in {2022, 2023}) and base_df.empty and peak_df.empty:
+        if (year1 in {2022, 2023, 2024, 2025} or year2 in {2022, 2023, 2024, 2025}) and base_df.empty and peak_df.empty:
             return jsonify({'error': 'Deep comparison source files are unavailable for selected year(s)'}), 500
         if (year1 == 2019 or year2 == 2019) and legacy_df.empty:
             return jsonify({'error': 'Legacy deep comparison source file is unavailable'}), 500
 
-        if year1 in {2022, 2023}:
+        if year1 in {2022, 2023, 2024, 2025}:
             left_payload = _build_deep_side_payload_modern(base_df, peak_df, year1, line1, day1, season1, start1, time1)
         else:
             left_payload = _build_deep_side_payload_legacy(legacy_df, year1, line1, day1, season1, time1)
 
-        if year2 in {2022, 2023}:
+        if year2 in {2022, 2023, 2024, 2025}:
             right_payload = _build_deep_side_payload_modern(base_df, peak_df, year2, line2, day2, season2, start2, time2)
         else:
             right_payload = _build_deep_side_payload_legacy(legacy_df, year2, line2, day2, season2, time2)
@@ -2829,7 +2854,7 @@ def station_boardings_data():
         boardings_dict = {}
 
         # Base file (wide format, includes modern years)
-        csv_path = os.path.join(DATA_DIR, "tspr2024_skytrain_yearstation.csv")
+        csv_path = STATION_YEAR_2025_PATH if os.path.exists(STATION_YEAR_2025_PATH) else STATION_YEAR_2024_PATH
         df = pd.read_csv(csv_path)
         df_year = df[df['CalendarYear'] == year]
         for _, row in df_year.iterrows():
@@ -2881,7 +2906,7 @@ def station_daily_boardings_data():
         daily_boardings_dict = {}
 
         # Base file (wide format, includes modern years)
-        csv_path = os.path.join(DATA_DIR, "tspr2024_skytrain_yearstation.csv")
+        csv_path = STATION_YEAR_2025_PATH if os.path.exists(STATION_YEAR_2025_PATH) else STATION_YEAR_2024_PATH
         df = pd.read_csv(csv_path)
         df_year = df[df['CalendarYear'] == year]
         for _, row in df_year.iterrows():
@@ -2932,7 +2957,7 @@ def station_hourly_data():
     """API endpoint to fetch station hourly boardings/alightings by day type"""
     try:
         year = request.args.get('year', default=None, type=int)
-        csv_path = os.path.join(DATA_DIR, "tspr2024_skytainavgalightsbrdgs_yearstationdaytypehourly.csv")
+        csv_path = os.path.join(DATA_DIR, "tspr2025_skytrainavgalightsbrdgs_yearstationdaytypehourly.csv") if os.path.exists(os.path.join(DATA_DIR, "tspr2025_skytrainavgalightsbrdgs_yearstationdaytypehourly.csv")) else os.path.join(DATA_DIR, "tspr2024_skytainavgalightsbrdgs_yearstationdaytypehourly.csv")
         df = pd.read_csv(csv_path)
 
         if df.empty:

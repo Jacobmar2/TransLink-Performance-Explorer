@@ -191,6 +191,17 @@
             margin: 0px 0 0 0;
         }
 
+        .reveal-controls-row {
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin: 10px 0 0 0;
+            padding-top: 10px;
+            border-top: 1px solid rgba(110, 164, 241, 0.24);
+        }
+
         .title-controls-label {
             color: #c9e4ff;
             font-size: 0.82rem;
@@ -207,7 +218,7 @@
         .hourly-time-mode-row {
             display: none;
             align-items: center;
-            justify-content: space-between;
+            justify-content: flex-start;
             gap: 12px;
             flex-wrap: wrap;
             margin: 10px 0 0 0;
@@ -231,6 +242,13 @@
             gap: 8px;
             flex-wrap: wrap;
             justify-content: flex-end;
+        }
+
+        .hourly-time-mode-buttons .hourly-button {
+            padding: 6px 10px;
+            font-size: 0.74rem;
+            line-height: 1;
+            min-height: auto;
         }
 
         .maplibregl-ctrl-top-left {
@@ -792,6 +810,14 @@
                         <button type="button" class="hourly-button is-active" data-hourly-usage="total">Total</button>
                         <button type="button" class="hourly-button" data-hourly-usage="inbound">Inbound</button>
                         <button type="button" class="hourly-button" data-hourly-usage="outbound">Outbound</button>
+                    </div>
+
+                    <div class="reveal-controls-row" role="group" aria-label="Reveal most/least used segment controls">
+                        <span class="title-controls-label">Reveal most/least used segment</span>
+                        <div class="title-controls-buttons">
+                            <button id="reveal-segments-hide-button" class="title-visibility-button is-active" type="button" aria-pressed="true">Hide</button>
+                            <button id="reveal-segments-show-button" class="title-visibility-button" type="button" aria-pressed="false">Show</button>
+                        </div>
                     </div>
 
                     <div class="hourly-time-mode-row" id="hourly-time-mode-row" role="group" aria-label="Time display selection">

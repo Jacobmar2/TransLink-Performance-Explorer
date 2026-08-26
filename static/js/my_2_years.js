@@ -209,9 +209,7 @@ document.addEventListener('click', function (e) {
     }
 });
 
-document.getElementById('rankSpanSlider').addEventListener('input', function () {
-    document.getElementById('rankCountLabel').textContent = this.value;
-});
+const DEFAULT_RANK_SPAN = 10;
 
 updateFeatureButtonsByScope();
 loadDetailEntityOptions();
@@ -234,7 +232,7 @@ document.getElementById('swapYearsBtn').addEventListener('click', function () {
 document.getElementById('compareYearsBtn').addEventListener('click', function () {
     const year1 = getActiveYear('year1');
     const year2 = getActiveYear('year2');
-    const topN = Number(document.getElementById('rankSpanSlider').value || 3);
+    const topN = DEFAULT_RANK_SPAN;
     const scope = getActiveScope();
     const feature = getActiveFeature();
 

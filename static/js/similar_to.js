@@ -9,8 +9,7 @@ const referenceInput = document.getElementById('referenceInput');
 const referenceModeBtn = document.getElementById('referenceModeBtn');
 const referenceDropdown = document.getElementById('referenceDropdown');
 
-const rankSpanSlider = document.getElementById('rankSpanSlider');
-const rankCountLabel = document.getElementById('rankCountLabel');
+const DEFAULT_RANK_SPAN = 10;
 
 const entityScopeButtons = document.querySelectorAll('#entityScopeButtons .daily-btn');
 const featureButtons = document.querySelectorAll('#comparisonFeatureButtons .daily-btn');
@@ -328,7 +327,7 @@ function renderResultsTable(aboveRows, referenceRow, belowRows, metricLabel, ref
 function runSearch() {
     const feature = getActiveFeature();
     const metricLabel = getActiveFeatureLabel();
-    const rankSpan = Number(rankSpanSlider.value || 3);
+    const rankSpan = DEFAULT_RANK_SPAN;
 
     resultsStatus.textContent = 'Searching...';
 
@@ -516,10 +515,6 @@ function load2024EntityOptions() {
 }
 
 referenceModeBtn.addEventListener('click', toggleMode);
-
-rankSpanSlider.addEventListener('input', function() {
-    rankCountLabel.textContent = String(rankSpanSlider.value);
-});
 
 entityScopeButtons.forEach(btn => {
     btn.addEventListener('click', function() {

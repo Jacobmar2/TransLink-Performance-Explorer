@@ -18,6 +18,13 @@
     flex: 1 1 0;
 }
 
+.bus-lines-page .year-selectors .year-btn,
+.stations-page .year-selectors .year-btn {
+    flex: 0 0 auto;
+    min-width: 2.2em;
+    padding: 7px 10px;
+}
+
 /* Revenue/Service hours selector buttons */
 .hours-selectors {
     display: inline-flex;

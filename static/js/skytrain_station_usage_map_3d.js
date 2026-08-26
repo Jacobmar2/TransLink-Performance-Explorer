@@ -94,6 +94,8 @@
     const legendTitle = document.querySelector(".legend-title");
     const heightSlider = document.getElementById("height-scale-slider");
     const heightSliderValue = document.getElementById("height-slider-value");
+    const revealStationsHideButton = document.getElementById("reveal-stations-hide-button");
+    const revealStationsShowButton = document.getElementById("reveal-stations-show-button");
     const controlPanel = document.getElementById("control-panel");
     const hourlyStrip = document.getElementById("hourly-strip");
     const hourlyTimeModeRow = document.getElementById("hourly-time-mode-row");
@@ -114,6 +116,7 @@
     let hourlyPlaybackLoopMode = "same-day-type";
     let hourlyPlaybackActive = false;
     let needsBarsReveal = true;
+    let revealMostLeastActive = false;
 
     let stations = [];
     let hourlyStationsByName = new Map();
@@ -210,6 +213,18 @@
     const updateSliderLabel = () => {
         if (heightSliderValue) {
             heightSliderValue.textContent = `${Math.round(getSliderPercent())}%`;
+        }
+    };
+
+    const updateRevealButtons = () => {
+        if (revealStationsHideButton) {
+            revealStationsHideButton.classList.toggle("is-active", !revealMostLeastActive);
+            revealStationsHideButton.setAttribute("aria-pressed", revealMostLeastActive ? "false" : "true");
+        }
+
+        if (revealStationsShowButton) {
+            revealStationsShowButton.classList.toggle("is-active", revealMostLeastActive);
+            revealStationsShowButton.setAttribute("aria-pressed", revealMostLeastActive ? "true" : "false");
         }
     };
 
@@ -631,6 +646,33 @@
         const effectiveMax = maxValue > 0 ? maxValue : 1;
         const effectiveMin = Number.isFinite(minValue) ? minValue : 0;
 
+        let revealMaxStationKey = null;
+        let revealMinStationKey = null;
+
+        if (revealMostLeastActive) {
+            let maxValueSeen = Number.NEGATIVE_INFINITY;
+            let minValueSeen = Number.POSITIVE_INFINITY;
+
+            stations.forEach((station) => {
+                const stationValue = profile.getValue(station);
+                const stationKey = getStationHoverKey(station);
+
+                if (stationValue > 0 && stationValue > maxValueSeen) {
+                    maxValueSeen = stationValue;
+                    revealMaxStationKey = stationKey;
+                }
+
+                if (stationValue > 0 && stationValue < minValueSeen) {
+                    minValueSeen = stationValue;
+                    revealMinStationKey = stationKey;
+                }
+            });
+
+            if (revealMaxStationKey === revealMinStationKey) {
+                revealMinStationKey = null;
+            }
+        }
+
         const targetRenderData = stations.map((station) => {
             const value = profile.getValue(station);
             const ratio = effectiveMax > 0 ? Math.max(0, Math.min(1, value / effectiveMax)) : 0;
@@ -645,7 +687,8 @@
             }
 
             const hoveredKey = getStationHoverKey(hoverInfo && hoverInfo.object ? hoverInfo.object : null);
-            const isHovered = hoveredKey && hoveredKey === getStationHoverKey(station);
+            const stationKey = getStationHoverKey(station);
+            const isHovered = hoveredKey && hoveredKey === stationKey;
             const fillColor = toColor(value, effectiveMax, profile.colorLow, profile.colorHigh);
             const boardingFillColor = toColor(
                 boardingsHourlyValue,
@@ -659,6 +702,23 @@
                 hourlyUsageConfig.alightings.colorLow,
                 hourlyUsageConfig.alightings.colorHigh
             );
+            const maxRevealTarget = revealMostLeastActive && stationKey && stationKey === revealMaxStationKey;
+            const minRevealTarget = revealMostLeastActive && stationKey && stationKey === revealMinStationKey;
+            const revealFillColor = maxRevealTarget
+                ? [48, 196, 96, fillColor[3]]
+                : minRevealTarget
+                    ? [220, 61, 60, fillColor[3]]
+                    : fillColor;
+            const revealBoardingFillColor = maxRevealTarget
+                ? [48, 196, 96, boardingFillColor[3]]
+                : minRevealTarget
+                    ? [220, 61, 60, boardingFillColor[3]]
+                    : boardingFillColor;
+            const revealAlightingFillColor = maxRevealTarget
+                ? [48, 196, 96, alightingFillColor[3]]
+                : minRevealTarget
+                    ? [220, 61, 60, alightingFillColor[3]]
+                    : alightingFillColor;
 
             return {
                 ...station,
@@ -666,15 +726,15 @@
                 __ratio: ratio,
                 __tooltipLabel: profile.tooltipLabel,
                 __elevation: getHeightMeters(value, effectiveMax, profile.heightFactor),
-                __fillColor: fillColor,
+                __fillColor: revealFillColor,
                 __isHovered: isHovered,
-                __hoverFillColor: isHovered ? brightenColor(fillColor, 0.3) : fillColor,
+                __hoverFillColor: isHovered ? brightenColor(revealFillColor, 0.3) : revealFillColor,
                 __boardingElevation: getHeightMeters(boardingsHourlyValue, effectiveMax, profile.heightFactor, false),
                 __alightingElevation: getHeightMeters(alightingsHourlyValue, effectiveMax, profile.heightFactor, false),
-                __boardingFillColor: boardingFillColor,
-                __hoverBoardingFillColor: isHovered ? brightenColor(boardingFillColor, 0.3) : boardingFillColor,
-                __alightingFillColor: alightingFillColor,
-                __hoverAlightingFillColor: isHovered ? brightenColor(alightingFillColor, 0.3) : alightingFillColor
+                __boardingFillColor: revealBoardingFillColor,
+                __hoverBoardingFillColor: isHovered ? brightenColor(revealBoardingFillColor, 0.3) : revealBoardingFillColor,
+                __alightingFillColor: revealAlightingFillColor,
+                __hoverAlightingFillColor: isHovered ? brightenColor(revealAlightingFillColor, 0.3) : revealAlightingFillColor
             };
         });
 
@@ -1067,29 +1127,58 @@
         }
     });
 
+    const refreshBarsAfterHistoryRestore = () => {
+        if (!stations.length || !map || !overlay) {
+            return;
+        }
+
+        if (window.__skytrainBarsRendered && currentRenderData.length) {
+            if (map && map.resize) {
+                map.resize();
+            }
+            if (map && map.isStyleLoaded && map.isStyleLoaded()) {
+                map.triggerRepaint();
+            }
+            return;
+        }
+
+        needsBarsReveal = true;
+        revealRetryCount = 0;
+        window.requestAnimationFrame(() => {
+            revealBars();
+            scheduleRevealRetry();
+        });
+    };
+
     window.addEventListener("pageshow", (event) => {
         if (event.persisted) {
-            needsBarsReveal = true;
-            window.__skytrainBarsRendered = false;
-            revealRetryCount = 0;
-            window.requestAnimationFrame(() => {
-                revealBars();
-                scheduleRevealRetry();
-            });
+            refreshBarsAfterHistoryRestore();
         }
     });
 
     document.addEventListener("visibilitychange", () => {
         if (!document.hidden && stations.length) {
-            needsBarsReveal = true;
-            window.__skytrainBarsRendered = false;
-            revealRetryCount = 0;
-            window.requestAnimationFrame(() => {
-                revealBars();
-                scheduleRevealRetry();
-            });
+            refreshBarsAfterHistoryRestore();
         }
     });
+
+    if (revealStationsHideButton) {
+        revealStationsHideButton.addEventListener("click", () => {
+            revealMostLeastActive = false;
+            updateRevealButtons();
+            renderCurrentView(true);
+        });
+    }
+
+    if (revealStationsShowButton) {
+        revealStationsShowButton.addEventListener("click", () => {
+            revealMostLeastActive = true;
+            updateRevealButtons();
+            renderCurrentView(true);
+        });
+    }
+
+    updateRevealButtons();
 
     map.on("mousemove", (event) => {
         if (!overlay) {
@@ -1114,14 +1203,19 @@
         const scaled = toNumber(station.__ratio) * 100;
         const tooltipLabel = station.__tooltipLabel || "Usage";
         let stationRelativeLine = "";
+        let timeRelativeLine = "";
 
         if (activeMode === "hourly") {
             const dayCfg = hourlyDayTypeConfig[activeHourlyDayType];
             const usageCfg = hourlyUsageConfig[activeHourlyUsage];
             const usageKey = usageCfg && usageCfg.referenceKey ? usageCfg.referenceKey : activeHourlyUsage;
             const stationMax = getStationHourlyMax(station, dayCfg.apiKey, usageKey);
-            const relative = stationMax > 0 ? (metricValue / stationMax) * 100 : 0;
-            stationRelativeLine = `Relative station height: ${relative.toFixed(1)}%`;
+            const relativeStation = stationMax > 0 ? (metricValue / stationMax) * 100 : 0;
+            stationRelativeLine = `Relative station height: ${relativeStation.toFixed(1)}%`;
+
+            const hourMax = currentRenderData.reduce((maxValue, row) => Math.max(maxValue, toNumber(row.__metricValue)), 0);
+            const relativeTime = hourMax > 0 ? (metricValue / hourMax) * 100 : 0;
+            timeRelativeLine = `Relative time height: ${relativeTime.toFixed(1)}%`;
         }
 
         hoverInfo = picks;
@@ -1130,7 +1224,8 @@
             `<strong>${station.station_name}</strong>`,
             `${tooltipLabel}: ${formatBoardings(metricValue)}`,
             `Relative height: ${scaled.toFixed(1)}%`,
-            stationRelativeLine
+            stationRelativeLine,
+            timeRelativeLine
         ].filter(Boolean).join("<br>");
 
         tooltip.style.display = "block";

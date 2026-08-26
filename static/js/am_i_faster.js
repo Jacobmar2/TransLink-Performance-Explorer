@@ -81,7 +81,9 @@ function renderRows(rows) {
     }
 
     resultsTableBody.innerHTML = rows.map(row => {
-        return '<tr>' +
+        const highlightClass = row.isNearThreshold ? 'near-threshold-row' : '';
+        const rowTag = highlightClass ? '<tr class="' + highlightClass + '">' : '<tr>';
+        return rowTag +
             '<td>' + row.name + '</td>' +
             '<td>' + formatNumber(row.speedKph) + ' kph</td>' +
             '<td>' + formatDuration(row.timeSeconds) + '</td>' +
@@ -101,7 +103,7 @@ function runSearch() {
     const distanceKm = getSelectedDistanceKm();
     const userSpeedKph = (distanceKm / userSeconds) * 3600;
 
-    const rows = busLineRows
+    const fasterRows = busLineRows
         .filter(row => Number.isFinite(row.speedKph) && row.speedKph < userSpeedKph)
         .map(row => ({
             name: row.name,
@@ -110,8 +112,23 @@ function runSearch() {
         }))
         .sort((a, b) => b.speedKph - a.speedKph || a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
 
+    const nearThresholdRows = busLineRows
+        .filter(row => Number.isFinite(row.speedKph) && row.speedKph >= userSpeedKph)
+        .map(row => ({
+            name: row.name,
+            speedKph: row.speedKph,
+            timeSeconds: (distanceKm / row.speedKph) * 3600,
+            isNearThreshold: true,
+            gapKph: row.speedKph - userSpeedKph
+        }))
+        .sort((a, b) => a.gapKph - b.gapKph || a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
+        .slice(0, 5)
+        .reverse();
+
+    const rows = [...nearThresholdRows, ...fasterRows];
     const paceMinutesPerKm = (userSeconds / 60) / distanceKm;
-    resultsStatus.textContent = 'You are faster than ' + rows.length + ' bus line' + (rows.length === 1 ? '' : 's') + ' over ' + selectedDistanceLabel + '. Your pace is ' + formatPaceLabel(paceMinutesPerKm) + '.';
+    const nearThresholdText = nearThresholdRows.length ? ' The next ' + nearThresholdRows.length + ' closest lines are in yellow.' : '';
+    resultsStatus.textContent = 'You are faster than ' + fasterRows.length + ' bus line' + (fasterRows.length === 1 ? '' : 's') + ' over ' + selectedDistanceLabel + '.' + nearThresholdText + ' Your pace is ' + formatPaceLabel(paceMinutesPerKm) + '.';
     renderRows(rows);
     comparisonReady = true;
 }

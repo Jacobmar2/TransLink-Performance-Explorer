@@ -51,6 +51,11 @@
     width: min(95vw, 880px);
 }
 
+tr.near-threshold-row,
+tr.near-threshold-row td {
+    background-color: #fff3a3;
+}
+
 @media (max-width: 700px) {
     .time-input-field {
         width: min(150px, 100%);

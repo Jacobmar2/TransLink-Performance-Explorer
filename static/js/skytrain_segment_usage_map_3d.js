@@ -16,6 +16,8 @@
     const legendTitle = document.querySelector(".legend-title");
     const heightSlider = document.getElementById("height-scale-slider");
     const heightSliderValue = document.getElementById("height-slider-value");
+    const revealSegmentsHideButton = document.getElementById("reveal-segments-hide-button");
+    const revealSegmentsShowButton = document.getElementById("reveal-segments-show-button");
     const controlPanel = document.getElementById("control-panel");
     const hourlyStrip = document.getElementById("hourly-strip");
     const hourlyTimeModeRow = document.getElementById("hourly-time-mode-row");
@@ -72,6 +74,7 @@
     let dataReady = false;
     let overlayAttached = false;
     let hoverInfo = null;
+    let revealMostLeastActive = false;
 
     const toNumber = (value) => {
         const parsed = Number(value);
@@ -150,6 +153,18 @@
     const updateSliderLabel = () => {
         if (heightSliderValue) {
             heightSliderValue.textContent = `${Math.round(getScalePercent())}%`;
+        }
+    };
+
+    const updateRevealButtons = () => {
+        if (revealSegmentsHideButton) {
+            revealSegmentsHideButton.classList.toggle("is-active", !revealMostLeastActive);
+            revealSegmentsHideButton.setAttribute("aria-pressed", revealMostLeastActive ? "false" : "true");
+        }
+
+        if (revealSegmentsShowButton) {
+            revealSegmentsShowButton.classList.toggle("is-active", revealMostLeastActive);
+            revealSegmentsShowButton.setAttribute("aria-pressed", revealMostLeastActive ? "true" : "false");
         }
     };
 
@@ -558,13 +573,49 @@
         const effectiveMax = maxValue > 0 ? maxValue : 1;
         const effectiveMin = Number.isFinite(minValue) ? minValue : 0;
 
+        let revealMaxSegmentKey = null;
+        let revealMinSegmentKey = null;
+
+        if (revealMostLeastActive) {
+            let maxValueSeen = Number.NEGATIVE_INFINITY;
+            let minValueSeen = Number.POSITIVE_INFINITY;
+
+            segments.forEach((segment) => {
+                const segmentValue = profile.getValue(segment);
+                const segmentKey = getSegmentHoverKey(segment);
+
+                if (segmentValue > 0 && segmentValue > maxValueSeen) {
+                    maxValueSeen = segmentValue;
+                    revealMaxSegmentKey = segmentKey;
+                }
+
+                if (segmentValue > 0 && segmentValue < minValueSeen) {
+                    minValueSeen = segmentValue;
+                    revealMinSegmentKey = segmentKey;
+                }
+            });
+
+            if (revealMaxSegmentKey === revealMinSegmentKey) {
+                revealMinSegmentKey = null;
+            }
+        }
+
         const renderData = segments.map((segment) => {
             const metricValue = profile.getValue(segment);
             const ratio = Math.max(0, Math.min(1, metricValue / effectiveMax));
             const tubeHeight = toTubeHeight(metricValue, effectiveMax);
             const hoveredKey = getSegmentHoverKey(hoverInfo && hoverInfo.object ? hoverInfo.object : null);
-            const isHovered = hoveredKey && hoveredKey === getSegmentHoverKey(segment);
+            const segmentKey = getSegmentHoverKey(segment);
+            const isHovered = hoveredKey && hoveredKey === segmentKey;
             const fillColor = toColor(metricValue, effectiveMax, profile.colorLow, profile.colorHigh);
+            const isNeutralGrayFill = fillColor[0] === 128 && fillColor[1] === 128 && fillColor[2] === 128 && fillColor[3] === 170;
+            const maxRevealTarget = revealMostLeastActive && !isNeutralGrayFill && segmentKey && segmentKey === revealMaxSegmentKey;
+            const minRevealTarget = revealMostLeastActive && !isNeutralGrayFill && segmentKey && segmentKey === revealMinSegmentKey;
+            const revealFillColor = maxRevealTarget
+                ? [48, 196, 96, fillColor[3]]
+                : minRevealTarget
+                    ? [220, 61, 60, fillColor[3]]
+                    : fillColor;
             const segmentPeak = activeMode === "hourly"
                 ? getSegmentPeakValue(segment, profile.dayKey, profile.usageKey)
                 : 0;
@@ -582,9 +633,9 @@
                 __tooltipLabel: profile.tooltipLabel,
                 __tubeWidth: toTubeWidth(metricValue, effectiveMax),
                 __tubeHeight: tubeHeight,
-                __fillColor: fillColor,
+                __fillColor: revealFillColor,
                 __isHovered: isHovered,
-                __hoverFillColor: isHovered ? brightenColor(fillColor, 0.3) : fillColor,
+                __hoverFillColor: isHovered ? brightenColor(revealFillColor, 0.3) : revealFillColor,
                 __hoverTubeWidth: isHovered ? toTubeWidth(metricValue, effectiveMax) * 1.15 : toTubeWidth(metricValue, effectiveMax),
                 __pathBase: pathBase,
                 __pathMid: pathMid,
@@ -741,6 +792,24 @@
 
     attachOverlayAndRender();
 
+    if (revealSegmentsHideButton) {
+        revealSegmentsHideButton.addEventListener("click", () => {
+            revealMostLeastActive = false;
+            updateRevealButtons();
+            renderCurrentView();
+        });
+    }
+
+    if (revealSegmentsShowButton) {
+        revealSegmentsShowButton.addEventListener("click", () => {
+            revealMostLeastActive = true;
+            updateRevealButtons();
+            renderCurrentView();
+        });
+    }
+
+    updateRevealButtons();
+
     map.on("mousemove", (event) => {
         if (!overlay) {
             return;
@@ -774,6 +843,13 @@
         if (activeMode === "hourly") {
             const segmentRatio = toNumber(segment.__segmentPeakRatio) * 100;
             tooltipLines.push(`Relative segment usage: ${segmentRatio.toFixed(1)}%`);
+
+            const profile = getCurrentProfile();
+            const currentHourMaxValue = segments.reduce((maxSoFar, candidate) => {
+                return Math.max(maxSoFar, profile.getValue(candidate));
+            }, 0);
+            const timeRelativeRatio = currentHourMaxValue > 0 ? (metricValue / currentHourMaxValue) * 100 : 0;
+            tooltipLines.push(`Relative time usage: ${timeRelativeRatio.toFixed(1)}%`);
         }
 
         tooltip.innerHTML = tooltipLines.join("<br>");
@@ -933,15 +1009,31 @@
         });
     }
 
-    window.addEventListener("pageshow", () => {
-        if (overlayAttached) {
-            renderCurrentView();
+    const refreshMapAfterRestore = () => {
+        if (!overlayAttached || !map || !overlay) {
+            return;
+        }
+
+        if (map && map.resize) {
+            map.resize();
+        }
+
+        if (map && map.isStyleLoaded && map.isStyleLoaded()) {
+            map.triggerRepaint();
+        }
+
+        renderCurrentView();
+    };
+
+    window.addEventListener("pageshow", (event) => {
+        if (event.persisted && overlayAttached) {
+            refreshMapAfterRestore();
         }
     });
 
     document.addEventListener("visibilitychange", () => {
         if (!document.hidden && overlayAttached) {
-            renderCurrentView();
+            refreshMapAfterRestore();
         }
     });
 })();
