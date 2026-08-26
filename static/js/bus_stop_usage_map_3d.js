@@ -925,7 +925,11 @@
                 {
                     id: "carto-dark-layer",
                     type: "raster",
-                    source: "cartoDark"
+                    source: "cartoDark",
+                    paint: {
+                        "raster-brightness-min": 0,
+                        "raster-brightness-max": 0.28
+                    }
                 }
             ]
         },

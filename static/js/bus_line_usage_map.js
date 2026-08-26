@@ -846,7 +846,15 @@
                         attribution: "Tiles &copy; Esri"
                     }
                 },
-                layers: [{ id: "osm-raster", type: "raster", source: "osm" }]
+                layers: [{
+                    id: "osm-raster",
+                    type: "raster",
+                    source: "osm",
+                    paint: {
+                        "raster-brightness-min": 0,
+                        "raster-brightness-max": 0.28
+                    }
+                }]
             },
             center: [-123.12, 49.25],
             zoom: 10.95,
