@@ -239,7 +239,7 @@ body {
     content: "";
     position: absolute;
     inset: -8px;
-    background-image: url("/static/images/Screenshot%202026-04-20%20215843.jpg");
+    background-image: url("/static/images/map-bus-line.jpg");
     background-size: cover;
     background-position: center;
     filter: blur(6px);
@@ -248,19 +248,19 @@ body {
 }
 
 .button-map-skytrain::before {
-    background-image: url("/static/images/Screenshot%202026-04-21%20192417.jpg");
+    background-image: url("/static/images/map-skytrain-station.jpg");
 }
 
 .button-map-bus-stop::before {
-    background-image: url("/static/images/Screenshot%202026-04-23%20214925.jpg");
+    background-image: url("/static/images/map-bus-stop.jpg");
 }
 
 .button-map-segment::before {
-    background-image: url("/static/images/Screenshot%202026-04-25%20034318.jpg");
+    background-image: url("/static/images/map-skytrain-segment.jpg");
 }
 
 .button-map-bus-line::before {
-    background-image: url("/static/images/Screenshot%202026-05-02%20123818.jpg");
+    background-image: url("/static/images/map-bus-line-usage.jpg");
 }
 
 .button-map::after {

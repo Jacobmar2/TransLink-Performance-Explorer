@@ -179,16 +179,16 @@ function generateHourBoxes(hoursValue) {
 
     let html = '<div style="margin: 28px 0 18px 0; display:grid; grid-template-columns:repeat(10, 42px); column-gap:3px; row-gap:16px; justify-content:center; align-items:center;">';
     for (let index = 0; index < fullBoxes; index++) {
-        html += '<img src="/static/icons/full square.png" alt="10 hours" style="height:42px;width:42px;display:block;">';
+        html += '<img src="/static/icons/full-square.png" alt="10 hours" style="height:42px;width:42px;display:block;">';
     }
 
     if (hasHalf) {
-        html += '<img src="/static/icons/half square.png" alt="5 hours" style="height:42px;width:21px;display:block;justify-self:start;">';
+        html += '<img src="/static/icons/half-square.png" alt="5 hours" style="height:42px;width:21px;display:block;justify-self:start;">';
     }
 
     html += '</div>';
     html += '<div style="font-size:1.05em;color:rgba(255,255,255,0.88);display:flex;gap:8px;align-items:center;justify-content:center;font-weight:700;">' +
-        '<img src="/static/icons/full square.png" alt="10 hours" style="height:20px;width:20px;display:inline-block;">' +
+        '<img src="/static/icons/full-square.png" alt="10 hours" style="height:20px;width:20px;display:inline-block;">' +
         '<span>= 10 hours</span>' +
     '</div>';
     return html;
@@ -206,11 +206,11 @@ function generateBusStack(tripsValue) {
 
     let html = '<div style="margin: 26px 0 16px 0; line-height: 2.2; display:flex; flex-direction:column; align-items:center; gap:6px;">';
     for (let index = 0; index < fullBuses; index++) {
-        html += '<img src="/static/icons/bus%20symbol.png" alt="1 trip" style="height:144px;width:144px;display:block;margin:0;border-radius:4px;object-fit:contain;mix-blend-mode:screen;">';
+        html += '<img src="/static/icons/bus-symbol.png" alt="1 trip" style="height:144px;width:144px;display:block;margin:0;border-radius:4px;object-fit:contain;mix-blend-mode:screen;">';
     }
 
     if (hasHalf) {
-        html += '<img src="/static/icons/half%20bus%20symbol.png" alt="0.5 trip" style="height:144px;width:144px;display:block;margin:0;border-radius:4px;object-fit:contain;mix-blend-mode:screen;">';
+        html += '<img src="/static/icons/half-bus-symbol.png" alt="0.5 trip" style="height:144px;width:144px;display:block;margin:0;border-radius:4px;object-fit:contain;mix-blend-mode:screen;">';
     }
 
     html += '</div>';
@@ -232,7 +232,7 @@ function generatePeopleIcons(value) {
             html += '<br>';
             count = 0;
         }
-        html += '<img src="/static/icons/person symbol.png" alt="1 passenger" style="height:80px;width:40px;display:inline-block;margin:2px;">';
+        html += '<img src="/static/icons/person-symbol.png" alt="1 passenger" style="height:80px;width:40px;display:inline-block;margin:2px;">';
         count++;
     }
     html += '</div>';
@@ -313,11 +313,11 @@ function buildVsSection(title, leftLabel, rightLabel, leftBodyHtml, rightBodyHtm
     const safeTitle = escapeHtml(title);
     const titleWithInfo = safeTitle + (infoText ? buildInfoIcon(infoText) : '');
     const leftHeading = '<span style="display:inline-flex;align-items:center;gap:10px;">' +
-        '<img src="/static/icons/bus%20symbol.png" alt="bus" style="height:44px;width:44px;border-radius:50%;display:inline-block;object-fit:contain;mix-blend-mode:screen;">' +
+        '<img src="/static/icons/bus-symbol.png" alt="bus" style="height:44px;width:44px;border-radius:50%;display:inline-block;object-fit:contain;mix-blend-mode:screen;">' +
         '<span>' + escapeHtml(leftLabel) + '</span>' +
     '</span>';
     const rightHeading = '<span style="display:inline-flex;align-items:center;gap:10px;">' +
-        '<img src="/static/icons/bus%20symbol.png" alt="bus" style="height:44px;width:44px;border-radius:50%;display:inline-block;object-fit:contain;mix-blend-mode:screen;">' +
+        '<img src="/static/icons/bus-symbol.png" alt="bus" style="height:44px;width:44px;border-radius:50%;display:inline-block;object-fit:contain;mix-blend-mode:screen;">' +
         '<span>' + escapeHtml(rightLabel) + '</span>' +
     '</span>';
 

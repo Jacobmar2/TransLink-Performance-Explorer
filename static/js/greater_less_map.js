@@ -302,7 +302,18 @@
 
         const map = new maplibregl.Map({
             container: "map",
-            style: "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+            style: {
+                version: 8,
+                sources: {
+                    osm: {
+                        type: "raster",
+                        tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+                        tileSize: 256,
+                        attribution: "&copy; OpenStreetMap contributors"
+                    }
+                },
+                layers: [{ id: "osm-raster", type: "raster", source: "osm" }]
+            },
             center: [-123.12, 49.25],
             zoom: 11.0,
             pitch: 58,

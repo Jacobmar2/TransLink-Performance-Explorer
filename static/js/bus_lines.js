@@ -206,7 +206,7 @@ function generatePeopleIcons(boardings) {
     if (fullPeople === 0 && !hasHalfPerson) {
         return '<div style="margin: 30px 0; font-size: 1.05em; color: rgba(255,255,255,0.95); font-weight: 700;">No figures displayed</div>' +
             '<div style="font-size: 1em; color: rgba(255,255,255,0.8); margin-top: 6px; letter-spacing: 0.5px; display:flex;gap:12px;align-items:center;justify-content:center;">' +
-                '<img src="/static/icons/person symbol.png" alt="person" style="height:35px;width:auto;display:inline-block;">' +
+                '<img src="/static/icons/person-symbol.png" alt="person" style="height:35px;width:auto;display:inline-block;">' +
                 '<span>= 100,000 boardings</span>' +
             '</div>';
     }
@@ -220,7 +220,7 @@ function generatePeopleIcons(boardings) {
             html += '<br>';
             count = 0;
         }
-        html += '<img src="/static/icons/person symbol.png" alt="person" style="height: 80px; width: 40px; display: inline-block; margin: 2px;">';
+        html += '<img src="/static/icons/person-symbol.png" alt="person" style="height: 80px; width: 40px; display: inline-block; margin: 2px;">';
         count++;
     }
 
@@ -230,12 +230,12 @@ function generatePeopleIcons(boardings) {
             html += '<br>';
             count = 0;
         }
-        html += '<img src="/static/icons/half person figure.png" alt="half person" style="height: 80px; width: 20px; display: inline-block; margin: 2px;">';
+        html += '<img src="/static/icons/half-person-figure.png" alt="half person" style="height: 80px; width: 20px; display: inline-block; margin: 2px;">';
     }
 
     html += '</div>';
     html += '<div style="font-size: 1em; color: rgba(255,255,255,0.8); margin-top: 6px; letter-spacing: 0.5px; display:flex;gap:12px;align-items:center;justify-content:center;">' +
-                '<img src="/static/icons/person symbol.png" alt="person" style="height:35px;width:auto;display:inline-block;">' +
+                '<img src="/static/icons/person-symbol.png" alt="person" style="height:35px;width:auto;display:inline-block;">' +
                 '<span>= 100,000 boardings</span>' +
             '</div>';
 
@@ -253,7 +253,7 @@ function generatePeopleIconsDaily(boardings) {
     if (fullPeople === 0 && !hasHalfPerson) {
         return '<div style="margin: 30px 0; font-size: 1.05em; color: rgba(255,255,255,0.95); font-weight: 700;">No figures displayed</div>' +
             '<div style="font-size: 1em; color: rgba(255,255,255,0.8); margin-top: 6px; letter-spacing: 0.5px; display:flex;gap:12px;align-items:center;justify-content:center;">' +
-                '<img src="/static/icons/person symbol.png" alt="person" style="height:35px;width:auto;display:inline-block;">' +
+                '<img src="/static/icons/person-symbol.png" alt="person" style="height:35px;width:auto;display:inline-block;">' +
                 '<span>= 1,000 boardings</span>' +
             '</div>';
     }
@@ -267,7 +267,7 @@ function generatePeopleIconsDaily(boardings) {
             html += '<br>';
             count = 0;
         }
-        html += '<img src="/static/icons/person symbol.png" alt="person" style="height: 80px; width: 40px; display: inline-block; margin: 2px;">';
+        html += '<img src="/static/icons/person-symbol.png" alt="person" style="height: 80px; width: 40px; display: inline-block; margin: 2px;">';
         count++;
     }
 
@@ -277,12 +277,12 @@ function generatePeopleIconsDaily(boardings) {
             html += '<br>';
             count = 0;
         }
-        html += '<img src="/static/icons/half person figure.png" alt="half person" style="height: 80px; width: 20px; display: inline-block; margin: 2px;">';
+        html += '<img src="/static/icons/half-person-figure.png" alt="half person" style="height: 80px; width: 20px; display: inline-block; margin: 2px;">';
     }
 
     html += '</div>';
     html += '<div style="font-size: 1em; color: rgba(255,255,255,0.8); margin-top: 6px; letter-spacing: 0.5px; display:flex;gap:12px;align-items:center;justify-content:center;">' +
-                '<img src="/static/icons/person symbol.png" alt="person" style="height:35px;width:auto;display:inline-block;">' +
+                '<img src="/static/icons/person-symbol.png" alt="person" style="height:35px;width:auto;display:inline-block;">' +
                 '<span>= 1,000 boardings</span>' +
             '</div>';
 
@@ -300,7 +300,7 @@ function generateSquareIcons(hours) {
     if (fullSquares === 0 && !hasHalfSquare) {
         return '<div style="margin: 30px 0; font-size: 1.05em; color: rgba(255,255,255,0.95); font-weight: 700;">No figures displayed</div>' +
             '<div style="font-size: 1em; color: rgba(255,255,255,0.8); margin-top: 6px; letter-spacing: 0.5px; display:flex;gap:12px;align-items:center;justify-content:center;">' +
-                '<img src="/static/icons/full square.png" alt="person" style="height:35px;width:auto;display:inline-block;">' +
+                '<img src="/static/icons/full-square.png" alt="person" style="height:35px;width:auto;display:inline-block;">' +
                 '<span>= 1,000 hours</span>' +
             '</div>';
     }
@@ -315,7 +315,7 @@ function generateSquareIcons(hours) {
             count = 0;
         }
         // Full square: 20x20 pixels
-        html += '<img src="/static/icons/full square.png" alt="person" style="height: 40px; width: 40px; display: inline-block; margin: 2px;">';
+        html += '<img src="/static/icons/full-square.png" alt="person" style="height: 40px; width: 40px; display: inline-block; margin: 2px;">';
         count++;
     }
 
@@ -326,12 +326,12 @@ function generateSquareIcons(hours) {
             count = 0;
         }
         // Half square: 10x20 pixels
-        html += '<img src="/static/icons/half square.png" alt="half person" style="height: 40px; width: 20px; display: inline-block; margin: 2px;">';
+        html += '<img src="/static/icons/half-square.png" alt="half person" style="height: 40px; width: 20px; display: inline-block; margin: 2px;">';
     }
 
     html += '</div>';
     html += '<div style="font-size: 1em; color: rgba(255,255,255,0.8); margin-top: 6px; letter-spacing: 0.5px; display:flex;gap:12px;align-items:center;justify-content:center;">' +
-                '<img src="/static/icons/full square.png" alt="person" style="height:35px;width:auto;display:inline-block;">'  +
+                '<img src="/static/icons/full-square.png" alt="person" style="height:35px;width:auto;display:inline-block;">'  +
                 '<span>= 1,000 hours</span>' +
             '</div>';
 
@@ -353,7 +353,7 @@ function generatePeopleIconsMetrics(value) {
             html += '<br>';
             count = 0;
         }
-        html += '<img src="/static/icons/person symbol.png" alt="person" style="height: 80px; width: 40px; display: inline-block; margin: 2px;">';
+        html += '<img src="/static/icons/person-symbol.png" alt="person" style="height: 80px; width: 40px; display: inline-block; margin: 2px;">';
         count++;
     }
 
