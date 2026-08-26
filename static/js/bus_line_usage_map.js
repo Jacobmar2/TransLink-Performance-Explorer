@@ -841,7 +841,7 @@
                 sources: {
                     osm: {
                         type: "raster",
-                        tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+                        tiles: ["https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"],
                         tileSize: 256,
                         attribution: "&copy; OpenStreetMap contributors"
                     }
