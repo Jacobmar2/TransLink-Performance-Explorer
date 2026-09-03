@@ -186,6 +186,10 @@
             margin-bottom: 6px;
         }
 
+        .legend-gradient.is-split {
+            background: linear-gradient(90deg, #dc2c2c 0%, #f58e23 33%, #f7da3d 66%, #30be5c 100%);
+        }
+
         .legend-labels {
             display: flex;
             justify-content: space-between;
@@ -858,7 +862,7 @@
 
     <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
     <script src="https://unpkg.com/deck.gl@9.0.34/dist.min.js"></script>
-    <script src="{{ url_for('static', filename='js/skytrain_station_usage_map_3d.js', v='20260423-5') }}"></script>
+    <script src="{{ url_for('static', filename='js/skytrain_station_usage_map_3d.js', v='20260903-1') }}"></script>
     <script>
         (function setupBarsWarning() {
             const warning = document.getElementById("bars-warning");

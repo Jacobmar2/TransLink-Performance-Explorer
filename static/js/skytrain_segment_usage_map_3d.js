@@ -14,6 +14,7 @@
     const loopModeButtons = Array.from(document.querySelectorAll("[data-loop-mode]"));
 
     const legendTitle = document.querySelector(".legend-title");
+    const legendGradient = document.querySelector(".legend-gradient");
     const heightSlider = document.getElementById("height-scale-slider");
     const heightSliderValue = document.getElementById("height-slider-value");
     const revealSegmentsHideButton = document.getElementById("reveal-segments-hide-button");
@@ -51,6 +52,14 @@
             colorLow: [90, 165, 255],
             colorHigh: [205, 236, 255],
             tooltipLabel: "Outbound Hourly Usage"
+        },
+        total_split: {
+            label: "Total Segment Usage (Split)",
+            colorLow: [83, 149, 255],
+            colorHigh: [191, 229, 255],
+            tooltipLabel: "Total Hourly Usage (Split)",
+            referenceKey: "total",
+            splitGradient: true
         }
     };
 
@@ -229,9 +238,12 @@
             colorHigh: cfg.colorHigh,
             dayKey,
             usageKey,
+            referenceKey: cfg.referenceKey || usageKey,
+            slot,
+            splitGradient: Boolean(cfg.splitGradient),
             getValue: (segment) => {
                 const daySeries = segment.usage[dayKey] || {};
-                const usageSeries = daySeries[usageKey] || [];
+                const usageSeries = daySeries[cfg.referenceKey || usageKey] || [];
                 return toNumber(usageSeries[slot]);
             }
         };
@@ -285,6 +297,33 @@
         return [red, green, blue, alpha];
     };
 
+    const toSplitColor = (inbound, outbound, alpha = 220) => {
+        const total = inbound + outbound;
+        if (Math.round(total) <= 0) {
+            return [128, 128, 128, 170];
+        }
+
+        const ratio = Math.max(0, Math.min(1, outbound / total));
+        const stops = [
+            [220, 44, 44],
+            [245, 142, 35],
+            [247, 218, 61],
+            [48, 190, 92]
+        ];
+        const scaledRatio = ratio * (stops.length - 1);
+        const lowerIndex = Math.min(stops.length - 2, Math.floor(scaledRatio));
+        const stopRatio = scaledRatio - lowerIndex;
+        const lower = stops[lowerIndex];
+        const upper = stops[lowerIndex + 1];
+
+        return [
+            Math.round(lower[0] + (upper[0] - lower[0]) * stopRatio),
+            Math.round(lower[1] + (upper[1] - lower[1]) * stopRatio),
+            Math.round(lower[2] + (upper[2] - lower[2]) * stopRatio),
+            alpha
+        ];
+    };
+
     const shadeColor = (color, amount) => {
         const factor = Math.max(-1, Math.min(1, amount));
         const shift = factor >= 0 ? 255 * factor : 0;
@@ -321,14 +360,20 @@
     };
 
     const updateLegend = (title, minValue, maxValue) => {
+        const splitModeActive = activeMode === "hourly" && activeHourlyUsage === "total_split";
+
         if (legendTitle) {
-            legendTitle.textContent = title;
+            legendTitle.textContent = splitModeActive ? "Inbound to Outbound" : title;
+        }
+
+        if (legendGradient) {
+            legendGradient.classList.toggle("is-split", splitModeActive);
         }
 
         const labels = document.querySelectorAll(".legend-labels span");
         if (labels.length === 2) {
-            labels[0].textContent = formatNumber(minValue);
-            labels[1].textContent = formatNumber(maxValue);
+            labels[0].textContent = splitModeActive ? "Inbound" : formatNumber(minValue);
+            labels[1].textContent = splitModeActive ? "Outbound" : formatNumber(maxValue);
         }
     };
 
@@ -561,7 +606,7 @@
         const profile = getCurrentProfile();
 
         const maxValue = activeMode === "hourly"
-            ? getHourlyReferenceMax(profile.dayKey, profile.usageKey)
+            ? getHourlyReferenceMax(profile.dayKey, profile.referenceKey || profile.usageKey)
             : segments.reduce((maxSoFar, segment) => {
                 return Math.max(maxSoFar, profile.getValue(segment));
             }, 0);
@@ -607,7 +652,13 @@
             const hoveredKey = getSegmentHoverKey(hoverInfo && hoverInfo.object ? hoverInfo.object : null);
             const segmentKey = getSegmentHoverKey(segment);
             const isHovered = hoveredKey && hoveredKey === segmentKey;
-            const fillColor = toColor(metricValue, effectiveMax, profile.colorLow, profile.colorHigh);
+            const selectedSlot = indexToSlot(activeTimeSliderIndex);
+            const daySeries = profile.splitGradient ? (segment.usage[profile.dayKey] || {}) : {};
+            const splitInbound = profile.splitGradient ? toNumber(daySeries.inbound && daySeries.inbound[selectedSlot]) : 0;
+            const splitOutbound = profile.splitGradient ? toNumber(daySeries.outbound && daySeries.outbound[selectedSlot]) : 0;
+            const fillColor = profile.splitGradient
+                ? toSplitColor(splitInbound, splitOutbound)
+                : toColor(metricValue, effectiveMax, profile.colorLow, profile.colorHigh);
             const isNeutralGrayFill = fillColor[0] === 128 && fillColor[1] === 128 && fillColor[2] === 128 && fillColor[3] === 170;
             const maxRevealTarget = revealMostLeastActive && !isNeutralGrayFill && segmentKey && segmentKey === revealMaxSegmentKey;
             const minRevealTarget = revealMostLeastActive && !isNeutralGrayFill && segmentKey && segmentKey === revealMinSegmentKey;
@@ -617,7 +668,7 @@
                     ? [220, 61, 60, fillColor[3]]
                     : fillColor;
             const segmentPeak = activeMode === "hourly"
-                ? getSegmentPeakValue(segment, profile.dayKey, profile.usageKey)
+                ? getSegmentPeakValue(segment, profile.dayKey, profile.referenceKey || profile.usageKey)
                 : 0;
             const segmentPeakRatio = segmentPeak > 0 ? Math.max(0, Math.min(1, metricValue / segmentPeak)) : 0;
 
@@ -628,6 +679,8 @@
             return {
                 ...segment,
                 __metricValue: metricValue,
+                __splitInbound: splitInbound,
+                __splitOutbound: splitOutbound,
                 __ratio: ratio,
                 __segmentPeakRatio: segmentPeakRatio,
                 __tooltipLabel: profile.tooltipLabel,
@@ -835,12 +888,26 @@
         const segment = pickInfo.object;
         const metricValue = toNumber(segment.__metricValue);
         const ratio = toNumber(segment.__ratio) * 100;
+        let usageShareLine = "";
+
+        if (activeMode === "hourly" && activeHourlyUsage === "total_split") {
+            const inbound = toNumber(segment.__splitInbound);
+            const outbound = toNumber(segment.__splitOutbound);
+            const totalUsage = inbound + outbound;
+
+            if (totalUsage > 0) {
+                const inboundIsGreater = inbound >= outbound;
+                const dominantValue = inboundIsGreater ? inbound : outbound;
+                const dominantLabel = inboundIsGreater ? "inbound" : "outbound";
+                usageShareLine = `${Math.round((dominantValue / totalUsage) * 100)}% ${dominantLabel}`;
+            }
+        }
 
         hoverInfo = pickInfo;
 
         const tooltipLines = [
             `<strong>${segment.from_station} &mdash; ${segment.to_station}</strong>`,
-            `${segment.__tooltipLabel}: ${formatNumber(metricValue)}`,
+            `${segment.__tooltipLabel}: ${formatNumber(metricValue)}${usageShareLine ? `, ${usageShareLine}` : ""}`,
             `Relative usage: ${ratio.toFixed(1)}%`
         ];
 

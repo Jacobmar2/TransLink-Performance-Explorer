@@ -175,6 +175,10 @@
             margin-bottom: 6px;
         }
 
+        .legend-gradient.is-split {
+            background: linear-gradient(90deg, #dc2c2c 0%, #f58e23 33%, #f7da3d 66%, #30be5c 100%);
+        }
+
         .legend-labels {
             display: flex;
             justify-content: space-between;
@@ -658,6 +662,16 @@
             margin-bottom: 10px;
         }
 
+        .hourly-usage-measure-grid {
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 6px;
+        }
+
+        .hourly-usage-measure-grid .hourly-button {
+            padding: 7px 10px;
+            font-size: 0.78rem;
+        }
+
         @media (max-width: 980px) {
             .control-layout {
                 grid-template-columns: 1fr;
@@ -806,10 +820,11 @@
                     </div>
 
                     <p class="control-group-title">Usage Measure</p>
-                    <div class="hourly-button-grid" role="group" aria-label="Usage measure selection">
+                    <div class="hourly-button-grid hourly-usage-measure-grid" role="group" aria-label="Usage measure selection">
                         <button type="button" class="hourly-button is-active" data-hourly-usage="total">Total</button>
                         <button type="button" class="hourly-button" data-hourly-usage="inbound">Inbound</button>
                         <button type="button" class="hourly-button" data-hourly-usage="outbound">Outbound</button>
+                        <button type="button" class="hourly-button" data-hourly-usage="total_split">Split</button>
                     </div>
 
                     <div class="reveal-controls-row" role="group" aria-label="Reveal most/least used segment controls">
@@ -834,7 +849,7 @@
 
     <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
     <script src="https://unpkg.com/deck.gl@9.0.34/dist.min.js"></script>
-    <script src="{{ url_for('static', filename='js/skytrain_segment_usage_map_3d.js', v='20260424-1') }}"></script>
+    <script src="{{ url_for('static', filename='js/skytrain_segment_usage_map_3d.js', v='20260903-1') }}"></script>
     <script>
         (function setupTitleVisibilityControls() {
             const titleElement = document.querySelector(".overlay h1");

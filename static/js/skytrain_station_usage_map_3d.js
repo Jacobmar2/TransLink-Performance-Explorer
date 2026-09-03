@@ -92,6 +92,7 @@
     const loopModeButtons = Array.from(document.querySelectorAll("[data-loop-mode]"));
 
     const legendTitle = document.querySelector(".legend-title");
+    const legendGradient = document.querySelector(".legend-gradient");
     const heightSlider = document.getElementById("height-scale-slider");
     const heightSliderValue = document.getElementById("height-slider-value");
     const revealStationsHideButton = document.getElementById("reveal-stations-hide-button");
@@ -459,14 +460,20 @@
     };
 
     const updateLegend = (title, minValue, maxValue) => {
+        const splitModeActive = activeMode === "hourly" && activeHourlyUsage === "total_split";
+
         if (legendTitle) {
-            legendTitle.textContent = title;
+            legendTitle.textContent = splitModeActive ? "Boardings to Alightings" : title;
+        }
+
+        if (legendGradient) {
+            legendGradient.classList.toggle("is-split", splitModeActive);
         }
 
         const legendLabels = document.querySelectorAll(".legend-labels span");
         if (legendLabels.length === 2) {
-            legendLabels[0].textContent = formatBoardings(minValue);
-            legendLabels[1].textContent = formatBoardings(maxValue);
+            legendLabels[0].textContent = splitModeActive ? "Boardings" : formatBoardings(minValue);
+            legendLabels[1].textContent = splitModeActive ? "Alightings" : formatBoardings(maxValue);
         }
     };
 
@@ -524,6 +531,33 @@
         return [red, green, blue, alpha];
     };
 
+    const toSplitColor = (boardings, alightings, alpha = 220) => {
+        const total = boardings + alightings;
+        if (total <= 0) {
+            return [128, 128, 128, 190];
+        }
+
+        const ratio = Math.max(0, Math.min(1, alightings / total));
+        const stops = [
+            [220, 44, 44],
+            [245, 142, 35],
+            [247, 218, 61],
+            [48, 190, 92]
+        ];
+        const scaledRatio = ratio * (stops.length - 1);
+        const lowerIndex = Math.min(stops.length - 2, Math.floor(scaledRatio));
+        const stopRatio = scaledRatio - lowerIndex;
+        const lower = stops[lowerIndex];
+        const upper = stops[lowerIndex + 1];
+
+        return [
+            Math.round(lower[0] + (upper[0] - lower[0]) * stopRatio),
+            Math.round(lower[1] + (upper[1] - lower[1]) * stopRatio),
+            Math.round(lower[2] + (upper[2] - lower[2]) * stopRatio),
+            alpha
+        ];
+    };
+
     const brightenColor = (color, amount) => {
         const factor = Math.max(0, Math.min(1, amount));
         return [
@@ -546,73 +580,26 @@
     };
 
     const buildLayers = (renderData) => {
-        const splitModeActive = activeMode === "hourly" && activeHourlyUsage === "total_split";
-
-        if (!splitModeActive) {
-            return [new deck.ColumnLayer({
-                id: "skytrain-usage-columns",
-                data: renderData,
-                diskResolution: 20,
-                radius: 230,
-                extruded: true,
-                pickable: true,
-                opacity: 0.95,
-                getPosition: (d) => [Number(d.lon), Number(d.lat)],
-                getElevation: (d) => d.__elevation,
-                getFillColor: (d) => d.__isHovered ? d.__hoverFillColor : d.__fillColor,
-                getLineColor: [171, 212, 255, 255],
-                lineWidthMinPixels: 1,
-                material: {
-                    ambient: 0.48,
-                    diffuse: 0.56,
-                    shininess: 96,
-                    specularColor: [160, 210, 255]
-                }
-            })];
-        }
-
-        return [
-            new deck.ColumnLayer({
-                id: "skytrain-usage-columns-boardings",
-                data: renderData,
-                diskResolution: 20,
-                radius: 230,
-                extruded: true,
-                pickable: true,
-                opacity: 0.96,
-                getPosition: (d) => [Number(d.lon), Number(d.lat), 0],
-                getElevation: (d) => d.__boardingElevation,
-                getFillColor: (d) => d.__isHovered ? d.__hoverBoardingFillColor : d.__boardingFillColor,
-                getLineColor: [171, 212, 255, 255],
-                lineWidthMinPixels: 1,
-                material: {
-                    ambient: 0.48,
-                    diffuse: 0.56,
-                    shininess: 96,
-                    specularColor: [160, 210, 255]
-                }
-            }),
-            new deck.ColumnLayer({
-                id: "skytrain-usage-columns-alightings",
-                data: renderData,
-                diskResolution: 20,
-                radius: 230,
-                extruded: true,
-                pickable: true,
-                opacity: 0.96,
-                getPosition: (d) => [Number(d.lon), Number(d.lat), d.__boardingElevation],
-                getElevation: (d) => d.__alightingElevation,
-                getFillColor: (d) => d.__isHovered ? d.__hoverAlightingFillColor : d.__alightingFillColor,
-                getLineColor: [171, 212, 255, 255],
-                lineWidthMinPixels: 1,
-                material: {
-                    ambient: 0.48,
-                    diffuse: 0.56,
-                    shininess: 96,
-                    specularColor: [160, 210, 255]
-                }
-            })
-        ];
+        return [new deck.ColumnLayer({
+            id: "skytrain-usage-columns",
+            data: renderData,
+            diskResolution: 20,
+            radius: 230,
+            extruded: true,
+            pickable: true,
+            opacity: 0.95,
+            getPosition: (d) => [Number(d.lon), Number(d.lat)],
+            getElevation: (d) => d.__elevation,
+            getFillColor: (d) => d.__isHovered ? d.__hoverFillColor : d.__fillColor,
+            getLineColor: [171, 212, 255, 255],
+            lineWidthMinPixels: 1,
+            material: {
+                ambient: 0.48,
+                diffuse: 0.56,
+                shininess: 96,
+                specularColor: [160, 210, 255]
+            }
+        })];
     };
 
     const lerp = (startValue, endValue, t) => startValue + (endValue - startValue) * t;
@@ -689,14 +676,17 @@
             const hoveredKey = getStationHoverKey(hoverInfo && hoverInfo.object ? hoverInfo.object : null);
             const stationKey = getStationHoverKey(station);
             const isHovered = hoveredKey && hoveredKey === stationKey;
-            const fillColor = toColor(value, effectiveMax, profile.colorLow, profile.colorHigh);
-            const boardingFillColor = toColor(
+            const splitFillColor = toSplitColor(boardingsHourlyValue, alightingsHourlyValue);
+            const fillColor = profile.splitStacked
+                ? splitFillColor
+                : toColor(value, effectiveMax, profile.colorLow, profile.colorHigh);
+            const boardingFillColor = profile.splitStacked ? splitFillColor : toColor(
                 boardingsHourlyValue,
                 effectiveMax,
                 hourlyUsageConfig.boardings.colorLow,
                 hourlyUsageConfig.boardings.colorHigh
             );
-            const alightingFillColor = toColor(
+            const alightingFillColor = profile.splitStacked ? splitFillColor : toColor(
                 alightingsHourlyValue,
                 effectiveMax,
                 hourlyUsageConfig.alightings.colorLow,
@@ -1208,6 +1198,7 @@
         const tooltipLabel = station.__tooltipLabel || "Usage";
         let stationRelativeLine = "";
         let timeRelativeLine = "";
+        let usageShareLine = "";
 
         if (activeMode === "hourly") {
             const dayCfg = hourlyDayTypeConfig[activeHourlyDayType];
@@ -1220,14 +1211,30 @@
             const hourMax = currentRenderData.reduce((maxValue, row) => Math.max(maxValue, toNumber(row.__metricValue)), 0);
             const relativeTime = hourMax > 0 ? (metricValue / hourMax) * 100 : 0;
             timeRelativeLine = `Relative time height: ${relativeTime.toFixed(1)}%`;
+
+            if (activeHourlyUsage === "total_split") {
+                const stationHourly = station.__hourly || {};
+                const daySeries = stationHourly[dayCfg.apiKey] || {};
+                const selectedHour = sliderIndexToHour(activeHourlySliderIndex);
+                const boardings = toNumber(daySeries.boardings && daySeries.boardings[selectedHour]);
+                const alightings = toNumber(daySeries.alightings && daySeries.alightings[selectedHour]);
+                const totalUsage = boardings + alightings;
+
+                if (totalUsage > 0) {
+                    const boardingsAreGreater = boardings >= alightings;
+                    const dominantValue = boardingsAreGreater ? boardings : alightings;
+                    const dominantLabel = boardingsAreGreater ? "boardings" : "alightings";
+                    usageShareLine = `${Math.round((dominantValue / totalUsage) * 100)}% ${dominantLabel}`;
+                }
+            }
         }
 
         hoverInfo = picks;
 
         tooltip.innerHTML = [
             `<strong>${station.station_name}</strong>`,
-            `${tooltipLabel}: ${formatBoardings(metricValue)}`,
-            `Relative height: ${scaled.toFixed(1)}%`,
+            `${tooltipLabel}: ${formatBoardings(metricValue)}${usageShareLine ? `, ${usageShareLine}` : ""}`,
+            `Relative overall height: ${scaled.toFixed(1)}%`,
             stationRelativeLine,
             timeRelativeLine
         ].filter(Boolean).join("<br>");
