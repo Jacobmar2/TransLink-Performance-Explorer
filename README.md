@@ -1,6 +1,6 @@
 # TransLink-Performance-Explorer
 
-Live Project: https://translink-performance-explorer.onrender.com/
+Live Project: https://trans-link-performance-explorer.vercel.app/
 
 ## What is TransLink-Performance-Explorer?
 
@@ -41,13 +41,13 @@ Comparing ridership of 144 and 145
 
 3D Data Maps
 
-![SkyTrain Station Usage Map 3D](static/images/Screenshot%202026-04-21%20192417.jpg)
+![SkyTrain Station Usage Map 3D](static/images/map-skytrain-station.jpg)
 
-![Bus Stop Usage Map 3D](static/images/Screenshot%202026-04-23%20214925.jpg)
+![Bus Stop Usage Map 3D](static/images/map-bus-stop.jpg)
 
-![SkyTrain Segment Usage Map 3D](static/images/Screenshot%202026-04-25%20034318.jpg)
+![SkyTrain Segment Usage Map 3D](static/images/map-skytrain-segment.jpg)
 
-![Bus Line Usage Map 3D](static/images/Screenshot%202026-05-02%20123818.jpg)
+![Bus Line Usage Map 3D](static/images/map-bus-line-usage.jpg)
 
 ## Notes
 
@@ -58,6 +58,8 @@ Comparing ridership of 144 and 145
 ● SkyTrain Segments were manually made using Google My Maps.
 
 ● Bus Lines were mapped using this Google My Maps: https://www.google.com/maps/d/viewer?hl=en&mid=1pmQlG8105ELNbdnWDOfuMOfXEcETQqFX&ll=49.23984696853358%2C-122.68972059999999&z=10
+
+● 3D Maps and Greater/Less Than, Similar To, and My 2 Years uses 2024 data in order to be consistent with the latest available data found on the TSPR catalog where the bus stops ridership was derived from.
 
 ● Not affiliated or supported by TransLink
 
