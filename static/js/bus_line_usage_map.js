@@ -843,6 +843,7 @@
                         type: "raster",
                         tiles: ["https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}"],
                         tileSize: 256,
+                        maxzoom: 16,
                         attribution: "Tiles &copy; Esri"
                     }
                 },
