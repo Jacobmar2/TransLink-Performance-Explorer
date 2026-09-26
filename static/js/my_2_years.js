@@ -31,6 +31,11 @@ function getActiveScope() {
     return activeScopeBtn ? activeScopeBtn.dataset.scope : 'both';
 }
 
+function getComparisonMode() {
+    const modeSwitch = document.getElementById('comparisonModeSwitch');
+    return modeSwitch ? modeSwitch.dataset.mode : 'relevant';
+}
+
 function isCovidYearSelected() {
     const year1 = getActiveYear('year1');
     const year2 = getActiveYear('year2');
@@ -53,7 +58,7 @@ function formatPercentValue(value) {
     return sign + numericValue.toFixed(2) + '%';
 }
 
-function renderResultsRows(tbodyEl, rows, emptyText) {
+function renderResultsRows(tbodyEl, rows, emptyText, mode) {
     if (!rows || !rows.length) {
         tbodyEl.innerHTML = '<tr><td colspan="4">' + emptyText + '</td></tr>';
         return;
@@ -64,17 +69,19 @@ function renderResultsRows(tbodyEl, rows, emptyText) {
             '<td>' + row.name + '</td>' +
             '<td class="metric-col">' + formatStatValue(row.stat_year_1) + '</td>' +
             '<td class="metric-col">' + formatStatValue(row.stat_year_2) + '</td>' +
-            '<td class="diff-col">' + formatPercentValue(row.pct_change) + '</td>' +
+            '<td class="diff-col">' + (mode === 'absolute' ? formatStatValue(row.absolute_change) : formatPercentValue(row.pct_change)) + '</td>' +
         '</tr>';
     }).join('');
 }
 
-function renderDetailRows(rows, year1, year2) {
+function renderDetailRows(rows, year1, year2, mode) {
     const body = document.getElementById('detailMetricsBody');
     const wrap = document.getElementById('detailMetricsWrap');
     document.getElementById('detailYear1Header').textContent = 'Stat in ' + year1;
     document.getElementById('detailYear2Header').textContent = 'Stat in ' + year2;
-    document.getElementById('detailPercentHeader').textContent = '% Change (from ' + year1 + ' to ' + year2 + ')';
+    document.getElementById('detailPercentHeader').textContent = mode === 'absolute'
+        ? 'Absolute change (' + year1 + ' to ' + year2 + ')'
+        : '% Change (from ' + year1 + ' to ' + year2 + ')';
 
     if (!rows || !rows.length) {
         body.innerHTML = '<tr><td colspan="5">No metrics available for this selection.</td></tr>';
@@ -88,7 +95,7 @@ function renderDetailRows(rows, year1, year2) {
             '<td>' + row.metric + '</td>' +
             '<td class="metric-col">' + formatStatValue(row.stat_year_1) + '</td>' +
             '<td class="metric-col">' + formatStatValue(row.stat_year_2) + '</td>' +
-            '<td class="diff-col">' + formatPercentValue(row.pct_change) + '</td>' +
+            '<td class="diff-col">' + (mode === 'absolute' ? formatStatValue(row.absolute_change) : formatPercentValue(row.pct_change)) + '</td>' +
         '</tr>';
     }).join('');
 
@@ -135,6 +142,7 @@ function loadDetailMetrics() {
     const entity = dropdown.value;
     const year1 = getActiveYear('year1');
     const year2 = getActiveYear('year2');
+    const mode = getComparisonMode();
     const wrap = document.getElementById('detailMetricsWrap');
 
     if (!entity) {
@@ -153,7 +161,7 @@ function loadDetailMetrics() {
             if (data.error) {
                 throw new Error(data.error);
             }
-            renderDetailRows(data.rows || [], year1, year2);
+            renderDetailRows(data.rows || [], year1, year2, mode);
         })
         .catch((error) => {
             document.getElementById('detailMetricsBody').innerHTML = '<tr><td colspan="5">' + (error.message || 'Failed to load detail metrics.') + '</td></tr>';
@@ -235,6 +243,7 @@ document.getElementById('compareYearsBtn').addEventListener('click', function ()
     const topN = DEFAULT_RANK_SPAN;
     const scope = getActiveScope();
     const feature = getActiveFeature();
+    const mode = getComparisonMode();
 
     const resultEl = document.getElementById('compareYearsResult');
     const tablesWrap = document.getElementById('yearsCompareTables');
@@ -249,7 +258,7 @@ document.getElementById('compareYearsBtn').addEventListener('click', function ()
 
     resultEl.textContent = 'Comparing...';
 
-    fetch('/api/my-2-years-compare?year1=' + encodeURIComponent(year1) + '&year2=' + encodeURIComponent(year2) + '&scope=' + encodeURIComponent(scope) + '&feature=' + encodeURIComponent(feature) + '&top_n=' + encodeURIComponent(topN))
+    fetch('/api/my-2-years-compare?year1=' + encodeURIComponent(year1) + '&year2=' + encodeURIComponent(year2) + '&scope=' + encodeURIComponent(scope) + '&feature=' + encodeURIComponent(feature) + '&mode=' + encodeURIComponent(mode) + '&top_n=' + encodeURIComponent(topN))
         .then((response) => {
             if (!response.ok) {
                 throw new Error('Failed to compare years.');
@@ -265,26 +274,43 @@ document.getElementById('compareYearsBtn').addEventListener('click', function ()
             document.getElementById('positiveYear2Header').textContent = 'Stat in ' + year2;
             document.getElementById('negativeYear1Header').textContent = 'Stat in ' + year1;
             document.getElementById('negativeYear2Header').textContent = 'Stat in ' + year2;
-            document.getElementById('positivePercentHeader').textContent = '% Change (from ' + year1 + ' to ' + year2 + ')';
-            document.getElementById('negativePercentHeader').textContent = '% Change (from ' + year1 + ' to ' + year2 + ')';
+            const changeHeader = mode === 'absolute'
+                ? 'Absolute change (' + year1 + ' to ' + year2 + ')'
+                : '% Change (from ' + year1 + ' to ' + year2 + ')';
+            document.getElementById('positivePercentHeader').textContent = changeHeader;
+            document.getElementById('negativePercentHeader').textContent = changeHeader;
 
-            document.getElementById('positiveTableTitle').textContent = 'Top ' + topN + ' biggest +% change';
+            const changeLabel = mode === 'absolute' ? 'absolute increase' : '+% change';
+            const decreaseLabel = mode === 'absolute' ? 'absolute decrease' : '-% change';
+            document.getElementById('positiveTableTitle').textContent = 'Top ' + topN + ' biggest ' + changeLabel;
             document.getElementById('negativeTableTitle').textContent = data.used_smallest_change_fallback
-                ? 'Top ' + topN + ' biggest -% change'
-                : 'Top ' + topN + ' biggest -% change';
+                ? 'Top ' + topN + ' biggest ' + decreaseLabel
+                : 'Top ' + topN + ' biggest ' + decreaseLabel;
 
-            renderResultsRows(positiveBody, data.positive || [], 'No positive % changes found for this selection.');
-            renderResultsRows(negativeBody, data.negative || [], 'No results found for this selection.');
+            renderResultsRows(positiveBody, data.positive || [], 'No positive changes found for this selection.', mode);
+            renderResultsRows(negativeBody, data.negative || [], 'No results found for this selection.', mode);
 
             if (document.getElementById('detailEntityDropdown').value) {
                 loadDetailMetrics();
             }
 
             tablesWrap.style.display = 'block';
-            resultEl.textContent = 'Compared ' + (data.total_compared || 0) + ' matching records.';
+            resultEl.textContent = 'Compared ' + (data.total_compared || 0) + ' matching records (' + (mode === 'absolute' ? 'absolute' : 'relevant') + ' mode).';
         })
         .catch((error) => {
             tablesWrap.style.display = 'none';
             resultEl.textContent = error.message || 'Failed to compare years.';
         });
+});
+
+document.getElementById('comparisonModeSwitch').addEventListener('click', function () {
+    const isAbsolute = this.dataset.mode === 'absolute';
+    this.dataset.mode = isAbsolute ? 'relevant' : 'absolute';
+    this.setAttribute('aria-pressed', String(!isAbsolute));
+    if (document.getElementById('detailEntityDropdown').value) {
+        loadDetailMetrics();
+    }
+    if (document.getElementById('yearsCompareTables').style.display === 'block') {
+        document.getElementById('compareYearsBtn').click();
+    }
 });

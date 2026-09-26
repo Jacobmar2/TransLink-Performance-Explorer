@@ -51,6 +51,12 @@
     width: min(95vw, 880px);
 }
 
+.am-i-faster-table-wrap .results-table thead th {
+    height: 2.4em;
+    line-height: 1.2;
+    vertical-align: middle;
+}
+
 tr.near-threshold-row,
 tr.near-threshold-row td {
     background-color: #fff3a3;

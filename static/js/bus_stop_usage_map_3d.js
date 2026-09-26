@@ -1,6 +1,6 @@
 (async function initializeBusStopUsageMap() {
     const apiUrl = "/api/bus-stop-usage-map-3d-data?year=2024";
-    const busLineOptionsUrl = "/api/bus-line-options?year=2024";
+    const busLineOptionsUrl = "/api/bus-stop-usage-map-3d-line-options";
 
     window.__busStopBarsRendered = false;
 
@@ -105,7 +105,14 @@
         return leftTokens.some((token) => rightSet.has(token));
     };
 
-    const getSelectedLineTokens = () => splitLineTokens(currentBusLine);
+    const getSelectedLineCode = () => {
+        const separatorIndex = currentBusLine.indexOf("::");
+        return separatorIndex >= 0 ? currentBusLine.slice(separatorIndex + 2) : currentBusLine;
+    };
+
+    const getSelectedLineYear = () => currentBusLine.startsWith("2019::") ? 2019 : 2024;
+
+    const getSelectedLineTokens = () => splitLineTokens(getSelectedLineCode());
 
     const isBayStop = (stop) => {
         if (!stop) {
@@ -410,10 +417,11 @@
 
     const getVisibleStops = () => {
         if (!getSelectedLineTokens().length) {
-            return stops;
+            return stops.filter((stop) => stop.__dataYear === 2024);
         }
 
-        return stops.filter((stop) => getMatchingLineMetric(stop));
+        const selectedYear = getSelectedLineYear();
+        return stops.filter((stop) => stop.__dataYear === selectedYear && getMatchingLineMetric(stop));
     };
 
     const getMetricValue = (stop) => {
@@ -948,6 +956,37 @@
         layers: []
     });
 
+    const normalizeStopPayload = (payload, dataYear) => (
+        Array.isArray(payload?.stops) ? payload.stops.map((stop) => ({
+            ...stop,
+            __dataYear: dataYear,
+            lat: Number(stop.lat),
+            lon: Number(stop.lon),
+            line_tokens: Array.isArray(stop.line_tokens) ? stop.line_tokens.map((token) => String(token).trim().toUpperCase()) : [],
+            line_metrics: Array.isArray(stop.line_metrics)
+                ? stop.line_metrics.map((metric) => ({
+                    ...metric,
+                    line_number: String(metric.line_number || ""),
+                    line_tokens: Array.isArray(metric.line_tokens)
+                        ? metric.line_tokens.map((token) => String(token).trim().toUpperCase())
+                        : splitLineTokens(metric.line_number),
+                    boardings_mf: Number(metric.boardings_mf || 0),
+                    alightings_mf: Number(metric.alightings_mf || 0),
+                    boardings_sat: Number(metric.boardings_sat || 0),
+                    alightings_sat: Number(metric.alightings_sat || 0),
+                    boardings_sunhol: Number(metric.boardings_sunhol || 0),
+                    alightings_sunhol: Number(metric.alightings_sunhol || 0)
+                }))
+                : [],
+            mf_boardings: Number(stop.boardings_mf || 0),
+            mf_alightings: Number(stop.alightings_mf || 0),
+            sat_boardings: Number(stop.boardings_sat || 0),
+            sat_alightings: Number(stop.alightings_sat || 0),
+            sunhol_boardings: Number(stop.boardings_sunhol || 0),
+            sunhol_alightings: Number(stop.alightings_sunhol || 0)
+        })) : []
+    );
+
     const loadBusData = Promise.all([
         fetch(apiUrl, { cache: "no-store" }).then((res) => {
             console.log("[bus-map] API response for bus-stop data:", res.status, res.statusText);
@@ -975,6 +1014,12 @@
                 return data;
             });
         }),
+        fetch("/api/bus-stop-usage-map-3d-data?year=2019", { cache: "no-store" }).then((res) => {
+            if (!res.ok) {
+                throw new Error(`Failed to load 2019 bus stop data: ${res.status}`);
+            }
+            return res.json();
+        }),
         fetch(busLineOptionsUrl, { cache: "no-store" }).then((res) => {
             console.log("[bus-map] API response for bus-line options:", res.status, res.statusText);
             if (!res.ok) {
@@ -982,42 +1027,18 @@
             }
             return res.json();
         }).catch(() => [])
-    ]).then(async ([stopPayload, busLinePayload]) => {
-
-        stops = Array.isArray(stopPayload.stops) ? stopPayload.stops.map((stop) => ({
-            ...stop,
-            lat: Number(stop.lat),
-            lon: Number(stop.lon),
-            line_tokens: Array.isArray(stop.line_tokens) ? stop.line_tokens.map((token) => String(token).trim().toUpperCase()) : [],
-            line_metrics: Array.isArray(stop.line_metrics)
-                ? stop.line_metrics.map((metric) => ({
-                    ...metric,
-                    line_number: String(metric.line_number || ""),
-                    line_tokens: Array.isArray(metric.line_tokens)
-                        ? metric.line_tokens.map((token) => String(token).trim().toUpperCase())
-                        : splitLineTokens(metric.line_number),
-                    boardings_mf: Number(metric.boardings_mf || 0),
-                    alightings_mf: Number(metric.alightings_mf || 0),
-                    boardings_sat: Number(metric.boardings_sat || 0),
-                    alightings_sat: Number(metric.alightings_sat || 0),
-                    boardings_sunhol: Number(metric.boardings_sunhol || 0),
-                    alightings_sunhol: Number(metric.alightings_sunhol || 0)
-                }))
-                : [],
-            mf_boardings: Number(stop.boardings_mf || 0),
-            mf_alightings: Number(stop.alightings_mf || 0),
-            sat_boardings: Number(stop.boardings_sat || 0),
-            sat_alightings: Number(stop.alightings_sat || 0),
-            sunhol_boardings: Number(stop.boardings_sunhol || 0),
-            sunhol_alightings: Number(stop.alightings_sunhol || 0)
-        })) : [];
+    ]).then(([stopPayload, historicalStopPayload, busLinePayload]) => {
+        stops = [
+            ...normalizeStopPayload(stopPayload, 2024),
+            ...normalizeStopPayload(historicalStopPayload, 2019)
+        ];
 
         busLineOptions = Array.isArray(busLinePayload) ? busLinePayload : [];
         populateBusLineOptions(busLineOptions);
         syncControlState();
         dataReady = true;
         console.log("[bus-map] Data loaded successfully");
-        console.log("[bus-map] Stops loaded:", stops.length);
+        console.log("[bus-map] Stops loaded:", stops.length, "(2024 + 2019)");
         console.log("[bus-map] Bus line options:", busLineOptions.length);
     }).catch((error) => {
         console.error("[bus-map] Error loading data:", error);

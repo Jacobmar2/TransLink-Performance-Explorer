@@ -83,6 +83,38 @@ BUS_DEEP_2025_PATH = os.path.join(DATA_DIR, "tspr2025_bus_yearlinedaytypeseasont
 BUS_DEEP_2023_PEAK_PATH = os.path.join(DATA_DIR, "tspr2023_bus_peakload_yearlinedaytypeseasontimerangedirection.csv")
 BUS_DEEP_2025_PEAK_PATH = os.path.join(DATA_DIR, "tspr2025_bus_peakload_yearlinedaytypeseasontimerangedirection.csv")
 BUS_DEEP_LEGACY_PATH = os.path.join(DATA_DIR, "TSPR2022_Bus_KeyIndicators_YearLinenoDaytypeSeasonTimerange.csv")
+BUS_STOP_ARCHIVE_2019_PATH = os.path.join(DATA_DIR, "TSPR_OpenData_Archive_2019BusStops.csv")
+BUS_LINE_NAME_OVERRIDES = {
+    '150': 'COQUITLAM CENTRAL STN/WHITE PINE BEACH',
+    '214': 'BLUERIDGE/PHIBBS EXCH/VANCOUVER',
+    '280': 'BLUEWATER/SNUG COVE',
+    '281': 'EAGLE CLIFF/SNUG COVE',
+    '338': 'EAST FRASER HEIGHTS/GUILDFORD',
+    '370': 'CLOVERDALE/WILLOWBROOK',
+    '372': 'CLAYTON HEIGHTS/LANGLEY CENTRE',
+    '560/561': 'LANGLEY CENTRE/LANGLEY HOSPITAL–BROOKSWOOD',
+    '562': 'LANGLEY CENTRE/WALNUT GROVE',
+    '563': 'LANGLEY CENTRE/FERNRIDGE',
+    '564': 'LANGLEY CENTRE/WILLOWBROOK',
+    '606': 'LADNER RING',
+    '608': 'LADNER RING',
+}
+BUS_STOP_2019_LINE_NAMES = {
+    '150': 'COQUITLAM CENTRAL STN/WHITE PINE BEACH',
+    '214': 'BLUERIDGE/PHIBBS EXCH/VANCOUVER',
+    '280': 'BLUEWATER/SNUG COVE',
+    '281': 'EAGLE CLIFF/SNUG COVE',
+    '282': 'MT GARDNER/SNUG COVE',
+    '370': 'CLOVERDALE/WILLOWBROOK',
+    '372': 'CLAYTON HEIGHTS/LANGLEY CENTRE',
+    '560/561': 'LANGLEY CENTRE/LANGLEY HOSPITAL–BROOKSWOOD',
+    '562': 'LANGLEY CENTRE/WALNUT GROVE',
+    '563': 'LANGLEY CENTRE/FERNRIDGE',
+    '564': 'LANGLEY CENTRE/WILLOWBROOK',
+    '606': 'LADNER RING',
+    '608': 'LADNER RING',
+}
+BUS_LINE_SHAPES_WITHOUT_2024_STATS = {'32', '480'}
 
 
 def _pick_col(columns, candidates):
@@ -549,17 +581,18 @@ def _load_skytrain_station_usage_map_2024_data():
 @lru_cache(maxsize=1)
 def _load_bus_stop_usage_map_2024_data(year=2024):
     logger.info(f"[bus-stop-map] Loading bus stop usage data for year {year}")
-    logger.info(f"[bus-stop-map] BUS_STOP_OPEN_ARCHIVE_PATH: {BUS_STOP_OPEN_ARCHIVE_PATH}")
-    logger.info(f"[bus-stop-map] File exists: {os.path.exists(BUS_STOP_OPEN_ARCHIVE_PATH)}")
+    archive_path = BUS_STOP_ARCHIVE_2019_PATH if year == 2019 else BUS_STOP_OPEN_ARCHIVE_PATH
+    logger.info(f"[bus-stop-map] Archive path: {archive_path}")
+    logger.info(f"[bus-stop-map] File exists: {os.path.exists(archive_path)}")
     
-    if not os.path.exists(BUS_STOP_OPEN_ARCHIVE_PATH):
-        logger.error(f"[bus-stop-map] Archive file not found at {BUS_STOP_OPEN_ARCHIVE_PATH}")
+    if not os.path.exists(archive_path):
+        logger.error(f"[bus-stop-map] Archive file not found at {archive_path}")
         return {
             'year': year,
             'stops': []
         }
 
-    df = pd.read_csv(BUS_STOP_OPEN_ARCHIVE_PATH, dtype=str)
+    df = pd.read_csv(archive_path, dtype=str)
     logger.info(f"[bus-stop-map] Loaded {len(df)} rows from archive")
     if df.empty:
         logger.warning("[bus-stop-map] Archive is empty")
@@ -1516,6 +1549,7 @@ def my_2_years_entity_metrics():
                 'metric': metric_label,
                 'stat_year_1': stat_year_1,
                 'stat_year_2': stat_year_2,
+                'absolute_change': None if stat_year_1 is None or stat_year_2 is None else stat_year_2 - stat_year_1,
                 'pct_change': _compute_pct_change(stat_year_1, stat_year_2)
             })
 
@@ -1538,6 +1572,7 @@ def my_2_years_compare():
         year2 = request.args.get('year2', type=int)
         feature = request.args.get('feature', default='annual_boardings', type=str)
         scope = request.args.get('scope', default='both', type=str)
+        mode = request.args.get('mode', default='relevant', type=str)
         top_n = request.args.get('top_n', default=3, type=int)
 
         if year1 is None or year2 is None:
@@ -1545,6 +1580,8 @@ def my_2_years_compare():
 
         if scope not in {'bus', 'station', 'both'}:
             scope = 'both'
+        if mode not in {'absolute', 'relevant'}:
+            mode = 'relevant'
 
         top_n = max(1, min(10, top_n))
 
@@ -1570,14 +1607,16 @@ def my_2_years_compare():
                 'name': values_year1[key]['name'],
                 'stat_year_1': value_year1,
                 'stat_year_2': value_year2,
+                'absolute_change': value_year2 - value_year1,
                 'pct_change': pct_change
             })
 
-        positive_candidates = sorted([r for r in rows if r['pct_change'] > 0], key=lambda r: r['pct_change'], reverse=True)
-        positive_smallest_first = sorted([r for r in rows if r['pct_change'] > 0], key=lambda r: r['pct_change'])
-        negative_candidates = sorted([r for r in rows if r['pct_change'] < 0], key=lambda r: r['pct_change'])
-        negative_smallest_first = sorted([r for r in rows if r['pct_change'] < 0], key=lambda r: r['pct_change'], reverse=True)
-        zero_candidates = sorted([r for r in rows if r['pct_change'] == 0], key=lambda r: r['name'])
+        change_key = 'absolute_change' if mode == 'absolute' else 'pct_change'
+        positive_candidates = sorted([r for r in rows if r[change_key] > 0], key=lambda r: r[change_key], reverse=True)
+        positive_smallest_first = sorted([r for r in rows if r[change_key] > 0], key=lambda r: r[change_key])
+        negative_candidates = sorted([r for r in rows if r[change_key] < 0], key=lambda r: r[change_key])
+        negative_smallest_first = sorted([r for r in rows if r[change_key] < 0], key=lambda r: r[change_key], reverse=True)
+        zero_candidates = sorted([r for r in rows if r[change_key] == 0], key=lambda r: r['name'])
 
         def _fill_to_target(primary, secondary, zeros, target):
             picked_names = set()
@@ -1608,6 +1647,7 @@ def my_2_years_compare():
             'year2': year2,
             'feature': feature,
             'scope': scope,
+            'mode': mode,
             'top_n': top_n,
             'total_compared': len(rows),
             'used_smallest_change_fallback': used_smallest_change_fallback,
@@ -1978,7 +2018,9 @@ def _load_bus_line_usage_map_2024_data(year=2024):
             
             stat_row, actual_code = find_stat_for_line_code(line_code)
             if stat_row is None:
-                continue
+                if line_code not in BUS_LINE_SHAPES_WITHOUT_2024_STATS:
+                    continue
+                actual_code = line_code
 
             # Keep individual lines separate, but remember their group code (for coloring)
             if line_code not in shape_rows_by_code:
@@ -2040,6 +2082,8 @@ def _load_bus_line_usage_map_2024_data(year=2024):
 
     for line_code in sorted(shape_rows_by_code.keys(), key=_bus_line_sort_key):
         stats, _ = find_stat_for_line_code(line_code)
+        if stats is None:
+            stats = {}
         shape_row = shape_rows_by_code[line_code]
         group_code = shape_row.get('group_code', line_code)
         archive_row, actual_archive_code = find_archive_for_line_code(line_code)
@@ -2624,6 +2668,7 @@ def bus_line_options():
     """API endpoint to fetch bus line dropdown options with display names."""
     try:
         year = request.args.get('year', default=2024, type=int)
+        include_named_routes = request.args.get('include_named_routes', default='1') != '0'
         logger.info(f"[api] bus_line_options called with year={year}")
 
         valid_lines_df = _load_bus_data_for_year(year)
@@ -2631,6 +2676,8 @@ def bus_line_options():
             _normalize_bus_line_code(code)
             for code in valid_lines_df['line'].astype(str).tolist()
         }
+        if include_named_routes and year == 2024:
+            valid_lines.add('338')
 
         # Ensure deep-comparison year data can still populate dropdowns
         # even when open-archive labels are unavailable.
@@ -2667,7 +2714,11 @@ def bus_line_options():
         options = [
             {
                 'value': code,
-                'label': _format_bus_line_label(code, year)
+                'label': (
+                    f"{_format_bus_line_display_code(code)} - {BUS_LINE_NAME_OVERRIDES[code]}"
+                    if include_named_routes and code in BUS_LINE_NAME_OVERRIDES
+                    else _format_bus_line_label(code, year)
+                )
             }
             for code in fallback_codes
         ]
@@ -2747,6 +2798,56 @@ def bus_stop_usage_map_3d_data():
     except Exception as e:
         error_msg = str(e) if e else "Unknown error"
         logger.error(f"[api] Error in bus_stop_usage_map_3d_data: {error_msg}")
+        return jsonify({"error": error_msg}), 500
+
+
+@app.route("/api/bus-stop-usage-map-3d-line-options")
+def bus_stop_usage_map_3d_line_options():
+    """Return current and historical route options for the 3D bus-stop map."""
+    try:
+        current_lines_df = _load_bus_data_for_year(2024)
+        current_codes = {
+            _normalize_bus_line_code(code)
+            for code in current_lines_df['line'].dropna().astype(str).tolist()
+        }
+        current_codes.discard('894')
+
+        stops_df = pd.read_csv(BUS_STOP_ARCHIVE_2019_PATH, usecols=['Line_Number'], dtype=str)
+        line_codes = {
+            _normalize_bus_line_code(code)
+            for code in stops_df['Line_Number'].dropna().tolist()
+        }
+        line_codes.discard('894')
+        current_codes.difference_update(line_codes)
+        current_codes.discard('894')
+        current_options = [
+            {
+                'value': code,
+                'label': _format_bus_line_label(code, 2024)
+            }
+            for code in sorted(current_codes, key=_bus_line_sort_key)
+        ]
+
+        options = [
+            {
+                'value': f'2019::{code}',
+                'label': (
+                    f"{_format_bus_line_display_code(code)} "
+                    f"{BUS_STOP_2019_LINE_NAMES.get(code, '')} (2019)"
+                    if BUS_STOP_2019_LINE_NAMES.get(code)
+                    else f"{_format_bus_line_display_code(code)} (2019)"
+                )
+            }
+            for code in sorted(line_codes, key=_bus_line_sort_key)
+        ]
+        combined_options = current_options + options
+        combined_options.sort(
+            key=lambda option: _bus_line_sort_key(option['value'].split('::', 1)[-1])
+        )
+        return jsonify(combined_options)
+    except Exception as e:
+        error_msg = str(e) if e else "Unknown error"
+        logger.error(f"[api] Error in bus_stop_usage_map_3d_line_options: {error_msg}")
         return jsonify({"error": error_msg}), 500
 
 

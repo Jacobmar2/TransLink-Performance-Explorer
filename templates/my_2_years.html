@@ -83,9 +83,16 @@
         </div>
     </div>
 
-    <div style="display:flex;flex-direction:column;align-items:center;margin-top:1em;gap:0.5em;">
+    <div class="compare-controls">
         <div style="width:260px;text-align:center;">
             <button id="compareYearsBtn" class="button-card-2" style="width:100%;">Compare</button>
+        </div>
+        <div class="comparison-mode-toggle" role="group" aria-label="Comparison mode">
+            <span class="comparison-mode-label">Absolute</span>
+            <button id="comparisonModeSwitch" type="button" class="comparison-mode-switch" data-mode="relevant" aria-label="Switch comparison mode" aria-pressed="false">
+                <span class="comparison-mode-knob"></span>
+            </button>
+            <span class="comparison-mode-label">Relevant</span>
         </div>
         <div id="compareYearsResult" class="results-status" style="text-align:center;margin-top:0.2em;font-weight:bold;color:#006c9e;word-wrap:break-word;"></div>
     </div>
