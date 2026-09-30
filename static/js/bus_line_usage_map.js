@@ -27,6 +27,7 @@
     const legendMin = document.getElementById("legend-min");
     const legendMax = document.getElementById("legend-max");
     const tooltip = document.getElementById("map-tooltip");
+    const titleOverlay = document.querySelector(".overlay");
     const titleHeading = document.querySelector(".overlay h1");
     const titleDescriptions = Array.from(document.querySelectorAll(".overlay p"));
     const legendElement = document.querySelector(".legend");
@@ -328,6 +329,12 @@
     };
 
     const syncTitleVisibility = () => {
+        document.body.classList.toggle("title-hidden", !titleVisible);
+
+        if (titleOverlay) {
+            titleOverlay.hidden = !titleVisible;
+        }
+
         if (titleHeading) {
             titleHeading.hidden = !titleVisible;
         }
@@ -864,10 +871,10 @@
             antialias: true
         });
 
-        map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-left");
+        map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "top-left");
 
         overlay = new deck.MapboxOverlay({
-            interleaved: false,
+            interleaved: true,
             layers: []
         });
         map.addControl(overlay);

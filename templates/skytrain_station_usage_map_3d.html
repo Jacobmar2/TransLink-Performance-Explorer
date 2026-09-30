@@ -596,6 +596,14 @@
             color: #ffffff;
         }
 
+        .control-panel.mode-hourly .metric-button {
+            filter: brightness(0.55);
+        }
+
+        .control-panel.mode-hourly .metric-button:hover {
+            filter: brightness(0.75);
+        }
+
         .height-slider-wrap {
             margin-top: 10px;
             max-width: 440px;
@@ -661,6 +669,14 @@
         .hourly-usage-measure-grid .hourly-button {
             padding: 7px 10px;
             font-size: 0.78rem;
+        }
+
+        .control-panel:not(.mode-hourly) .hourly-controls .hourly-button-grid .hourly-button {
+            filter: brightness(0.55);
+        }
+
+        .control-panel:not(.mode-hourly) .hourly-controls .hourly-button-grid .hourly-button:hover {
+            filter: brightness(0.75);
         }
 
         .hourly-button {
@@ -891,6 +907,7 @@
         })();
 
         (function setupTitleVisibilityControls() {
+            const titleOverlay = document.querySelector(".overlay");
             const titleElement = document.querySelector(".overlay h1");
             const titleDescription = document.querySelector(".overlay p");
             const legendElement = document.querySelector(".legend");
@@ -905,6 +922,9 @@
 
             const syncTitleVisibility = () => {
                 document.body.classList.toggle("title-hidden", !titleVisible);
+                if (titleOverlay) {
+                    titleOverlay.hidden = !titleVisible;
+                }
                 titleElement.hidden = !titleVisible;
                 if (titleDescription) {
                     titleDescription.hidden = !titleVisible;

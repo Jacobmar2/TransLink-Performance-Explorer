@@ -40,6 +40,7 @@
     const heightSliderValue = document.getElementById("height-slider-value");
     const barSizeButtons = Array.from(document.querySelectorAll("[data-bar-size-mode]"));
     const clusterModeButtons = Array.from(document.querySelectorAll(".cluster-mode-button"));
+    const titleOverlay = document.querySelector(".overlay");
     const titleHeading = document.querySelector(".overlay h1");
     const titleDescriptions = Array.from(document.querySelectorAll(".overlay p"));
     const legendElement = document.querySelector(".legend");
@@ -772,6 +773,10 @@
 
     const syncTitleVisibility = () => {
         document.body.classList.toggle("title-hidden", !titleVisible);
+
+        if (titleOverlay) {
+            titleOverlay.hidden = !titleVisible;
+        }
 
         if (titleHeading) {
             titleHeading.hidden = !titleVisible;

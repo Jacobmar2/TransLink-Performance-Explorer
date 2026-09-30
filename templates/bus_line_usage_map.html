@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>3D Bus Line Usage Map</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
     <style>
         html, body {
             margin: 0;
@@ -18,6 +19,37 @@
                 linear-gradient(180deg, #02110c 0%, #03070b 48%, #020409 100%);
             color: #e6f2ff;
             font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            --map-zoom-controls-top: 180px;
+        }
+
+        body.title-hidden {
+            --map-zoom-controls-top: 74px;
+        }
+
+        .maplibregl-ctrl-top-left {
+            top: var(--map-zoom-controls-top);
+            left: 8px;
+        }
+
+        .maplibregl-ctrl-group button {
+            margin: 0;
+        }
+
+        @media (max-width: 640px) {
+            body {
+                --map-zoom-controls-top: 250px;
+            }
+
+            body.title-hidden {
+                --map-zoom-controls-top: 100px;
+            }
+
+            .maplibregl-ctrl-top-left {
+                top: var(--map-zoom-controls-top);
+            }
         }
 
         #map {

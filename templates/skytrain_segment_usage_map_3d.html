@@ -605,6 +605,14 @@
             color: #ffffff;
         }
 
+        .control-panel.mode-hourly .control-layout > div:first-child .metric-buttons button {
+            filter: brightness(0.55);
+        }
+
+        .control-panel.mode-hourly .control-layout > div:first-child .metric-buttons button:hover {
+            filter: brightness(0.75);
+        }
+
         .height-slider-wrap {
             margin-top: 10px;
             max-width: 440px;
@@ -670,6 +678,14 @@
         .hourly-usage-measure-grid .hourly-button {
             padding: 7px 10px;
             font-size: 0.78rem;
+        }
+
+        .control-panel:not(.mode-hourly) .hourly-controls .hourly-button-grid .hourly-button {
+            filter: brightness(0.55);
+        }
+
+        .control-panel:not(.mode-hourly) .hourly-controls .hourly-button-grid .hourly-button:hover {
+            filter: brightness(0.75);
         }
 
         @media (max-width: 980px) {
@@ -852,6 +868,7 @@
     <script src="{{ url_for('static', filename='js/skytrain_segment_usage_map_3d.js', v='20260903-1') }}"></script>
     <script>
         (function setupTitleVisibilityControls() {
+            const titleOverlay = document.querySelector(".overlay");
             const titleElement = document.querySelector(".overlay h1");
             const titleDescription = document.querySelector(".overlay p");
             const legendElement = document.querySelector(".legend");
@@ -866,6 +883,9 @@
 
             const syncTitleVisibility = () => {
                 document.body.classList.toggle("title-hidden", !titleVisible);
+                if (titleOverlay) {
+                    titleOverlay.hidden = !titleVisible;
+                }
                 titleElement.hidden = !titleVisible;
                 if (titleDescription) {
                     titleDescription.hidden = !titleVisible;
