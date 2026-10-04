@@ -439,8 +439,13 @@
     const getMetricValue = (line) => {
         const metrics = line && line.metrics ? line.metrics : {};
         const rawValue = metrics[activeMetric];
+
+        if (rawValue === null || rawValue === undefined || rawValue === "") {
+            return null;
+        }
+
         const numericValue = Number(rawValue);
-        return Number.isFinite(numericValue) ? numericValue : 0;
+        return Number.isFinite(numericValue) ? numericValue : null;
     };
 
     const normalizeLineCode = (value) => {
@@ -723,8 +728,9 @@
         }
 
         const visibleLines = lines.filter(matchesSelectedFilters);
+        const renderableLines = visibleLines.filter((line) => Number.isFinite(getMetricValue(line)));
         const hoveredLineKey = getHoveredLineKey();
-        const sortedLines = visibleLines
+        const sortedLines = renderableLines
             .map((line, index) => ({ line, index }))
             .sort((left, right) => {
                 const leftHovered = hoveredLineKey && hoveredLineKey === normalizeLineCode(left.line?.group_code || left.line?.line || "") ? 1 : 0;
@@ -740,7 +746,7 @@
                 return left.index - right.index;
             })
             .map((entry) => entry.line);
-        const values = visibleLines.map((line) => getMetricValue(line));
+        const values = sortedLines.map((line) => getMetricValue(line)).filter((value) => Number.isFinite(value));
         const maxValue = values.length ? Math.max(...values, 1) : 1;
         const minValue = values.length ? Math.min(...values) : 0;
         const useColorScale = colorScaleMetrics.has(activeMetric);

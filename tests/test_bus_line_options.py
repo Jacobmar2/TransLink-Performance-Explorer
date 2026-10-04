@@ -37,6 +37,35 @@ def test_bus_line_options_include_missing_route_names(client, year):
         assert options[route] == label
 
 
+def test_2022_deep_comparison_uses_legacy_bus_stats(client):
+    options_response = client.get('/api/bus-line-options?year=2022')
+    assert options_response.status_code == 200
+    assert '2' in {option['value'] for option in options_response.get_json()}
+
+    response = client.get(
+        '/api/deep-bus-line-compare-2023',
+        query_string={
+            'year1': 2022,
+            'line1': '2',
+            'day1': 'MF',
+            'season1': 'Fall',
+            'time1': '4-6',
+            'year2': 2022,
+            'line2': '2',
+            'day2': 'MF',
+            'season2': 'Fall',
+            'time2': '4-6',
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload['left']['revenue_hours'] == pytest.approx(142.8)
+    assert payload['left']['boardings_per_revenue_hour'] == pytest.approx(36.08058959)
+    assert payload['right']['revenue_hours'] == pytest.approx(142.8)
+    assert payload['right']['direction_metrics']['EAST']['peak_passenger_load'] == pytest.approx(16.44530058)
+
+
 def test_bus_stop_map_bus_line_options_remain_unchanged(client):
     response = client.get('/api/bus-line-options?year=2024&include_named_routes=0')
 

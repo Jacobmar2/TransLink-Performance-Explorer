@@ -84,6 +84,7 @@ BUS_DEEP_2023_PEAK_PATH = os.path.join(DATA_DIR, "tspr2023_bus_peakload_yearline
 BUS_DEEP_2025_PEAK_PATH = os.path.join(DATA_DIR, "tspr2025_bus_peakload_yearlinedaytypeseasontimerangedirection.csv")
 BUS_DEEP_LEGACY_PATH = os.path.join(DATA_DIR, "TSPR2022_Bus_KeyIndicators_YearLinenoDaytypeSeasonTimerange.csv")
 BUS_STOP_ARCHIVE_2019_PATH = os.path.join(DATA_DIR, "TSPR_OpenData_Archive_2019BusStops.csv")
+BUS_STOP_EXCHANGE_ARCHIVE_PATH = os.path.join(DATA_DIR, "TSPR_OpenData_Archive_5637090789927483597.csv")
 BUS_LINE_NAME_OVERRIDES = {
     '150': 'COQUITLAM CENTRAL STN/WHITE PINE BEACH',
     '214': 'BLUERIDGE/PHIBBS EXCH/VANCOUVER',
@@ -114,7 +115,8 @@ BUS_STOP_2019_LINE_NAMES = {
     '606': 'LADNER RING',
     '608': 'LADNER RING',
 }
-BUS_LINE_SHAPES_WITHOUT_2024_STATS = {'32', '480'}
+# Lines with no 2024 stats should not be included in the map; they distort the true slowest-speed ranking.
+BUS_LINE_SHAPES_WITHOUT_2024_STATS = set()
 
 
 def _pick_col(columns, candidates):
@@ -579,6 +581,51 @@ def _load_skytrain_station_usage_map_2024_data():
 
 
 @lru_cache(maxsize=1)
+def _load_bus_stop_exchange_lookup():
+    if not os.path.exists(BUS_STOP_EXCHANGE_ARCHIVE_PATH):
+        raise FileNotFoundError(f"Bus stop exchange archive not found at {BUS_STOP_EXCHANGE_ARCHIVE_PATH}")
+
+    exchanges_df = pd.read_csv(BUS_STOP_EXCHANGE_ARCHIVE_PATH, dtype=str)
+    required_columns = {'Exchange_Name', 'Exchange_Primary_Type', 'Connecting_Stops'}
+    missing_columns = required_columns.difference(exchanges_df.columns)
+    if missing_columns:
+        raise ValueError(
+            f"Bus stop exchange archive is missing required columns: {', '.join(sorted(missing_columns))}"
+        )
+
+    exchange_by_stop = {}
+    for row_index, row in exchanges_df.iterrows():
+        exchange_name = str(row.get('Exchange_Name') or '').strip()
+        exchange_type = str(row.get('Exchange_Primary_Type') or '').strip()
+        raw_stop_codes = row.get('Connecting_Stops')
+        if not exchange_name or exchange_name.lower() == 'nan' or not exchange_type or exchange_type.lower() == 'nan':
+            continue
+        if raw_stop_codes is None or pd.isna(raw_stop_codes):
+            continue
+
+        stop_codes = list(dict.fromkeys(
+            code.strip()
+            for code in str(raw_stop_codes).split(';')
+            if code.strip() and code.strip().lower() != 'nan'
+        ))
+        if not stop_codes:
+            continue
+
+        exchange = {
+            'exchange_id': f"{row_index}:{exchange_name}:{exchange_type}",
+            'exchange_name': exchange_name,
+            'exchange_primary_type': exchange_type,
+            'exchange_stop_count': len(stop_codes),
+            'exchange_lat': _safe_float(row.get('Exch_Centre_Latitude')),
+            'exchange_lon': _safe_float(row.get('Exch_Centre_Longitude'))
+        }
+        for stop_code in stop_codes:
+            exchange_by_stop.setdefault(stop_code, exchange)
+
+    return exchange_by_stop
+
+
+@lru_cache(maxsize=1)
 def _load_bus_stop_usage_map_2024_data(year=2024):
     logger.info(f"[bus-stop-map] Loading bus stop usage data for year {year}")
     archive_path = BUS_STOP_ARCHIVE_2019_PATH if year == 2019 else BUS_STOP_OPEN_ARCHIVE_PATH
@@ -600,81 +647,6 @@ def _load_bus_stop_usage_map_2024_data(year=2024):
             'year': year,
             'stops': []
         }
-
-    bay_cluster_lookup = {}
-    bay_cluster_by_stop_code = {}
-    bay_cluster_canon_lookup = {}
-
-    def _canon_cluster_root(text):
-        t = str(text or '').lower()
-        t = t.replace('@', ' ')
-        t = re.sub(r'\b(stn)\b', 'station', t)
-        if 'production station' in t or 'production way' in t:
-            t = 'production way station'
-        t = re.sub(r'[^a-z0-9\- ]+', ' ', t)
-        t = re.sub(r'\s+', ' ', t).strip()
-        return t
-
-    if os.path.exists(STOPS_PATH):
-        stops_txt_df = pd.read_csv(STOPS_PATH, dtype=str)
-        if not stops_txt_df.empty:
-            stops_txt_df['stop_name'] = stops_txt_df['stop_name'].fillna('')
-            stops_txt_df['parent_station'] = stops_txt_df['parent_station'].fillna('')
-
-            bay_rows = stops_txt_df[stops_txt_df['stop_name'].str.contains(r'\bbay\b', case=False, regex=True)].copy()
-            cluster_stats = {}
-
-            for _, row in bay_rows.iterrows():
-                stop_code = str(row.get('stop_code', '')).strip()
-                stop_name = str(row.get('stop_name', '')).strip()
-                parent_station = str(row.get('parent_station', '')).strip()
-                if not stop_code or stop_code.lower() == 'nan':
-                    continue
-
-                cluster_name_root = re.sub(r'\s*(?:-|–|—)?\s*\bbay\b.*$', '', stop_name, flags=re.IGNORECASE).strip()
-                if re.search(r'\bproduction station\b', cluster_name_root, flags=re.IGNORECASE):
-                    cluster_name_root = re.sub(r'\bProduction Station\b', 'Production Way Station', cluster_name_root, flags=re.IGNORECASE)
-                normalized_root = _normalize_station_name(cluster_name_root or stop_name).lower()
-                cluster_key = f"parent:{parent_station}" if parent_station else f"name:{normalized_root}"
-
-                lat = _safe_float(row.get('stop_lat'))
-                lon = _safe_float(row.get('stop_lon'))
-                if lat is None or lon is None:
-                    continue
-
-                stats = cluster_stats.setdefault(cluster_key, {
-                    'lat_sum': 0.0,
-                    'lon_sum': 0.0,
-                    'count': 0,
-                    'cluster_name': cluster_name_root or stop_name
-                })
-                stats['lat_sum'] += lat
-                stats['lon_sum'] += lon
-                stats['count'] += 1
-
-                bay_cluster_by_stop_code[stop_code] = cluster_key
-
-            for cluster_key, stats in cluster_stats.items():
-                if stats['count'] <= 0:
-                    continue
-                bay_cluster_lookup[cluster_key] = {
-                    'lat': stats['lat_sum'] / stats['count'],
-                    'lon': stats['lon_sum'] / stats['count'],
-                    'count': stats['count'],
-                    'name': stats['cluster_name']
-                }
-
-            # Precompute canonical cluster roots once to avoid heavy per-row regex work.
-            for cluster_key, cluster_meta in bay_cluster_lookup.items():
-                if cluster_key.startswith('name:'):
-                    root_k = cluster_key[len('name:'):]
-                else:
-                    root_k = cluster_meta.get('name') or ''
-
-                canon_root = _canon_cluster_root(root_k)
-                if not canon_root:
-                    continue
-                bay_cluster_canon_lookup.setdefault(canon_root, []).append((cluster_key, cluster_meta))
 
     year_col = _pick_col(df.columns, ['TSPR_Year', 'CalendarYear', 'Year'])
     if year_col:
@@ -765,53 +737,6 @@ def _load_bus_stop_usage_map_2024_data(year=2024):
         if stop_entry['lon'] is None:
             stop_entry['lon'] = _safe_float(row.get(longitude_col))
 
-        stop_code_cluster = bay_cluster_by_stop_code.get(stop_number)
-        assigned_cluster = False
-        has_bay_pattern = bool(re.search(r'\b(bay|unload)', stop_entry['stop_name'] or '', re.IGNORECASE))
-        # Only assign via stop_code mapping if the stop name contains "bay" or "unload"
-        # to filter out corrupted/mismatched archive stop names
-        if stop_code_cluster and stop_code_cluster in bay_cluster_lookup and stop_entry['stop_name']:
-            if has_bay_pattern:
-                cluster_meta = bay_cluster_lookup[stop_code_cluster]
-                stop_entry['bay_cluster_id'] = stop_code_cluster
-                stop_entry['bay_cluster_lat'] = cluster_meta['lat']
-                stop_entry['bay_cluster_lon'] = cluster_meta['lon']
-                stop_entry['bay_cluster_count'] = cluster_meta['count']
-                stop_entry['bay_cluster_name'] = cluster_meta['name']
-                assigned_cluster = True
-
-        # Fallback: if no explicit stop_code mapping, try matching by normalized
-        # place name and proximity to cluster centroid so numbered bays like
-        # "Bay 2" get grouped even when stop_code isn't present in stops.txt.
-        if not assigned_cluster and stop_entry['stop_name'] and stop_entry['lat'] is not None and stop_entry['lon'] is not None:
-            cluster_name_root = re.sub(r"\s*(?:-|–|—)?\s*\bbay\b.*$", '', stop_entry['stop_name'], flags=re.IGNORECASE).strip()
-            normalized_root = _normalize_station_name(cluster_name_root or stop_entry['stop_name']).lower()
-            candidate_key = f"name:{normalized_root}"
-            candidate_meta = bay_cluster_lookup.get(candidate_key)
-
-            # Try relaxed matching when naming variants exist (e.g., "Stn" vs "Station").
-            # This uses precomputed canonical roots to keep lookup fast on low-CPU deploys.
-            if candidate_meta is None:
-                target_canon = _canon_cluster_root(normalized_root)
-                exact_candidates = bay_cluster_canon_lookup.get(target_canon, [])
-                if exact_candidates:
-                    candidate_key, candidate_meta = exact_candidates[0]
-                elif target_canon:
-                    for canon_root, matches in bay_cluster_canon_lookup.items():
-                        if target_canon in canon_root or canon_root in target_canon:
-                            candidate_key, candidate_meta = matches[0]
-                            break
-            if candidate_meta:
-                # use a geographic threshold (~300m) to verify proximity within station/terminal
-                # also require stop name to contain "bay" or "unload" to filter out corrupted/mislabeled stops
-                if has_bay_pattern and abs(stop_entry['lat'] - candidate_meta['lat']) <= 0.003 and abs(stop_entry['lon'] - candidate_meta['lon']) <= 0.003:
-                    stop_entry['bay_cluster_id'] = candidate_key
-                    stop_entry['bay_cluster_lat'] = candidate_meta['lat']
-                    stop_entry['bay_cluster_lon'] = candidate_meta['lon']
-                    stop_entry['bay_cluster_count'] = candidate_meta['count']
-                    stop_entry['bay_cluster_name'] = candidate_meta['name']
-                    assigned_cluster = True
-
         if line_number_col:
             route_tokens = _split_bus_line_tokens(row.get(line_number_col))
             stop_entry['line_tokens'].update(route_tokens)
@@ -844,18 +769,11 @@ def _load_bus_stop_usage_map_2024_data(year=2024):
         if alightings_sunhol_col and stop_entry['alightings_sunhol'] is None:
             stop_entry['alightings_sunhol'] = _safe_float(row.get(alightings_sunhol_col))
 
-    # Recompute cluster counts from assembled stop_lookup so dynamically matched
-    # stops are included in the cluster counts before building the output list.
-    cluster_counts = {}
+    exchange_by_stop = _load_bus_stop_exchange_lookup()
     for ent in stop_lookup.values():
-        cid = ent.get('bay_cluster_id')
-        if cid:
-            cluster_counts[cid] = cluster_counts.get(cid, 0) + 1
-
-    for ent in stop_lookup.values():
-        cid = ent.get('bay_cluster_id')
-        if cid:
-            ent['bay_cluster_count'] = cluster_counts.get(cid, ent.get('bay_cluster_count'))
+        exchange = exchange_by_stop.get(ent['stop_number'])
+        if exchange:
+            ent.update(exchange)
 
     stops = []
     for stop_entry in stop_lookup.values():
@@ -882,25 +800,13 @@ def _load_bus_stop_usage_map_2024_data(year=2024):
             'alightings_sat': stop_entry['alightings_sat'] or 0,
             'boardings_sunhol': stop_entry['boardings_sunhol'] or 0,
             'alightings_sunhol': stop_entry['alightings_sunhol'] or 0,
-            'bay_cluster_id': stop_entry.get('bay_cluster_id'),
-            'bay_cluster_lat': stop_entry.get('bay_cluster_lat'),
-            'bay_cluster_lon': stop_entry.get('bay_cluster_lon'),
-            'bay_cluster_count': stop_entry.get('bay_cluster_count'),
-            'bay_cluster_name': stop_entry.get('bay_cluster_name')
+            'exchange_id': stop_entry.get('exchange_id'),
+            'exchange_name': stop_entry.get('exchange_name'),
+            'exchange_primary_type': stop_entry.get('exchange_primary_type'),
+            'exchange_stop_count': stop_entry.get('exchange_stop_count'),
+            'exchange_lat': stop_entry.get('exchange_lat'),
+            'exchange_lon': stop_entry.get('exchange_lon')
         })
-
-    # Recompute cluster counts from assembled stops so dynamically matched
-    # stops are included in the cluster counts.
-    cluster_counts = {}
-    for ent in stop_lookup.values():
-        cid = ent.get('bay_cluster_id')
-        if cid:
-            cluster_counts[cid] = cluster_counts.get(cid, 0) + 1
-
-    for ent in stop_lookup.values():
-        cid = ent.get('bay_cluster_id')
-        if cid:
-            ent['bay_cluster_count'] = cluster_counts.get(cid, ent.get('bay_cluster_count'))
 
     stops.sort(key=lambda stop: (stop['stop_name'], stop['stop_number']))
 
@@ -2619,20 +2525,20 @@ def deep_bus_line_compare_2023():
         peak_df = _load_deep_peak_df()
         legacy_df = _load_deep_legacy_df()
 
-        if (year1 in {2022, 2023, 2024, 2025} or year2 in {2022, 2023, 2024, 2025}) and base_df.empty and peak_df.empty:
+        if (year1 in {2023, 2024, 2025} or year2 in {2023, 2024, 2025}) and base_df.empty and peak_df.empty:
             return jsonify({'error': 'Deep comparison source files are unavailable for selected year(s)'}), 500
-        if (year1 == 2019 or year2 == 2019) and legacy_df.empty:
+        if (year1 in {2019, 2022} or year2 in {2019, 2022}) and legacy_df.empty:
             return jsonify({'error': 'Legacy deep comparison source file is unavailable'}), 500
 
-        if year1 in {2022, 2023, 2024, 2025}:
-            left_payload = _build_deep_side_payload_modern(base_df, peak_df, year1, line1, day1, season1, start1, time1)
-        else:
+        if year1 in {2019, 2022}:
             left_payload = _build_deep_side_payload_legacy(legacy_df, year1, line1, day1, season1, time1)
-
-        if year2 in {2022, 2023, 2024, 2025}:
-            right_payload = _build_deep_side_payload_modern(base_df, peak_df, year2, line2, day2, season2, start2, time2)
         else:
+            left_payload = _build_deep_side_payload_modern(base_df, peak_df, year1, line1, day1, season1, start1, time1)
+
+        if year2 in {2019, 2022}:
             right_payload = _build_deep_side_payload_legacy(legacy_df, year2, line2, day2, season2, time2)
+        else:
+            right_payload = _build_deep_side_payload_modern(base_df, peak_df, year2, line2, day2, season2, start2, time2)
 
         return jsonify({
             'year_left': year1,
@@ -2681,7 +2587,7 @@ def bus_line_options():
 
         # Ensure deep-comparison year data can still populate dropdowns
         # even when open-archive labels are unavailable.
-        if year in {2022, 2023}:
+        if year == 2023:
             deep_2023_path = os.path.join(DATA_DIR, "tspr2023_bus_yearlinedaytypeseasontimerange(2).csv")
             if os.path.exists(deep_2023_path):
                 deep_df = pd.read_csv(deep_2023_path, dtype=str)
@@ -2695,7 +2601,7 @@ def bus_line_options():
                         for code in deep_df_year[deep_line_col].dropna().astype(str).tolist()
                     )
 
-        if year == 2019 and os.path.exists(BUS_DEEP_LEGACY_PATH):
+        if year in {2019, 2022} and os.path.exists(BUS_DEEP_LEGACY_PATH):
             deep_legacy_df = pd.read_csv(BUS_DEEP_LEGACY_PATH, dtype=str)
             deep_year_col = _pick_col(deep_legacy_df.columns, ['Year'])
             deep_line_col = _pick_col(deep_legacy_df.columns, ['line_no', 'Lineno_renamed', 'Line'])
@@ -2780,6 +2686,7 @@ def bus_stop_usage_map_3d_data():
         if request.args.get('refresh', default='0') == '1':
             logger.info("[api] Cache clear requested")
             _load_bus_stop_usage_map_2024_data.cache_clear()
+            _load_bus_stop_exchange_lookup.cache_clear()
         
         logger.info(f"[api] Loading data...")
         result = _load_bus_stop_usage_map_2024_data(year)

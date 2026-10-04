@@ -20,6 +20,14 @@
                 const alightings = Number(stop[`${dayKey}_alightings`] || 0);
                 return boardings + alightings;
             }
+        },
+        split: {
+            label: "Daily Usage (Split)",
+            getValue: (stop, dayKey) => {
+                const boardings = Number(stop[`${dayKey}_boardings`] || 0);
+                const alightings = Number(stop[`${dayKey}_alightings`] || 0);
+                return boardings + alightings;
+            }
         }
     };
 
@@ -44,6 +52,8 @@
     const titleHeading = document.querySelector(".overlay h1");
     const titleDescriptions = Array.from(document.querySelectorAll(".overlay p"));
     const legendElement = document.querySelector(".legend");
+    const legendTitle = legendElement?.querySelector(".legend-title");
+    const legendLabels = Array.from(legendElement?.querySelectorAll(".legend-labels span") || []);
     const titleHideButton = document.getElementById("title-hide-button");
     const titleShowButton = document.getElementById("title-show-button");
 
@@ -62,9 +72,10 @@
     let titleVisible = true;
 
     const BASE_COLUMN_RADIUS = 42;
-    const BAY_SINGLE_RADIUS = Math.round(BASE_COLUMN_RADIUS / 2);
-    const BAY_CLUSTER_RADIUS = BASE_COLUMN_RADIUS * 2;
-    const BAY_CLUSTER_ZOOM_THRESHOLD = 14.4;
+    const EXCHANGE_SINGLE_RADIUS = Math.round(BASE_COLUMN_RADIUS / 2);
+    const EXCHANGE_GROUP_RADIUS = BASE_COLUMN_RADIUS * 2;
+    const EXCHANGE_GROUP_ZOOM_THRESHOLD = 14.4;
+    const TO_SCALE_HEIGHT_MULTIPLIER = 3;
 
     const numberFormatter = new Intl.NumberFormat("en-CA", {
         maximumFractionDigits: 0
@@ -115,69 +126,21 @@
 
     const getSelectedLineTokens = () => splitLineTokens(getSelectedLineCode());
 
-    const isBayStop = (stop) => {
-        if (!stop) {
-            return false;
-        }
-
-        const hasNumberedBay = (text) => /\bBay\s*#?\s*\d+\b/i.test(String(text || ""));
-
-        // Only treat as a bay stop if either the cluster name or the stop name
-        // contains an explicit numbered bay (e.g. "Bay 1"). This ensures
-        // clusters aren't ignored when a cluster record exists but its name
-        // doesn't include the bay number while individual stop names do.
-        if (stop.bay_cluster_id || stop.bay_cluster_name) {
-            return hasNumberedBay(stop.bay_cluster_name) || hasNumberedBay(stop.stop_name);
-        }
-
-        return hasNumberedBay(stop.stop_name);
-    };
-
-    const getBayClusterLabel = (stopName) => {
-        const text = String(stopName || "").trim();
-        if (!text) {
-            return "Bay Cluster";
-        }
-
-        const label = text
-            .replace(/\s*(?:-|–|—)?\s*\bbay\b.*$/i, "")
-            .replace(/\s+/g, " ")
-            .trim();
-
-        return label || text;
-    };
-
-    const getRoundedCoordinateKey = (stop) => {
-        const lat = Number(stop.lat);
-        const lon = Number(stop.lon);
-
-        if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
-            return "unknown";
-        }
-
-        return `${lat.toFixed(4)}|${lon.toFixed(4)}`;
-    };
-
-    const aggregateBayStops = (bayStops) => {
-        if (!Array.isArray(bayStops) || !bayStops.length) {
+    const aggregateExchangeStops = (exchangeStops) => {
+        if (!Array.isArray(exchangeStops) || !exchangeStops.length) {
             return [];
         }
 
-        const aggregatedByCluster = new Map();
+        const aggregatedByExchange = new Map();
 
-        bayStops.forEach((stop) => {
-            const clusterKey = stop.bay_cluster_id
-                || `${getBayClusterLabel(stop.stop_name).toLowerCase()}|${String(stop.sub_region || "").toLowerCase()}|${String(stop.municipality || "").toLowerCase()}`;
-            const existing = aggregatedByCluster.get(clusterKey);
+        exchangeStops.forEach((stop) => {
+            const exchangeKey = String(stop.exchange_id || `stop-${stop.stop_number}`);
+            const existing = aggregatedByExchange.get(exchangeKey);
 
             if (existing) {
                 existing.members.push(stop);
                 existing.latSum += Number(stop.lat);
                 existing.lonSum += Number(stop.lon);
-                if (Number.isFinite(Number(stop.bay_cluster_lat)) && Number.isFinite(Number(stop.bay_cluster_lon))) {
-                    existing.clusterLat = Number(stop.bay_cluster_lat);
-                    existing.clusterLon = Number(stop.bay_cluster_lon);
-                }
                 existing.boardings_mf += Number(stop.boardings_mf || 0);
                 existing.alightings_mf += Number(stop.alightings_mf || 0);
                 existing.boardings_sat += Number(stop.boardings_sat || 0);
@@ -192,7 +155,7 @@
                         return;
                     }
 
-                    const clusterMetric = existing.lineMetrics.get(lineNumber) || {
+                    const exchangeMetric = existing.lineMetrics.get(lineNumber) || {
                         line_number: lineNumber,
                         line_tokens: new Set(),
                         boardings_mf: 0,
@@ -203,18 +166,18 @@
                         alightings_sunhol: 0
                     };
 
-                    clusterMetric.line_tokens = new Set([
-                        ...clusterMetric.line_tokens,
+                    exchangeMetric.line_tokens = new Set([
+                        ...exchangeMetric.line_tokens,
                         ...(Array.isArray(metric.line_tokens) ? metric.line_tokens : splitLineTokens(lineNumber))
                     ]);
-                    clusterMetric.boardings_mf += Number(metric.boardings_mf || 0);
-                    clusterMetric.alightings_mf += Number(metric.alightings_mf || 0);
-                    clusterMetric.boardings_sat += Number(metric.boardings_sat || 0);
-                    clusterMetric.alightings_sat += Number(metric.alightings_sat || 0);
-                    clusterMetric.boardings_sunhol += Number(metric.boardings_sunhol || 0);
-                    clusterMetric.alightings_sunhol += Number(metric.alightings_sunhol || 0);
+                    exchangeMetric.boardings_mf += Number(metric.boardings_mf || 0);
+                    exchangeMetric.alightings_mf += Number(metric.alightings_mf || 0);
+                    exchangeMetric.boardings_sat += Number(metric.boardings_sat || 0);
+                    exchangeMetric.alightings_sat += Number(metric.alightings_sat || 0);
+                    exchangeMetric.boardings_sunhol += Number(metric.boardings_sunhol || 0);
+                    exchangeMetric.alightings_sunhol += Number(metric.alightings_sunhol || 0);
 
-                    existing.lineMetrics.set(lineNumber, clusterMetric);
+                    existing.lineMetrics.set(lineNumber, exchangeMetric);
                 });
                 return;
             }
@@ -239,14 +202,18 @@
                 });
             });
 
-            aggregatedByCluster.set(clusterKey, {
+            aggregatedByExchange.set(exchangeKey, {
                 members: [stop],
                 latSum: Number(stop.lat),
                 lonSum: Number(stop.lon),
-                clusterLat: Number.isFinite(Number(stop.bay_cluster_lat)) ? Number(stop.bay_cluster_lat) : null,
-                clusterLon: Number.isFinite(Number(stop.bay_cluster_lon)) ? Number(stop.bay_cluster_lon) : null,
-                stop_name: `${stop.bay_cluster_name || getBayClusterLabel(stop.stop_name)} Bay Cluster`,
-                stop_number: `bay-cluster-${aggregatedByCluster.size + 1}`,
+                exchange_id: stop.exchange_id,
+                exchange_name: stop.exchange_name,
+                exchange_primary_type: stop.exchange_primary_type,
+                exchange_stop_count: Number(stop.exchange_stop_count || 0),
+                exchange_lat: Number(stop.exchange_lat),
+                exchange_lon: Number(stop.exchange_lon),
+                stop_name: `${stop.exchange_name || "Unknown Exchange"} ${stop.exchange_primary_type || ""}`.trim(),
+                stop_number: `exchange-${aggregatedByExchange.size + 1}`,
                 sub_region: stop.sub_region,
                 municipality: stop.municipality,
                 line_tokens: new Set(Array.isArray(stop.line_tokens) ? stop.line_tokens : []),
@@ -260,15 +227,18 @@
             });
         });
 
-        return Array.from(aggregatedByCluster.values()).map((cluster) => ({
-            stop_number: cluster.stop_number,
-            stop_name: cluster.stop_name,
-            sub_region: cluster.sub_region,
-            municipality: cluster.municipality,
-            lat: Number.isFinite(cluster.clusterLat) ? cluster.clusterLat : cluster.latSum / cluster.members.length,
-            lon: Number.isFinite(cluster.clusterLon) ? cluster.clusterLon : cluster.lonSum / cluster.members.length,
-            line_tokens: Array.from(cluster.line_tokens).sort(),
-            line_metrics: Array.from(cluster.lineMetrics.values()).map((metric) => ({
+        return Array.from(aggregatedByExchange.values()).map((exchange) => ({
+            stop_number: exchange.stop_number,
+            exchange_id: exchange.exchange_id,
+            exchange_name: exchange.exchange_name,
+            exchange_primary_type: exchange.exchange_primary_type,
+            stop_name: `${exchange.exchange_name || "Unknown Exchange"} ${exchange.exchange_primary_type || ""}`.trim(),
+            sub_region: exchange.sub_region,
+            municipality: exchange.municipality,
+            lat: Number.isFinite(exchange.exchange_lat) ? exchange.exchange_lat : exchange.latSum / exchange.members.length,
+            lon: Number.isFinite(exchange.exchange_lon) ? exchange.exchange_lon : exchange.lonSum / exchange.members.length,
+            line_tokens: Array.from(exchange.line_tokens).sort(),
+            line_metrics: Array.from(exchange.lineMetrics.values()).map((metric) => ({
                 line_number: metric.line_number,
                 line_tokens: Array.from(metric.line_tokens).sort(),
                 boardings_mf: metric.boardings_mf,
@@ -278,15 +248,16 @@
                 boardings_sunhol: metric.boardings_sunhol,
                 alightings_sunhol: metric.alightings_sunhol
             })).sort((left, right) => left.line_number.localeCompare(right.line_number, undefined, { numeric: true, sensitivity: "base" })),
-            boardings_mf: cluster.boardings_mf,
-            alightings_mf: cluster.alightings_mf,
-            boardings_sat: cluster.boardings_sat,
-            alightings_sat: cluster.alightings_sat,
-            boardings_sunhol: cluster.boardings_sunhol,
-            alightings_sunhol: cluster.alightings_sunhol,
-            bay_count: cluster.members.length,
-            bay_members: cluster.members,
-            is_bay_cluster: true
+            boardings_mf: exchange.boardings_mf,
+            alightings_mf: exchange.alightings_mf,
+            boardings_sat: exchange.boardings_sat,
+            alightings_sat: exchange.alightings_sat,
+            boardings_sunhol: exchange.boardings_sunhol,
+            alightings_sunhol: exchange.alightings_sunhol,
+            exchange_stop_count: exchange.exchange_stop_count,
+            exchange_member_count: exchange.members.length,
+            exchange_members: exchange.members,
+            is_exchange_group: true
         }));
     };
 
@@ -297,25 +268,25 @@
         if (clusterMode === "individual") {
             return visibleStops.map((stop) => ({
                 ...stop,
-                __renderSize: isBayStop(stop) ? BAY_SINGLE_RADIUS : BASE_COLUMN_RADIUS,
-                __renderMode: isBayStop(stop) ? "bay" : "regular"
+                __renderSize: stop.exchange_id ? EXCHANGE_SINGLE_RADIUS : BASE_COLUMN_RADIUS,
+                __renderMode: stop.exchange_id ? "exchange-stop" : "regular"
             }));
         }
 
-        if (zoom >= BAY_CLUSTER_ZOOM_THRESHOLD) {
+        if (zoom >= EXCHANGE_GROUP_ZOOM_THRESHOLD) {
             return visibleStops.map((stop) => ({
                 ...stop,
-                __renderSize: isBayStop(stop) ? BAY_SINGLE_RADIUS : BASE_COLUMN_RADIUS,
-                __renderMode: isBayStop(stop) ? "bay" : "regular"
+                __renderSize: stop.exchange_id ? EXCHANGE_SINGLE_RADIUS : BASE_COLUMN_RADIUS,
+                __renderMode: stop.exchange_id ? "exchange-stop" : "regular"
             }));
         }
 
-        const bayStops = [];
+        const exchangeStops = [];
         const regularStops = [];
 
         visibleStops.forEach((stop) => {
-            if (isBayStop(stop)) {
-                bayStops.push(stop);
+            if (stop.exchange_id) {
+                exchangeStops.push(stop);
             } else {
                 regularStops.push({
                     ...stop,
@@ -325,35 +296,29 @@
             }
         });
 
-        const groupedBayStops = new Map();
+        const groupedExchangeStops = new Map();
 
-        bayStops.forEach((stop) => {
-            // Only group multiple bays together when an explicit bay cluster id exists.
-            // Otherwise, keep stops separate (use stop_number) to avoid grouping
-            // "Place Bay 1" and "Place Bay 2" by place name.
-            const clusterKey = stop.bay_cluster_id
-                ? String(stop.bay_cluster_id)
-                : (stop.stop_number ? `stop-${String(stop.stop_number)}` : `${getBayClusterLabel(stop.stop_name).toLowerCase()}|${String(stop.sub_region || "").toLowerCase()}|${String(stop.municipality || "").toLowerCase()}|${String(stop.stop_number || Math.random())}`);
-
-            const group = groupedBayStops.get(clusterKey);
+        exchangeStops.forEach((stop) => {
+            const exchangeKey = String(stop.exchange_id);
+            const group = groupedExchangeStops.get(exchangeKey);
             if (group) {
                 group.push(stop);
             } else {
-                groupedBayStops.set(clusterKey, [stop]);
+                groupedExchangeStops.set(exchangeKey, [stop]);
             }
         });
 
-        const clusteredStops = [];
-        groupedBayStops.forEach((group, clusterKey) => {
-            clusteredStops.push({
-                ...aggregateBayStops(group)[0],
-                __clusterKey: clusterKey,
-                __renderSize: BAY_CLUSTER_RADIUS,
-                __renderMode: "bay-cluster"
+        const groupedStops = [];
+        groupedExchangeStops.forEach((group, exchangeKey) => {
+            groupedStops.push({
+                ...aggregateExchangeStops(group)[0],
+                __clusterKey: exchangeKey,
+                __renderSize: EXCHANGE_GROUP_RADIUS,
+                __renderMode: "exchange-group"
             });
         });
 
-        return [...regularStops, ...clusteredStops];
+        return [...regularStops, ...groupedStops];
     };
 
     const getMatchingLineMetric = (stop) => {
@@ -370,8 +335,8 @@
     };
 
     const getStopBusLines = (stop) => {
-        if (stop && stop.is_bay_cluster && Array.isArray(stop.bay_members)) {
-            const memberLines = stop.bay_members.flatMap((member) => getStopBusLines(member));
+        if (stop && stop.is_exchange_group && Array.isArray(stop.exchange_members)) {
+            const memberLines = stop.exchange_members.flatMap((member) => getStopBusLines(member));
             return Array.from(new Set(memberLines));
         }
 
@@ -401,7 +366,7 @@
                 total_usage: null
             };
 
-            if (currentMetric === "total_usage") {
+            if (currentMetric === "total_usage" || currentMetric === "split") {
                 const boardings = Number(lineMetric[`boardings_${dayKey}`] || 0);
                 const alightings = Number(lineMetric[`alightings_${dayKey}`] || 0);
                 return boardings + alightings;
@@ -416,6 +381,35 @@
         return Number.isFinite(Number(value)) ? Number(value) : 0;
     };
 
+    const getLeafSplitValues = (stop) => {
+        const dayKey = getDayKey();
+        const lineMetric = getMatchingLineMetric(stop);
+        if (lineMetric) {
+            return {
+                boardings: Number(lineMetric[`boardings_${dayKey}`] || 0),
+                alightings: Number(lineMetric[`alightings_${dayKey}`] || 0)
+            };
+        }
+
+        return {
+            boardings: Number(stop[`${dayKey}_boardings`] || 0),
+            alightings: Number(stop[`${dayKey}_alightings`] || 0)
+        };
+    };
+
+    const getSplitValues = (stop) => {
+        if (stop && stop.is_exchange_group && Array.isArray(stop.exchange_members)) {
+            return stop.exchange_members.reduce((total, member) => {
+                const values = getLeafSplitValues(member);
+                total.boardings += values.boardings;
+                total.alightings += values.alightings;
+                return total;
+            }, { boardings: 0, alightings: 0 });
+        }
+
+        return getLeafSplitValues(stop);
+    };
+
     const getVisibleStops = () => {
         if (!getSelectedLineTokens().length) {
             return stops.filter((stop) => stop.__dataYear === 2024);
@@ -426,11 +420,36 @@
     };
 
     const getMetricValue = (stop) => {
-        if (stop && stop.is_bay_cluster && Array.isArray(stop.bay_members) && stop.bay_members.length > 0) {
-            return stop.bay_members.reduce((sum, member) => sum + getLeafMetricValue(member), 0);
+        if (stop && stop.is_exchange_group && Array.isArray(stop.exchange_members) && stop.exchange_members.length > 0) {
+            return stop.exchange_members.reduce((sum, member) => sum + getLeafMetricValue(member), 0);
         }
 
         return getLeafMetricValue(stop);
+    };
+
+    const getHeightScaleMaximum = (visibleStops) => {
+        if (barSizeMode !== "to_scale") {
+            return visibleStops.reduce((max, stop) => Math.max(max, getMetricValue(stop)), 0);
+        }
+
+        const exchangeTotals = new Map();
+        let maxValue = 0;
+
+        visibleStops.forEach((stop) => {
+            const value = getLeafMetricValue(stop);
+            if (stop.exchange_id) {
+                const exchangeId = String(stop.exchange_id);
+                exchangeTotals.set(exchangeId, (exchangeTotals.get(exchangeId) || 0) + value);
+            } else {
+                maxValue = Math.max(maxValue, value);
+            }
+        });
+
+        exchangeTotals.forEach((value) => {
+            maxValue = Math.max(maxValue, value);
+        });
+
+        return maxValue;
     };
 
     const getStopHoverKey = (stop) => {
@@ -440,12 +459,8 @@
 
         const renderMode = String(stop.__renderMode || "").trim();
 
-        if (renderMode === "bay-cluster" || stop.is_bay_cluster) {
-            return `cluster:${String(stop.__clusterKey || stop.bay_cluster_id || stop.stop_number || stop.stop_name || "").trim()}`;
-        }
-
-        if (renderMode === "bay") {
-            return `bay:${String(stop.stop_number || stop.stop_name || "").trim()}`;
+        if (renderMode === "exchange-group" || stop.is_exchange_group) {
+            return `exchange:${String(stop.__clusterKey || stop.exchange_id || stop.stop_number || stop.stop_name || "").trim()}`;
         }
 
         if (stop.stop_number) {
@@ -485,6 +500,33 @@
         const safeMax = Math.max(maxValue, value, 2000);
         const t = Math.max(0, Math.min(1, (value - 2000) / Math.max(1, safeMax - 2000)));
         return blend(orange, red, t);
+    };
+
+    const getSplitColor = (boardings, alightings) => {
+        const total = boardings + alightings;
+        if (total <= 0) {
+            return [120, 120, 120, 190];
+        }
+
+        const ratio = Math.max(0, Math.min(1, alightings / total));
+        const colors = [
+            [220, 44, 44],
+            [245, 142, 35],
+            [247, 218, 61],
+            [48, 190, 92]
+        ];
+        const scaledRatio = ratio * (colors.length - 1);
+        const lowerIndex = Math.min(colors.length - 2, Math.floor(scaledRatio));
+        const blend = scaledRatio - lowerIndex;
+        const lower = colors[lowerIndex];
+        const upper = colors[lowerIndex + 1];
+
+        return [
+            Math.round(lower[0] + (upper[0] - lower[0]) * blend),
+            Math.round(lower[1] + (upper[1] - lower[1]) * blend),
+            Math.round(lower[2] + (upper[2] - lower[2]) * blend),
+            210
+        ];
     };
 
     const brightenColor = (color, amount) => {
@@ -536,7 +578,7 @@
         const scaledHeight = ratio * 2200 * getHeightScaleMultiplier();
 
         if (barSizeMode === "to_scale") {
-            return scaledHeight;
+            return scaledHeight * TO_SCALE_HEIGHT_MULTIPLIER;
         }
 
         return 30 * getHeightScaleMultiplier() + scaledHeight;
@@ -587,15 +629,24 @@
             ? "Bus Line(s): N/A"
             : `Bus Line${busLines.length === 1 ? "" : "s"}: ${busLines.join(", ")}`;
         const stopNumberValue = String(stop.stop_number || "").trim();
-        const shouldShowStopNumber = stopNumberValue && !stop.is_bay_cluster && String(stop.__renderMode || "") !== "bay-cluster" && !(Number(stop.bay_count || 0) > 1);
+        const shouldShowStopNumber = stopNumberValue && !stop.is_exchange_group && String(stop.__renderMode || "") !== "exchange-group";
         const stopNumberLabel = shouldShowStopNumber ? `<p class="map-tooltip-line">Stop #${stopNumberValue}</p>` : "";
-        const clusterLabel = stop.bay_count > 1 ? `<p class="map-tooltip-line">Bay cluster: ${numberFormatter.format(stop.bay_count)} bays</p>` : "";
+        const exchangeStopCount = Number(stop.exchange_stop_count || 0);
+        const exchangeLabel = stop.is_exchange_group && exchangeStopCount > 0
+            ? `<p class="map-tooltip-line">Connecting stops: ${numberFormatter.format(exchangeStopCount)}</p>`
+            : "";
+        const splitValues = getSplitValues(stop);
+        const splitTotal = splitValues.boardings + splitValues.alightings;
+        const splitLabel = currentMetric === "split" && splitTotal > 0
+            ? `<p class="map-tooltip-line">${splitValues.boardings >= splitValues.alightings ? "Boardings" : "Alightings"}: ${Math.round(Math.max(splitValues.boardings, splitValues.alightings) / splitTotal * 100)}%</p>`
+            : "";
 
         tooltip.innerHTML = [
             `<p class="map-tooltip-title">${stop.stop_name}</p>`,
             stopNumberLabel,
             `<p class="map-tooltip-line">${getMetricLabel()} (${getDayLabel()}): ${numberFormatter.format(value)}</p>`,
-            clusterLabel,
+            splitLabel,
+            exchangeLabel,
             `<p class="map-tooltip-line">${lineLabel}</p>`
         ].filter(Boolean).join("");
         positionTooltip(info);
@@ -610,14 +661,16 @@
 
         const visibleStops = getVisibleStops();
         const renderStops = getRenderedStops();
-        const metricValues = visibleStops.map((stop) => getMetricValue(stop));
-        const maxValue = metricValues.reduce((max, value) => Math.max(max, value), 0);
+        const maxValue = getHeightScaleMaximum(visibleStops);
         const hoveredKey = getStopHoverKey(hoverInfo && hoverInfo.object ? hoverInfo.object : null);
 
         const renderData = renderStops.map((stop) => {
             const value = getMetricValue(stop);
             const isHovered = hoveredKey && hoveredKey === getStopHoverKey(stop);
-            const fillColor = getFillColor(value, maxValue);
+            const splitValues = currentMetric === "split" ? getSplitValues(stop) : null;
+            const fillColor = splitValues
+                ? getSplitColor(splitValues.boardings, splitValues.alightings)
+                : getFillColor(value, maxValue);
             return {
                 ...stop,
                 __value: value,
@@ -629,10 +682,10 @@
         });
 
         const regularData = renderData.filter((stop) => stop.__renderMode === "regular");
-        const bayData = renderData.filter((stop) => stop.__renderMode !== "regular");
-        const bayRadius = clusterMode === "individual"
-            ? BAY_SINGLE_RADIUS
-            : (map.getZoom() >= BAY_CLUSTER_ZOOM_THRESHOLD ? BAY_SINGLE_RADIUS : BAY_CLUSTER_RADIUS);
+        const exchangeData = renderData.filter((stop) => stop.__renderMode !== "regular");
+        const exchangeRadius = clusterMode === "individual"
+            ? EXCHANGE_SINGLE_RADIUS
+            : (map.getZoom() >= EXCHANGE_GROUP_ZOOM_THRESHOLD ? EXCHANGE_SINGLE_RADIUS : EXCHANGE_GROUP_RADIUS);
 
         const layers = [];
 
@@ -671,12 +724,12 @@
             }));
         }
 
-        if (bayData.length) {
+        if (exchangeData.length) {
             layers.push(new deck.ColumnLayer({
-                id: "bus-stop-usage-bay-columns",
-                data: bayData,
+                id: "bus-stop-usage-exchange-columns",
+                data: exchangeData,
                 diskResolution: 4,
-                radius: bayRadius,
+                radius: exchangeRadius,
                 extruded: true,
                 pickable: true,
                 opacity: 0.95,
@@ -761,6 +814,18 @@
         setActiveButton(metricButtons, metricButtons.find((button) => button.dataset.metric === currentMetric) || metricButtons[0]);
         setActiveButton(daytypeButtons, daytypeButtons.find((button) => button.dataset.daytype === currentDayType) || daytypeButtons[0]);
         setActiveButton(clusterModeButtons, clusterModeButtons.find((button) => button.dataset.clusterMode === clusterMode) || clusterModeButtons[0]);
+        const isSplit = currentMetric === "split";
+        if (legendElement) {
+            legendElement.classList.toggle("is-split", isSplit);
+            legendElement.setAttribute("aria-label", isSplit ? "Boarding and alighting percentage legend" : "Usage intensity legend");
+        }
+        if (legendTitle) {
+            legendTitle.textContent = isSplit ? "Usage Split (%)" : "Usage Intensity";
+        }
+        if (legendLabels.length >= 2) {
+            legendLabels[0].textContent = isSplit ? "More Boardings" : "Low";
+            legendLabels[1].textContent = isSplit ? "More Alightings" : "High";
+        }
     };
 
     const clearBusLineSelection = () => {

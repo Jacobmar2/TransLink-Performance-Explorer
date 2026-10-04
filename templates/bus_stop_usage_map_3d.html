@@ -152,6 +152,10 @@
             margin-bottom: 6px;
         }
 
+        .legend.is-split .legend-gradient {
+            background: linear-gradient(90deg, #dc2c2c 0%, #f58e23 33%, #f7da3d 66%, #30be5c 100%);
+        }
+
         .legend-labels {
             display: flex;
             justify-content: space-between;
@@ -682,7 +686,7 @@
 
     <div class="overlay">
         <h1>3D Bus Stop Usage Map (2024)</h1>
-        <p>Stops are pulled from the TSPR catalog data table</p>
+        <p>Stops are grouped into exchanges using TSPR Connecting_Stops data</p>
         <p class="note">Complete map reveals stop-wide boarding, alighting, or combined usage totals. For stop usage by bus line, select bus line in the control panel.</p>
     </div>
 
@@ -700,7 +704,7 @@
                 <span id="map-info-tooltip" class="map-info-tooltip" role="tooltip">
                     Hold left click to move map.<br>
                     Hold right click to move viewing angle.<br>
-                    Zoom in bay cluster to see individual bays.<br>
+                    Zoom in on an exchange to see individual stops.<br>
                     Note: Stops with less than 5 boardings or<br>
                        alightings are counted as 0 to preserve privacy<br>
                 </span>
@@ -726,18 +730,19 @@
             <div class="panel-row panel-row-1">
                 <div>
                     <h2 class="control-panel-title">Usage Options</h2>
-                    <div class="metric-buttons" role="group" aria-label="Total usage metric selection">
+                    <div class="metric-buttons" role="group" aria-label="Usage metric selection">
                         <button type="button" class="metric-button is-active" data-metric="boardings">Boardings</button>
                         <button type="button" class="metric-button" data-metric="alightings">Alightings</button>
                         <button type="button" class="metric-button" data-metric="total_usage">Total Usage</button>
+                        <button type="button" class="metric-button" data-metric="split">Split</button>
                     </div>
                 </div>
 
                 <div>
-                    <h2 class="control-panel-title">Stop Grouping</h2>
-                    <div class="cluster-mode-buttons" role="group" aria-label="Stop clustering mode">
-                        <button type="button" class="mode-button cluster-mode-button is-active" data-cluster-mode="cluster">Cluster</button>
-                        <button type="button" class="mode-button cluster-mode-button" data-cluster-mode="individual">Individual</button>
+                    <h2 class="control-panel-title">Exchange Grouping</h2>
+                    <div class="cluster-mode-buttons" role="group" aria-label="Exchange grouping mode">
+                        <button type="button" class="mode-button cluster-mode-button is-active" data-cluster-mode="cluster">Exchange Groups</button>
+                        <button type="button" class="mode-button cluster-mode-button" data-cluster-mode="individual">Individual Stops</button>
                     </div>
                 </div>
 
