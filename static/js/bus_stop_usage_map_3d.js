@@ -328,8 +328,8 @@
         const directions = {
             NB: { bearing: 0 },
             SB: { bearing: 180 },
-            EB: { bearing: 90 },
-            WB: { bearing: 270 }
+            EB: { bearing: 270 },
+            WB: { bearing: 90 }
         };
         return directions[prefix] || null;
     };
