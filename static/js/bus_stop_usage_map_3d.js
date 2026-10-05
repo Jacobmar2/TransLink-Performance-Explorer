@@ -47,6 +47,7 @@
     const heightScaleSlider = document.getElementById("height-scale-slider");
     const heightSliderValue = document.getElementById("height-slider-value");
     const barSizeButtons = Array.from(document.querySelectorAll("[data-bar-size-mode]"));
+    const directionButtons = Array.from(document.querySelectorAll("[data-direction-mode]"));
     const clusterModeButtons = Array.from(document.querySelectorAll(".cluster-mode-button"));
     const titleOverlay = document.querySelector(".overlay");
     const titleHeading = document.querySelector(".overlay h1");
@@ -67,6 +68,7 @@
     let currentDayType = "weekday";
     let currentBusLine = "";
     let barSizeMode = "default";
+    let directionVisible = false;
     let clusterMode = "cluster";
     let hoverInfo = null;
     let titleVisible = true;
@@ -319,6 +321,17 @@
         });
 
         return [...regularStops, ...groupedStops];
+    };
+
+    const getStopDirection = (stop) => {
+        const prefix = String(stop.stop_name || "").trim().slice(0, 2).toUpperCase();
+        const directions = {
+            NB: { bearing: 0 },
+            SB: { bearing: 180 },
+            EB: { bearing: 90 },
+            WB: { bearing: 270 }
+        };
+        return directions[prefix] || null;
     };
 
     const getMatchingLineMetric = (stop) => {
@@ -590,6 +603,14 @@
         });
     };
 
+    const updateDirectionButtons = () => {
+        directionButtons.forEach((button) => {
+            const isActive = button.dataset.directionMode === (directionVisible ? "show" : "hide");
+            button.classList.toggle("is-active", isActive);
+            button.setAttribute("aria-pressed", isActive ? "true" : "false");
+        });
+    };
+
     const hideTooltip = () => {
         if (!tooltip) {
             return;
@@ -757,6 +778,39 @@
                     renderMap();
                 }
             }));
+        }
+
+        if (directionVisible) {
+            const directionData = renderData
+                .filter((stop) => !stop.is_exchange_group && getStopDirection(stop))
+                .map((stop) => ({
+                    ...stop,
+                    __direction: getStopDirection(stop),
+                    __directionSize: (Number(stop.__renderSize) || BASE_COLUMN_RADIUS) * 2
+                }));
+
+            if (directionData.length) {
+                const arrowSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><path d="M32 3 59 32H43v29H21V32H5z" fill="#ffffff"/></svg>';
+                const arrowIcon = {
+                    url: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(arrowSvg)}`,
+                    width: 64,
+                    height: 64,
+                    anchorY: 32
+                };
+
+                layers.push(new deck.IconLayer({
+                    id: "bus-stop-usage-directions",
+                    data: directionData,
+                    pickable: false,
+                    billboard: false,
+                    getPosition: (stop) => [Number(stop.lon), Number(stop.lat), stop.__height + 1],
+                    getIcon: () => arrowIcon,
+                    getAngle: (stop) => stop.__direction.bearing,
+                    getSize: (stop) => stop.__directionSize,
+                    sizeUnits: "meters",
+                    getColor: [255, 255, 255, 255]
+                }));
+            }
         }
 
         overlay.setProps({
@@ -961,6 +1015,19 @@
         });
     });
 
+    directionButtons.forEach((button) => {
+        button.addEventListener("click", () => {
+            const mode = button.dataset.directionMode;
+            if (mode !== "hide" && mode !== "show") {
+                return;
+            }
+
+            directionVisible = mode === "show";
+            updateDirectionButtons();
+            renderMap();
+        });
+    });
+
     if (heightScaleSlider) {
         updateHeightScaleLabel();
         heightScaleSlider.addEventListener("input", () => {
@@ -970,6 +1037,7 @@
     }
 
     updateBarSizeButtons();
+    updateDirectionButtons();
 
     if (titleHideButton && titleShowButton && titleHeading) {
         titleHideButton.addEventListener("click", () => {
@@ -1144,6 +1212,10 @@
     map.on("load", attachOverlay);
 
     map.on("zoomend", () => {
+        renderMap();
+    });
+
+    map.on("rotateend", () => {
         renderMap();
     });
 

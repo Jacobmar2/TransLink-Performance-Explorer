@@ -434,6 +434,10 @@
             flex: 0 0 auto;
         }
 
+        .direction-mode {
+            transform: translateX(-17px);
+        }
+
         .bar-size-label {
             color: #dff7e4;
             font-size: 0.82rem;
@@ -672,6 +676,10 @@
                 flex-wrap: wrap;
             }
 
+            .direction-mode {
+                transform: none;
+            }
+
             .height-slider-wrap.row-3 {
                 width: min(360px, 100%);
                 min-width: 0;
@@ -771,12 +779,20 @@
                 <div class="title-controls-row" role="group" aria-label="Title visibility controls">
                     <span class="title-controls-label">Map Title</span>
                     <div class="title-controls-buttons">
-                        <button id="title-hide-button" class="title-visibility-button" type="button" aria-pressed="false">Hide Title</button>
-                        <button id="title-show-button" class="title-visibility-button is-active" type="button" aria-pressed="true">Show Title</button>
+                        <button id="title-hide-button" class="title-visibility-button" type="button" aria-pressed="false">Hide</button>
+                        <button id="title-show-button" class="title-visibility-button is-active" type="button" aria-pressed="true">Show</button>
                     </div>
                 </div>
 
                 <div class="height-controls-cluster">
+                    <div class="bar-size-mode direction-mode" role="group" aria-label="Stop direction arrows">
+                        <span class="bar-size-label">Direction</span>
+                        <div class="bar-size-buttons">
+                            <button type="button" class="bar-size-button is-active" data-direction-mode="hide" aria-pressed="true">Hide</button>
+                            <button type="button" class="bar-size-button" data-direction-mode="show" aria-pressed="false">Show</button>
+                        </div>
+                    </div>
+
                     <div class="bar-size-mode" role="group" aria-label="Bar size mode">
                         <span class="bar-size-label">Bar Size</span>
                         <div class="bar-size-buttons">
@@ -801,6 +817,6 @@
 
     <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
     <script src="https://unpkg.com/deck.gl@9.0.34/dist.min.js"></script>
-    <script src="{{ url_for('static', filename='js/bus_stop_usage_map_3d.js', v='20260423-2') }}"></script>
+    <script src="{{ url_for('static', filename='js/bus_stop_usage_map_3d.js', v='20261005-4') }}"></script>
 </body>
 </html>
