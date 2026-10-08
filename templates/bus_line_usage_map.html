@@ -338,6 +338,20 @@
             width: 100%;
         }
 
+        .map-mode-row {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+            gap: 12px;
+        }
+
+        .map-mode-control-group {
+            min-width: 0;
+        }
+
+        .map-mode-control-group .control-panel-title {
+            text-align: center;
+        }
+
         .panel-row + .panel-row {
             margin-top: 14px;
             padding-top: 14px;
@@ -446,7 +460,20 @@
         .map-mode-toggle {
             display: flex;
             flex-wrap: wrap;
-            gap: 8px;
+            justify-content: center;
+            width: max-content;
+            max-width: 100%;
+            margin: 0 auto;
+            gap: 50px;
+        }
+
+        .extreme-line-toggle {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            width: max-content;
+            margin: 0 auto;
+            gap: 50px;
         }
 
         .deep-slice-controls {
@@ -463,6 +490,7 @@
         .metric-button,
         .filter-button,
         .map-mode-button,
+        .extreme-line-button,
         .deep-mode-button {
             border: 1px solid rgba(121, 204, 145, 0.36);
             padding: 8px 12px;
@@ -490,6 +518,10 @@
             border-radius: 999px;
         }
 
+        .extreme-line-button {
+            border-radius: 999px;
+        }
+
         .deep-mode-button {
             border-radius: 999px;
         }
@@ -497,6 +529,7 @@
         .metric-button:hover,
         .filter-button:hover,
         .map-mode-button:hover,
+        .extreme-line-button:hover,
         .deep-mode-button:hover {
             transform: translateY(-1px);
             border-color: rgba(161, 227, 178, 0.7);
@@ -505,6 +538,7 @@
         .metric-button.is-active,
         .filter-button.is-active,
         .map-mode-button.is-active,
+        .extreme-line-button.is-active,
         .deep-mode-button.is-active {
             background: linear-gradient(180deg, rgba(58, 140, 82, 0.98), rgba(24, 74, 42, 0.98));
             border-color: rgba(178, 238, 191, 0.9);
@@ -645,11 +679,20 @@
                     </div>
                 </div>
             </div>
-            <div class="panel-row">
-                <h2 class="control-panel-title">Map Mode</h2>
-                <div class="map-mode-toggle" role="group" aria-label="Map mode selection">
-                    <button type="button" class="map-mode-button is-active" data-map-mode="annual">2024 Metrics</button>
-                    <button type="button" class="map-mode-button" data-map-mode="deep">2023 Deep Stats</button>
+            <div class="panel-row map-mode-row">
+                <div class="map-mode-control-group">
+                    <h2 class="control-panel-title">Map Mode</h2>
+                    <div class="map-mode-toggle" role="group" aria-label="Map mode selection">
+                        <button type="button" class="map-mode-button is-active" data-map-mode="annual">2024 Metrics</button>
+                        <button type="button" class="map-mode-button" data-map-mode="deep">2024 Deep Stats</button>
+                    </div>
+                </div>
+                <div class="map-mode-control-group">
+                    <h2 class="control-panel-title">Reveal top/bottom bus lines</h2>
+                    <div class="extreme-line-toggle" role="group" aria-label="Reveal top and bottom bus lines">
+                        <button type="button" class="extreme-line-button is-active" data-extreme-lines-visible="false" aria-pressed="true">Hide</button>
+                        <button type="button" class="extreme-line-button" data-extreme-lines-visible="true" aria-pressed="false">Show</button>
+                    </div>
                 </div>
             </div>
 
@@ -679,7 +722,7 @@
 
             <div class="map-mode-panel" data-map-mode-panel="deep" hidden>
                 <div class="panel-row">
-                    <h2 class="control-panel-title">2023 Deep Stats</h2>
+                    <h2 class="control-panel-title">2024 Deep Stats</h2>
                     <p class="control-panel-note">Choose a time slice, then switch between the given line-wide deep metrics.</p>
                     <div class="deep-slice-controls">
                         <div class="deep-layer-group">

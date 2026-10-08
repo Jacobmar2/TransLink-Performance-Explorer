@@ -120,3 +120,53 @@ def test_3d_bus_line_map_includes_geometry_without_2024_stats(client):
         assert len(lines[route]['coordinates']) > 1
         assert lines[route]['line_name']
         assert lines[route]['metrics']['annual_boardings'] is None
+
+
+def test_3d_bus_line_map_includes_new_routes(client):
+    response = client.get('/api/bus-line-usage-map-3d-data?year=2024')
+
+    assert response.status_code == 200
+    lines = {line['line']: line for line in response.get_json()['lines']}
+    for route in ['80', 'R6']:
+        assert route in lines
+        assert len(lines[route]['coordinates']) > 1
+        assert lines[route]['metrics']['annual_boardings'] > 0
+
+
+def test_3d_bus_line_map_includes_new_routes_in_deep_mode(client):
+    response = client.get(
+        '/api/bus-line-usage-map-3d-data',
+        query_string={
+            'year': 2024,
+            'mode': 'deep',
+            'day': 'MF',
+            'season': 'Fall',
+            'time_range': '4-6',
+        },
+    )
+
+    assert response.status_code == 200
+    lines = {line['line']: line for line in response.get_json()['lines']}
+    for route in ['80', 'R6']:
+        assert route in lines
+        assert len(lines[route]['coordinates']) > 1
+        assert lines[route]['metrics']['annual_revenue_hours'] > 0
+
+
+def test_3d_bus_line_map_deep_stats_use_2024_data(client):
+    response = client.get(
+        '/api/bus-line-usage-map-3d-data',
+        query_string={
+            'year': 2024,
+            'mode': 'deep',
+            'day': 'MF',
+            'season': 'Fall',
+            'time_range': '4-6',
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload['year'] == 2024
+    line_two = next(line for line in payload['lines'] if line['line'] == '2')
+    assert line_two['metrics']['annual_revenue_hours'] == pytest.approx(123.0666667)

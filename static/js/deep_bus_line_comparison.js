@@ -17,16 +17,25 @@ function escapeHtml(str) {
 }
 
 function formatNumber(value, maxFractionDigits) {
-    const numericValue = Number(value);
-    if (!Number.isFinite(numericValue)) return '-';
+    const numericValue = toMetricNumber(value);
+    if (!Number.isFinite(numericValue)) return isMissingMetricValue(value) ? 'NaN' : '-';
     return numericValue.toLocaleString(undefined, { maximumFractionDigits: maxFractionDigits || 0 });
 }
 
 function formatSig(value) {
-    const numericValue = Number(value);
-    if (!Number.isFinite(numericValue)) return '-';
+    const numericValue = toMetricNumber(value);
+    if (!Number.isFinite(numericValue)) return isMissingMetricValue(value) ? 'NaN' : '-';
     if (numericValue === 0) return '0';
     return parseFloat(numericValue.toPrecision(3)).toString();
+}
+
+function isMissingMetricValue(value) {
+    return value === null || value === undefined ||
+        (typeof value === 'string' && (!value.trim() || value.trim().toUpperCase() === 'NULL'));
+}
+
+function toMetricNumber(value) {
+    return isMissingMetricValue(value) ? NaN : Number(value);
 }
 
 function clamp(value, min, max) {
@@ -255,9 +264,9 @@ function getPeakLoadColor(value) {
 }
 
 function generatePeakLoadFactorBar(value) {
-    const numericValue = Number(value);
+    const numericValue = toMetricNumber(value);
     if (!Number.isFinite(numericValue)) {
-        return '<div style="margin:18px 0;font-size:1em;color:rgba(255,255,255,0.95);font-weight:700;">No data available</div>';
+        return '';
     }
 
     const fillPercent = clamp(numericValue, 0, 100);
@@ -272,8 +281,8 @@ function generatePeakLoadFactorBar(value) {
 }
 
 function buildComparisonText(leftValue, rightValue, leftLabel, rightLabel, metricLabel) {
-    const leftNum = Number(leftValue);
-    const rightNum = Number(rightValue);
+    const leftNum = toMetricNumber(leftValue);
+    const rightNum = toMetricNumber(rightValue);
     if (!Number.isFinite(leftNum) || !Number.isFinite(rightNum)) return '';
 
     const safeMetricLabel = String(metricLabel || '').toLowerCase();
@@ -366,8 +375,8 @@ function renderDeepComparisonResult() {
 
     const isRevenueHours = deepCompareState.hoursMetric === 'revenue_hours';
     const hoursTitle = isRevenueHours ? 'Annual Revenue Hours' : 'Annual Service Hours';
-    const leftTotalHours = Number(left[deepCompareState.hoursMetric]);
-    const rightTotalHours = Number(right[deepCompareState.hoursMetric]);
+    const leftTotalHours = toMetricNumber(left[deepCompareState.hoursMetric]);
+    const rightTotalHours = toMetricNumber(right[deepCompareState.hoursMetric]);
     const leftSpan = Number(left.time_span_hours) || 1;
     const rightSpan = Number(right.time_span_hours) || 1;
     const leftAdjustedHours = Number.isFinite(leftTotalHours) ? leftTotalHours / leftSpan : null;
@@ -377,13 +386,15 @@ function renderDeepComparisonResult() {
         ? generateHourBoxes(leftAdjustedHours) +
                     buildLargeMetricText(formatNumber(leftTotalHours, 1), 'Total ' + hoursTitle.toLowerCase()) +
                     buildLargeMetricText(formatNumber(leftAdjustedHours, 2), 'Adjusted for ' + (left.time_range || '-'))
-        : 'No matching data';
+        : buildLargeMetricText('NaN', 'Total ' + hoursTitle.toLowerCase()) +
+                    buildLargeMetricText('NaN', 'Adjusted for ' + (left.time_range || '-'));
 
     const rightHoursBody = Number.isFinite(rightAdjustedHours)
         ? generateHourBoxes(rightAdjustedHours) +
                     buildLargeMetricText(formatNumber(rightTotalHours, 1), 'Total ' + hoursTitle.toLowerCase()) +
                     buildLargeMetricText(formatNumber(rightAdjustedHours, 2), 'Adjusted for ' + (right.time_range || '-'))
-        : 'No matching data';
+        : buildLargeMetricText('NaN', 'Total ' + hoursTitle.toLowerCase()) +
+                buildLargeMetricText('NaN', 'Adjusted for ' + (right.time_range || '-'));
 
     const section1Buttons = '<div class="deep-layer-buttons" style="justify-content:center;margin:12px 0 10px 0;">' +
         '<button type="button" class="deep-option-btn deep-day-btn deep-section-btn' + (isRevenueHours ? ' deep-option-btn-active' : '') + '" data-action="set-hours-metric" data-metric="revenue_hours">Revenue</button>' +
@@ -406,8 +417,8 @@ function renderDeepComparisonResult() {
         'Trips per Clock Hour per Direction',
         leftLabel,
         rightLabel,
-        (Number.isFinite(Number(leftTrips)) ? generateBusStack(leftTrips) + buildLargeMetricText(formatSig(leftTrips), 'trips') : 'No matching data'),
-        (Number.isFinite(Number(rightTrips)) ? generateBusStack(rightTrips) + buildLargeMetricText(formatSig(rightTrips), 'trips') : 'No matching data'),
+        (Number.isFinite(toMetricNumber(leftTrips)) ? generateBusStack(leftTrips) + buildLargeMetricText(formatSig(leftTrips), 'trips') : buildLargeMetricText('NaN', 'trips')),
+        (Number.isFinite(toMetricNumber(rightTrips)) ? generateBusStack(rightTrips) + buildLargeMetricText(formatSig(rightTrips), 'trips') : buildLargeMetricText('NaN', 'trips')),
         buildComparisonText(leftTrips, rightTrips, leftLabel, rightLabel, 'Trips/Clock-Hour/Direction'),
         'Trips per Clock Hour per Direction = number of scheduled trips operating in one direction during one clock hour.'
     );
@@ -429,8 +440,8 @@ function renderDeepComparisonResult() {
         boardingsTitle,
         leftLabel,
         rightLabel,
-        (Number.isFinite(Number(leftBoardings)) ? generatePeopleIcons(leftBoardings) + buildLargeMetricText(formatSig(leftBoardings), 'boardings') : 'No matching data'),
-        (Number.isFinite(Number(rightBoardings)) ? generatePeopleIcons(rightBoardings) + buildLargeMetricText(formatSig(rightBoardings), 'boardings') : 'No matching data'),
+        (Number.isFinite(toMetricNumber(leftBoardings)) ? generatePeopleIcons(leftBoardings) + buildLargeMetricText(formatSig(leftBoardings), 'boardings') : buildLargeMetricText('NaN', 'boardings')),
+        (Number.isFinite(toMetricNumber(rightBoardings)) ? generatePeopleIcons(rightBoardings) + buildLargeMetricText(formatSig(rightBoardings), 'boardings') : buildLargeMetricText('NaN', 'boardings')),
         buildComparisonText(leftBoardings, rightBoardings, leftLabel, rightLabel, boardingsTitle),
         boardingsDefinitionText
     );
@@ -456,12 +467,12 @@ function renderDeepComparisonResult() {
         'Avg Peak Passenger Load',
         leftLabel,
         rightLabel,
-        (Number.isFinite(Number(leftPeakPassenger))
+        (Number.isFinite(toMetricNumber(leftPeakPassenger))
             ? generatePeopleIcons(leftPeakPassenger) + buildLargeMetricText(formatSig(leftPeakPassenger),' passengers')
-            : 'No matching direction data'),
-        (Number.isFinite(Number(rightPeakPassenger))
+            : buildLargeMetricText('NaN', 'passengers')),
+        (Number.isFinite(toMetricNumber(rightPeakPassenger))
             ? generatePeopleIcons(rightPeakPassenger) + buildLargeMetricText(formatSig(rightPeakPassenger), ' passengers')
-            : 'No matching direction data'),
+            : buildLargeMetricText('NaN', 'passengers')),
         buildComparisonText(leftPeakPassenger, rightPeakPassenger, leftLabel, rightLabel, 'Avg Peak Passenger Load'),
         'Avg Peak Passenger Load = sum of peak passenger load for each trip divided by number of trips. A measure of how full a transit vehicle is, on average, at its busiest point or peak on a route.'
     );
@@ -484,12 +495,12 @@ function renderDeepComparisonResult() {
         'Avg Peak Load Factor %',
         leftLabel,
         rightLabel,
-        (Number.isFinite(Number(leftPeakFactor))
+        (Number.isFinite(toMetricNumber(leftPeakFactor))
             ? generatePeakLoadFactorBar(leftPeakFactor) + '<div style="margin-top:8px;font-size:1.03em;color:#fff;">' + deepCompareState.peakLoadFactorDirection.left + '</div>'
-            : 'No matching direction data'),
-        (Number.isFinite(Number(rightPeakFactor))
+            : buildLargeMetricText('NaN', 'Peak Load Factor') + '<div style="margin-top:8px;font-size:1.03em;color:#fff;">' + deepCompareState.peakLoadFactorDirection.left + '</div>'),
+        (Number.isFinite(toMetricNumber(rightPeakFactor))
             ? generatePeakLoadFactorBar(rightPeakFactor) + '<div style="margin-top:8px;font-size:1.03em;color:#fff;">' + deepCompareState.peakLoadFactorDirection.right + '</div>'
-            : 'No matching direction data'),
+            : buildLargeMetricText('NaN', 'Peak Load Factor') + '<div style="margin-top:8px;font-size:1.03em;color:#fff;">' + deepCompareState.peakLoadFactorDirection.right + '</div>'),
         buildComparisonText(leftPeakFactor, rightPeakFactor, leftLabel, rightLabel, 'Avg Peak Load Factor %'),
         'Peak Load Factor: The ratio of average passengers carried versus the capacity or space available on a vehicle, expressed as a percentage. A passenger load factor of 100% means the vehicle is at capacity.'
     );

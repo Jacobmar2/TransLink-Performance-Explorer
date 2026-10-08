@@ -2361,9 +2361,9 @@ def _build_deep_side_payload_legacy(legacy_df, year, line_code, day_norm, season
     }
 
 
-def _build_deep_bus_line_map_metrics(base_df, peak_df, line_code, day_norm, season_norm, hour_start):
+def _build_deep_bus_line_map_metrics(base_df, peak_df, line_code, day_norm, season_norm, hour_start, year):
     section_rows = base_df[
-        (base_df['year_norm'] == 2023) &
+        (base_df['year_norm'] == year) &
         (base_df['line_norm'] == line_code) &
         (base_df['day_norm'] == day_norm) &
         (base_df['season_norm'] == season_norm) &
@@ -2371,7 +2371,7 @@ def _build_deep_bus_line_map_metrics(base_df, peak_df, line_code, day_norm, seas
     ] if not base_df.empty else pd.DataFrame()
 
     peak_rows = peak_df[
-        (peak_df['year_norm'] == 2023) &
+        (peak_df['year_norm'] == year) &
         (peak_df['line_norm'] == line_code) &
         (peak_df['day_norm'] == day_norm) &
         (peak_df['season_norm'] == season_norm) &
@@ -2411,7 +2411,7 @@ def _build_deep_bus_line_map_metrics(base_df, peak_df, line_code, day_norm, seas
 
 
 @lru_cache(maxsize=128)
-def _load_bus_line_usage_map_2023_deep_data(day_norm='MF', season_norm='Fall', time_range='4-6'):
+def _load_bus_line_usage_map_2024_deep_data(day_norm='MF', season_norm='Fall', time_range='4-6'):
     base_payload = _load_bus_line_usage_map_2024_data(2024)
     base_lines = base_payload.get('lines', []) if isinstance(base_payload, dict) else []
 
@@ -2420,7 +2420,7 @@ def _load_bus_line_usage_map_2023_deep_data(day_norm='MF', season_norm='Fall', t
 
     if not base_lines:
         return {
-            'year': 2023,
+            'year': 2024,
             'mode': 'deep',
             'day': day_norm,
             'season': season_norm,
@@ -2448,14 +2448,15 @@ def _load_bus_line_usage_map_2023_deep_data(day_norm='MF', season_norm='Fall', t
         lookup_code = group_code or line_code
 
         deep_line = dict(base_line)
-        deep_line['line_label'] = _format_bus_line_label(line_code, 2023)
+        deep_line['line_label'] = _format_bus_line_label(line_code, 2024)
         deep_line['metrics'] = _build_deep_bus_line_map_metrics(
             base_df,
             peak_df,
             lookup_code,
             day_norm,
             season_norm,
-            _normalize_deep_start_hour(time_range)
+            _normalize_deep_start_hour(time_range),
+            2024
         )
 
         lines.append(deep_line)
@@ -2472,7 +2473,7 @@ def _load_bus_line_usage_map_2023_deep_data(day_norm='MF', season_norm='Fall', t
         ]
 
     return {
-        'year': 2023,
+        'year': 2024,
         'mode': 'deep',
         'day': day_norm,
         'season': season_norm,
@@ -2641,7 +2642,7 @@ def bus_line_options():
 
 @app.route("/api/bus-line-usage-map-3d-data")
 def bus_line_usage_map_3d_data():
-    """API endpoint for annual 2024 map data and 2023 deep bus line stats."""
+    """API endpoint for annual and deep 2024 bus line stats."""
     try:
         year = request.args.get('year', default=2024, type=int)
         mode = str(request.args.get('mode', default='annual', type=str) or 'annual').strip().lower()
@@ -2650,14 +2651,14 @@ def bus_line_usage_map_3d_data():
         if request.args.get('refresh', default='0') == '1':
             logger.info("[api] Cache clear requested")
             _load_bus_line_usage_map_2024_data.cache_clear()
-            _load_bus_line_usage_map_2023_deep_data.cache_clear()
+            _load_bus_line_usage_map_2024_deep_data.cache_clear()
 
         if year == 2024 and mode != 'deep':
             result = _load_bus_line_usage_map_2024_data(year)
             logger.info(f"[api] Bus line usage map loaded with {len(result.get('lines', []))} lines")
             return jsonify(_sanitize_for_json(result))
 
-        if year == 2023 or mode == 'deep':
+        if year == 2024 and mode == 'deep':
             day_norm = _normalize_deep_day(request.args.get('day', default='MF', type=str)) or 'MF'
             season_norm = _normalize_deep_season(request.args.get('season', default='Fall', type=str)) or 'Fall'
             time_range = request.args.get('time_range', default='4-6', type=str).strip() or '4-6'
@@ -2665,11 +2666,11 @@ def bus_line_usage_map_3d_data():
             if time_range not in DEEP_TIME_RANGE_TO_START:
                 return jsonify({'error': 'time_range must be one of: 4-6, 6-9, 9-15, 15-18, 18-21, 21-24, 24-4'}), 400
 
-            result = _load_bus_line_usage_map_2023_deep_data(day_norm, season_norm, time_range)
+            result = _load_bus_line_usage_map_2024_deep_data(day_norm, season_norm, time_range)
             logger.info(f"[api] Deep bus line usage map loaded with {len(result.get('lines', []))} lines")
             return jsonify(_sanitize_for_json(result))
 
-        return jsonify({'error': 'Only 2024 annual or 2023 deep bus line usage map data is available.'}), 400
+        return jsonify({'error': 'Only 2024 annual or deep bus line usage map data is available.'}), 400
     except Exception as e:
         error_msg = str(e) if e else "Unknown error"
         logger.error(f"[api] Error in bus_line_usage_map_3d_data: {error_msg}")

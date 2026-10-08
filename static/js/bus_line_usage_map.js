@@ -33,6 +33,7 @@
     const legendElement = document.querySelector(".legend");
     const titleHideButton = document.getElementById("title-hide-button");
     const titleShowButton = document.getElementById("title-show-button");
+    const extremeLineButtons = Array.from(document.querySelectorAll(".extreme-line-button"));
     const modeTitle = document.getElementById("map-mode-title");
     const modeDescription = document.getElementById("map-mode-description");
     const pageHeading = document.getElementById("map-mode-heading");
@@ -111,6 +112,7 @@
     let activeMetric = activeMetricByMode[activeMapMode];
     let lineWidthPercent = 100;
     let titleVisible = true;
+    let extremeLinesVisible = false;
     let currentRequestId = 0;
     let deepSelections = {
         day: "MF",
@@ -175,24 +177,24 @@
         });
 
         if (modeTitle) {
-            modeTitle.textContent = activeMapMode === "deep" ? "2023 Deep Stats" : "2024 Metrics";
+            modeTitle.textContent = activeMapMode === "deep" ? "2024 Deep Stats" : "2024 Metrics";
         }
 
         if (modeDescription) {
             modeDescription.textContent = activeMapMode === "deep"
-                ? "Switch the time slice, then color or thicken all lines by the selected 2023 deep metric."
+                ? "Switch the time slice, then color or thicken all lines by the selected 2024 deep metric."
                 : "Switch between annual and day-based 2024 metrics while keeping the same line geometry.";
         }
 
         if (pageHeading) {
             pageHeading.textContent = activeMapMode === "deep"
-                ? "3D Bus Line Usage Map (2023 Deep Stats)"
+                ? "3D Bus Line Usage Map (2024 Deep Stats)"
                 : "3D Bus Line Usage Map (2024)";
         }
 
         if (pageDetail) {
             pageDetail.textContent = activeMapMode === "deep"
-                ? "Each line keeps a fixed color while tube width scales to the selected 2023 bus-line metric and time range."
+                ? "Each line keeps a fixed color while tube width scales to the selected 2024 bus-line metric and time range."
                 : "Each line keeps a fixed color while tube width scales to the selected 2024 bus-line metric.";
         }
 
@@ -318,6 +320,15 @@
         }
     };
 
+    const syncExtremeLineButtons = () => {
+        extremeLineButtons.forEach((button) => {
+            setButtonActiveState(
+                button,
+                (button.dataset.extremeLinesVisible === "true") === extremeLinesVisible
+            );
+        });
+    };
+
     const togglePanel = () => {
         if (!panel || !toggleButton) {
             return;
@@ -358,18 +369,26 @@
         }
     };
 
-    const updateLegend = (minValue, maxValue) => {
+    const updateLegend = (minValue, maxValue, bottomLine, topLine) => {
         if (legendTitle) {
             const metricLabel = metricConfig[activeMetric]?.label || "Metric";
             legendTitle.textContent = activeMetric === "avg_speed_kph" ? `${metricLabel} (KPH / MPH)` : metricLabel;
         }
 
         if (legendMin) {
-            legendMin.textContent = formatMetricValue(activeMetric, minValue);
+            const bottomValue = bottomLine ? getMetricValue(bottomLine) : minValue;
+            const bottomCode = normalizeLineCode(bottomLine?.group_code || bottomLine?.line);
+            legendMin.textContent = extremeLinesVisible && bottomCode
+                ? `${formatMetricValue(activeMetric, bottomValue)} (${bottomCode})`
+                : formatMetricValue(activeMetric, minValue);
         }
 
         if (legendMax) {
-            legendMax.textContent = formatMetricValue(activeMetric, maxValue);
+            const topValue = topLine ? getMetricValue(topLine) : maxValue;
+            const topCode = normalizeLineCode(topLine?.group_code || topLine?.line);
+            legendMax.textContent = extremeLinesVisible && topCode
+                ? `${formatMetricValue(activeMetric, topValue)} (${topCode})`
+                : formatMetricValue(activeMetric, maxValue);
         }
 
         const legendMode = colorScaleMetrics.has(activeMetric) ? "color" : "width";
@@ -389,17 +408,22 @@
                 gradient.setAttribute('x2', '100%');
                 gradient.setAttribute('y2', '0%');
 
-                const stops = higherIsBetter
+                const stops = extremeLinesVisible
                     ? [
-                        ['0%', '#ef5a4a'],
-                        ['50%', '#f0c847'],
-                        ['100%', '#39c46d']
+                        ['0%', '#133770'],
+                        ['100%', '#94cfff']
                     ]
-                    : [
-                        ['0%', '#39c46d'],
-                        ['50%', '#f0c847'],
-                        ['100%', '#ef5a4a']
-                    ];
+                    : (higherIsBetter
+                        ? [
+                            ['0%', '#ef5a4a'],
+                            ['50%', '#f0c847'],
+                            ['100%', '#39c46d']
+                        ]
+                        : [
+                            ['0%', '#39c46d'],
+                            ['50%', '#f0c847'],
+                            ['100%', '#ef5a4a']
+                        ]);
 
                 stops.forEach(([offset, color]) => {
                     const stop = document.createElementNS(svgNs, 'stop');
@@ -421,7 +445,7 @@
                 bar.setAttribute('opacity', '0.95');
                 legendSvg.appendChild(bar);
             } else {
-                const baseColor = '#52c875'; // Green from theme
+                const baseColor = extremeLinesVisible ? '#4b98de' : '#52c875';
 
                 // Create a polygon that tapers from thin (left) to wide (right)
                 // Top edge: starts at (10, 38), ends at (190, 30)
@@ -751,11 +775,39 @@
         const minValue = values.length ? Math.min(...values) : 0;
         const useColorScale = colorScaleMetrics.has(activeMetric);
         const colorScaleMaxValue = colorScaleMaxOverrides[activeMetric] || maxValue;
+        const routeMetrics = new Map();
+        sortedLines.forEach((line) => {
+            const routeKey = normalizeLineCode(line.group_code || line.line);
+            const value = getMetricValue(line);
+            if (routeKey && value > 0 && !routeMetrics.has(routeKey)) {
+                routeMetrics.set(routeKey, { line, value });
+            }
+        });
+        const rankedRoutes = Array.from(routeMetrics.entries())
+            .map(([routeKey, route]) => ({ routeKey, ...route }))
+            .sort((left, right) => left.value - right.value || left.routeKey.localeCompare(right.routeKey));
+        const bottomRoute = rankedRoutes[0] || null;
+        const topRoute = rankedRoutes[rankedRoutes.length - 1] || null;
+        const positiveValues = values.filter((value) => value > 0);
+        const positiveMinValue = positiveValues.length ? Math.min(...positiveValues) : 0;
+        const positiveMaxValue = positiveValues.length ? Math.max(...positiveValues) : 0;
 
-        updateLegend(minValue, useColorScale ? colorScaleMaxValue : maxValue);
+        updateLegend(
+            minValue,
+            useColorScale ? colorScaleMaxValue : maxValue,
+            bottomRoute?.line,
+            topRoute?.line
+        );
 
         const renderData = sortedLines.map((line) => {
             const metricValue = getMetricValue(line);
+            const routeKey = normalizeLineCode(line.group_code || line.line);
+            const isTopRoute = extremeLinesVisible && topRoute?.routeKey === routeKey;
+            const isBottomRoute = extremeLinesVisible && bottomRoute?.routeKey === routeKey;
+            const blueRatio = positiveMaxValue > positiveMinValue
+                ? Math.max(0, Math.min(1, (metricValue - positiveMinValue) / (positiveMaxValue - positiveMinValue)))
+                : 0.5;
+            const blueColor = interpolateColor([19, 55, 112], [148, 207, 255], blueRatio);
             const baseColor = Array.isArray(line.color) ? line.color : [82, 200, 117];
             const fillColor = useColorScale
                 ? getPerformanceColor(metricValue, minValue, colorScaleMaxValue, metricConfig[activeMetric]?.higherIsBetter !== false)
@@ -763,6 +815,11 @@
             const tubeWidth = useColorScale ? getUniformTubeWidth() : getTubeWidth(metricValue, maxValue);
             const lineKey = String(line.group_code || line.line || "").trim();
             const isHovered = hoveredLineKey && hoveredLineKey === lineKey;
+            const renderedFillColor = extremeLinesVisible
+                ? (metricValue === 0
+                    ? [126, 136, 142, 255]
+                    : (isTopRoute ? [57, 196, 109, 255] : (isBottomRoute ? [239, 90, 74, 255] : blueColor)))
+                : fillColor;
 
             const brightenColor = (color, amount) => {
                 const factor = Math.max(0, Math.min(1, amount));
@@ -778,12 +835,21 @@
                 ...line,
                 __metricValue: metricValue,
                 __tubeWidth: tubeWidth,
-                __fillColor: fillColor,
+                __fillColor: renderedFillColor,
                 __isHovered: isHovered,
-                __hoverFillColor: isHovered ? brightenColor(fillColor, useColorScale ? 0.42 : 0.35) : fillColor,
+                __isExtreme: isTopRoute || isBottomRoute,
+                __hoverFillColor: isHovered
+                    ? brightenColor(renderedFillColor, useColorScale ? 0.42 : 0.35)
+                    : renderedFillColor,
                 __hoverTubeWidth: useColorScale ? tubeWidth : (isHovered ? tubeWidth * 1.15 : tubeWidth)
             };
         });
+        if (extremeLinesVisible) {
+            renderData.sort((left, right) => {
+                return Number(Boolean(left.__isExtreme)) - Number(Boolean(right.__isExtreme)) ||
+                    Number(Boolean(left.__isHovered)) - Number(Boolean(right.__isHovered));
+            });
+        }
 
         overlay.setProps({
             layers: buildLayers(renderData)
@@ -901,7 +967,7 @@
     const buildDataUrl = () => {
         if (activeMapMode === "deep") {
             const params = new URLSearchParams({
-                year: "2023",
+                year: "2024",
                 mode: "deep",
                 day: deepSelections.day,
                 season: deepSelections.season,
@@ -956,6 +1022,7 @@
         syncMapModeButtons();
         syncDeepSelectionButtons();
         syncMetricButtons();
+        syncExtremeLineButtons();
         syncTitleVisibility();
         initializeMap();
         await loadData();
@@ -983,6 +1050,14 @@
         const modeButton = event.target.closest(".map-mode-button");
         if (modeButton) {
             await setMapMode(modeButton.dataset.mapMode || "annual");
+            return;
+        }
+
+        const extremeLineButton = event.target.closest(".extreme-line-button");
+        if (extremeLineButton) {
+            extremeLinesVisible = extremeLineButton.dataset.extremeLinesVisible === "true";
+            syncExtremeLineButtons();
+            renderCurrentView();
             return;
         }
 

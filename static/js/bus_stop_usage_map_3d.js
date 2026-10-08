@@ -22,7 +22,7 @@
             }
         },
         split: {
-            label: "Daily Usage (Split)",
+            label: "Daily Usage",
             getValue: (stop, dayKey) => {
                 const boardings = Number(stop[`${dayKey}_boardings`] || 0);
                 const alightings = Number(stop[`${dayKey}_alightings`] || 0);
