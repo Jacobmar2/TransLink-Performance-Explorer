@@ -115,6 +115,7 @@
     let extremeLinesVisible = false;
     let currentRequestId = 0;
     let renderRevision = 0;
+    let summaryRevisionScheduled = -1;
     let deepSelections = {
         day: "MF",
         season: "Fall",
@@ -215,6 +216,24 @@
         } else {
             pageSummary.textContent = `Showing results for ${metricLabel}`;
         }
+    };
+
+    const updateSummaryAfterMapFrame = (revision) => {
+        if (!map || !mapReady || summaryRevisionScheduled === revision) {
+            return;
+        }
+
+        summaryRevisionScheduled = revision;
+        map.once("render", () => {
+            window.requestAnimationFrame(() => {
+                window.requestAnimationFrame(() => {
+                    if (revision === renderRevision) {
+                        syncSummaryLine();
+                    }
+                });
+            });
+        });
+        map.triggerRepaint();
     };
 
     const syncDeepSelectionButtons = () => {
@@ -850,7 +869,7 @@
             layers: buildLayers(renderData),
             onAfterRender: () => {
                 if (revision === renderRevision) {
-                    syncSummaryLine();
+                    updateSummaryAfterMapFrame(revision);
                 }
             }
         });
@@ -1002,6 +1021,7 @@
             return;
         }
 
+        renderRevision += 1;
         activeMapMode = mode;
         activeMetric = activeMetricByMode[activeMapMode] || activeMetric;
         syncMapModeButtons();
@@ -1097,6 +1117,7 @@
                 syncDeepSelectionButtons();
 
                 if (activeMapMode === "deep") {
+                    renderRevision += 1;
                     await loadData();
                 }
             }
