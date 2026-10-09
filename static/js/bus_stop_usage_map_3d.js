@@ -730,18 +730,6 @@
                     shininess: 70,
                     specularColor: [210, 255, 214]
                 },
-                onHover: (info) => {
-                    if (!info || !info.object) {
-                        hoverInfo = null;
-                        hideTooltip();
-                        renderMap();
-                        return;
-                    }
-
-                    hoverInfo = info;
-                    showTooltip(info, info.object.__value || 0);
-                    renderMap();
-                }
             }));
         }
 
@@ -765,18 +753,6 @@
                     shininess: 70,
                     specularColor: [210, 255, 214]
                 },
-                onHover: (info) => {
-                    if (!info || !info.object) {
-                        hoverInfo = null;
-                        hideTooltip();
-                        renderMap();
-                        return;
-                    }
-
-                    hoverInfo = info;
-                    showTooltip(info, info.object.__value || 0);
-                    renderMap();
-                }
             }));
         }
 
@@ -1210,6 +1186,39 @@
     };
 
     map.on("load", attachOverlay);
+
+    map.on("mousemove", (event) => {
+        if (!overlay) {
+            return;
+        }
+
+        const pickInfo = overlay.pickObject({
+            x: event.point.x,
+            y: event.point.y,
+            radius: 4
+        });
+        if (!pickInfo || !pickInfo.object) {
+            const hadHoveredStop = Boolean(hoverInfo && hoverInfo.object);
+            hoverInfo = null;
+            hideTooltip();
+            if (hadHoveredStop) {
+                renderMap();
+            }
+            return;
+        }
+
+        const previousHoverKey = getStopHoverKey(hoverInfo && hoverInfo.object ? hoverInfo.object : null);
+        const nextHoverKey = getStopHoverKey(pickInfo.object);
+        hoverInfo = {
+            ...pickInfo,
+            x: event.originalEvent?.clientX ?? event.point.x,
+            y: event.originalEvent?.clientY ?? event.point.y
+        };
+        showTooltip(hoverInfo, pickInfo.object.__value || 0);
+        if (previousHoverKey !== nextHoverKey) {
+            renderMap();
+        }
+    });
 
     map.on("zoomend", () => {
         renderMap();

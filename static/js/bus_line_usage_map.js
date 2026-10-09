@@ -114,6 +114,7 @@
     let titleVisible = true;
     let extremeLinesVisible = false;
     let currentRequestId = 0;
+    let renderRevision = 0;
     let deepSelections = {
         day: "MF",
         season: "Fall",
@@ -198,17 +199,6 @@
                 : "Each line keeps a fixed color while tube width scales to the selected 2024 bus-line metric.";
         }
 
-        if (pageSummary) {
-            const metricLabel = metricConfig[activeMetric]?.label || "Metric";
-            if (activeMapMode === "deep") {
-                const dayLabel = deepSelections.day || "MF";
-                const seasonLabel = deepSelections.season || "Fall";
-                const timeLabel = deepSelections.timeRange || "4-6";
-                pageSummary.textContent = `Showing results for ${metricLabel} during ${seasonLabel} ${dayLabel} hours of ${timeLabel}`;
-            } else {
-                pageSummary.textContent = `Showing results for ${metricLabel}`;
-            }
-        }
     };
 
     const syncSummaryLine = () => {
@@ -495,7 +485,7 @@
             return null;
         }
 
-        return String(hoverInfo.object.group_code || hoverInfo.object.line || "").trim() || null;
+        return normalizeLineCode(hoverInfo.object.group_code || hoverInfo.object.line || "") || null;
     };
 
     const matchesSelectedFilters = (line) => {
@@ -626,23 +616,29 @@
         tooltip.style.top = `${Math.max(viewportPadding, top)}px`;
     };
 
-    const showTooltip = (event) => {
-        if (!tooltip || !event || !event.object) {
+    const showTooltip = (info) => {
+        if (!tooltip || !info || !info.object) {
+            const hadHoveredLine = Boolean(getHoveredLineKey());
             hoverInfo = null;
-            renderCurrentView();
             hideTooltip();
+            if (hadHoveredLine) {
+                renderCurrentView();
+            }
             return;
         }
 
-        const line = event.object;
+        const line = info.object;
         const metricLabel = metricConfig[activeMetric]?.label || "Metric";
         const metricValue = formatMetricValue(activeMetric, line.__metricValue);
         const routeName = line.line_name || line.shape_name || "";
         const description = line.description ? `<p class="map-tooltip-line">${line.description}</p>` : "";
         const lineTitle = line.group_code || line.line_label || line.line || "Bus Line";
-
-        hoverInfo = event;
-        renderCurrentView();
+        const previousLineKey = getHoveredLineKey();
+        const nextLineKey = normalizeLineCode(line.group_code || line.line || "");
+        hoverInfo = info;
+        if (previousLineKey !== nextLineKey) {
+            renderCurrentView();
+        }
 
         tooltip.innerHTML = [
             `<p class="map-tooltip-title">${lineTitle}</p>`,
@@ -652,7 +648,7 @@
         ].join("");
         tooltip.classList.add("is-visible");
         tooltip.setAttribute("aria-hidden", "false");
-        positionTooltip(event);
+        positionTooltip(info);
     };
 
     const buildLayers = (renderData) => {
@@ -695,7 +691,6 @@
                     return [darker[0], darker[1], darker[2], 255];
                 },
                 getWidth: (line) => (line.__isHovered ? line.__hoverTubeWidth : line.__tubeWidth),
-                onHover: showTooltip,
                 parameters: {
                     depthTest: false,
                     depthMask: false
@@ -714,7 +709,6 @@
                 getPath: (line) => line.coordinates,
                 getColor: (line) => (line.__isHovered ? line.__hoverFillColor : line.__fillColor),
                 getWidth: (line) => (line.__isHovered ? line.__hoverTubeWidth : line.__tubeWidth) * 0.84,
-                onHover: showTooltip,
                 parameters: {
                     depthTest: false,
                     depthMask: false
@@ -737,7 +731,6 @@
                     return [lighter[0], lighter[1], lighter[2], 255];
                 },
                 getWidth: (line) => (line.__isHovered ? line.__hoverTubeWidth : line.__tubeWidth) * 0.22,
-                onHover: showTooltip,
                 parameters: {
                     depthTest: false,
                     depthMask: false
@@ -851,10 +844,16 @@
             });
         }
 
+        renderRevision += 1;
+        const revision = renderRevision;
         overlay.setProps({
-            layers: buildLayers(renderData)
+            layers: buildLayers(renderData),
+            onAfterRender: () => {
+                if (revision === renderRevision) {
+                    syncSummaryLine();
+                }
+            }
         });
-        syncSummaryLine();
     };
 
     const fitMapBounds = () => {
@@ -950,6 +949,25 @@
             layers: []
         });
         map.addControl(overlay);
+
+        map.on("mousemove", (event) => {
+            if (!overlay) {
+                return;
+            }
+
+            const pickInfo = overlay.pickObject({
+                x: event.point.x,
+                y: event.point.y,
+                radius: 5
+            });
+            showTooltip(pickInfo && pickInfo.object
+                ? {
+                    ...pickInfo,
+                    x: event.originalEvent?.clientX ?? event.point.x,
+                    y: event.originalEvent?.clientY ?? event.point.y
+                }
+                : null);
+        });
 
         map.on("load", () => {
             mapReady = true;
