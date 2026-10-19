@@ -530,7 +530,7 @@
 
         .bus-line-label {
             display: block;
-            margin: 0 0 8px 0;
+            margin: 0 0 22px 0;
             color: #dff7e4;
             font-size: 0.82rem;
             font-weight: 700;
@@ -539,28 +539,90 @@
         .bus-line-row {
             display: flex;
             align-items: center;
-            gap: 8px;
-            flex-wrap: wrap;
+            justify-content: flex-start;
+            column-gap: clamp(24px, 12vw, 120px);
+            row-gap: 8px;
+            flex-wrap: nowrap;
         }
 
         .bus-line-select {
-            flex: 0 1 600px;
+            flex: 0.7 1 400px;
             min-width: 200px;
             height: 36px;
             min-height: 36px;
-            padding: 0.75em 0.9em;
+            margin: 0;
+            padding: 0 0.9em;
             border-radius: 0.6em;
             border: 1px solid rgba(121, 204, 145, 0.4);
             background: rgba(5, 18, 11, 0.96);
             color: #edf9f0;
             font-size: 0.86rem;
+            font-family: inherit;
+            font-weight: 400;
             line-height: 1.2;
+            box-sizing: border-box;
+            text-align: left;
+            cursor: pointer;
+        }
+
+        .bus-line-select::after {
+            content: "⌄";
+            float: right;
+            position: relative;
+            top: -6px;
+            font-size: 1rem;
+        }
+
+        .bus-line-native-select {
+            display: none;
+        }
+
+        .bus-line-options {
+            position: fixed;
+            z-index: 10;
+            overflow-y: auto;
+            overflow-x: hidden;
+            overscroll-behavior: contain;
+            padding: 4px;
+            border: 1px solid rgba(121, 204, 145, 0.48);
+            border-radius: 8px;
+            background: #03100a;
+            color: #edf9f0;
+            box-shadow: 0 10px 28px rgba(0, 0, 0, 0.55);
             box-sizing: border-box;
         }
 
+        .bus-line-options[hidden] {
+            display: none;
+        }
+
+        .bus-line-option {
+            display: block;
+            width: 100%;
+            box-sizing: border-box;
+            padding: 7px 8px;
+            border: 0;
+            border-radius: 4px;
+            background: transparent;
+            color: inherit;
+            font: inherit;
+            font-size: 0.85rem;
+            text-align: left;
+            overflow-wrap: anywhere;
+            cursor: pointer;
+        }
+
+        .bus-line-option:hover,
+        .bus-line-option.is-active,
+        .bus-line-option[aria-selected="true"] {
+            background: rgba(58, 140, 82, 0.72);
+        }
+
         .reveal-map-button {
+            flex: 0 0 auto;
             height: 36px;
             min-height: 36px;
+            margin: 0;
             border: 1px solid rgba(121, 204, 145, 0.36);
             border-radius: 0.6em;
             padding: 0 0.95em;
@@ -580,7 +642,7 @@
         }
 
         .panel-note {
-            margin: 4px 0 0 0;
+            margin: 18px 0 0 0;
             color: #bce6c5;
             font-size: 0.84rem;
             line-height: 1.4;
@@ -685,6 +747,10 @@
                 min-width: 0;
                 flex-basis: 100%;
             }
+
+            .bus-line-row {
+                flex-wrap: wrap;
+            }
         }
     </style>
 </head>
@@ -765,10 +831,19 @@
             </div>
 
             <div class="panel-row panel-row-2">
-                <label class="bus-line-label" for="bus-line-select">Select bus line</label>
+                <label class="bus-line-label" for="bus-line-select-button">Select bus line</label>
                 <div class="bus-line-row">
-                    <select id="bus-line-select" class="bus-line-select" name="bus-line-select">
-                        <option value="">Loading bus lines...</option>
+                    <button
+                        id="bus-line-select-button"
+                        class="bus-line-select"
+                        type="button"
+                        aria-haspopup="listbox"
+                        aria-expanded="false"
+                        aria-controls="bus-line-options"
+                        aria-label="Select bus line"
+                    >Select line</button>
+                    <select id="bus-line-select" class="bus-line-native-select" name="bus-line-select" tabindex="-1" aria-hidden="true">
+                        <option value="">Select line</option>
                     </select>
                     <button id="reveal-map-button" class="reveal-map-button" type="button">Reveal Complete Map</button>
                 </div>
@@ -813,10 +888,11 @@
         </div>
     </section>
 
+    <div id="bus-line-options" class="bus-line-options" role="listbox" aria-label="Bus lines" hidden></div>
     <div id="map-tooltip" class="map-tooltip" aria-hidden="true"></div>
 
     <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
     <script src="https://unpkg.com/deck.gl@9.0.34/dist.min.js"></script>
-    <script src="{{ url_for('static', filename='js/bus_stop_usage_map_3d.js', v='20261008-1') }}"></script>
+    <script src="{{ url_for('static', filename='js/bus_stop_usage_map_3d.js', v='20261019-1') }}"></script>
 </body>
 </html>

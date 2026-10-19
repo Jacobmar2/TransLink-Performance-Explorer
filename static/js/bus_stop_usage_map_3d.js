@@ -40,6 +40,8 @@
     const metricButtons = Array.from(document.querySelectorAll(".metric-button"));
     const daytypeButtons = Array.from(document.querySelectorAll(".daytype-button"));
     const busLineSelect = document.getElementById("bus-line-select");
+    const busLineSelectButton = document.getElementById("bus-line-select-button");
+    const busLineOptionsMenu = document.getElementById("bus-line-options");
     const revealMapButton = document.getElementById("reveal-map-button");
     const panel = document.getElementById("control-panel");
     const toggleButton = document.getElementById("control-panel-toggle");
@@ -64,6 +66,9 @@
     let dataReady = false;
     let stops = [];
     let busLineOptions = [];
+    let activeBusLineOptionIndex = -1;
+    let busLineTypeahead = "";
+    let busLineTypeaheadTimeout = null;
     let currentMetric = "boardings";
     let currentDayType = "weekday";
     let currentBusLine = "";
@@ -861,6 +866,7 @@
     const clearBusLineSelection = () => {
         if (busLineSelect) {
             busLineSelect.value = "";
+            syncBusLinePicker();
         }
         currentBusLine = "";
         renderMap();
@@ -896,27 +902,142 @@
         }
     };
 
-    const populateBusLineOptions = (options) => {
+    const closeBusLineOptions = () => {
+        if (!busLineOptionsMenu || !busLineSelectButton) {
+            return;
+        }
+
+        busLineOptionsMenu.hidden = true;
+        busLineSelectButton.setAttribute("aria-expanded", "false");
+        busLineSelectButton.removeAttribute("aria-activedescendant");
+    };
+
+    const positionBusLineOptions = () => {
+        if (!busLineOptionsMenu || !busLineSelectButton) {
+            return;
+        }
+
+        const buttonRect = busLineSelectButton.getBoundingClientRect();
+        const gap = 4;
+        const viewportPadding = 8;
+        const spaceAbove = Math.max(0, buttonRect.top - viewportPadding - gap);
+        const spaceBelow = Math.max(0, window.innerHeight - buttonRect.bottom - viewportPadding - gap);
+        const openAbove = spaceAbove > spaceBelow;
+        const availableHeight = openAbove ? spaceAbove : spaceBelow;
+        const maxHeight = Math.min(360, availableHeight);
+
+        busLineOptionsMenu.style.maxHeight = `${maxHeight}px`;
+        busLineOptionsMenu.style.width = `${buttonRect.width}px`;
+        busLineOptionsMenu.style.left = `${Math.max(
+            viewportPadding,
+            Math.min(buttonRect.left, window.innerWidth - buttonRect.width - viewportPadding)
+        )}px`;
+        const menuHeight = Math.min(busLineOptionsMenu.scrollHeight, maxHeight);
+        busLineOptionsMenu.style.top = openAbove
+            ? `${Math.max(viewportPadding, buttonRect.top - menuHeight - gap)}px`
+            : `${Math.min(window.innerHeight - menuHeight - viewportPadding, buttonRect.bottom + gap)}px`;
+    };
+
+    const setActiveBusLineOption = (index) => {
+        if (!busLineOptionsMenu || !busLineSelectButton) {
+            return;
+        }
+
+        const options = Array.from(busLineOptionsMenu.querySelectorAll(".bus-line-option"));
+        if (!options.length) {
+            activeBusLineOptionIndex = -1;
+            busLineSelectButton.removeAttribute("aria-activedescendant");
+            return;
+        }
+
+        activeBusLineOptionIndex = (index + options.length) % options.length;
+        options.forEach((option, optionIndex) => {
+            option.classList.toggle("is-active", optionIndex === activeBusLineOptionIndex);
+        });
+        const activeOption = options[activeBusLineOptionIndex];
+        busLineSelectButton.setAttribute("aria-activedescendant", activeOption.id);
+        activeOption.scrollIntoView({ block: "nearest" });
+    };
+
+    const syncBusLinePicker = () => {
+        if (!busLineSelect || !busLineSelectButton || !busLineOptionsMenu) {
+            return;
+        }
+
+        const selectedOption = busLineSelect.selectedOptions[0];
+        busLineSelectButton.textContent = selectedOption?.textContent || "Select line";
+        busLineOptionsMenu.querySelectorAll(".bus-line-option").forEach((option) => {
+            option.setAttribute("aria-selected", option.dataset.value === busLineSelect.value ? "true" : "false");
+        });
+    };
+
+    const chooseBusLineOption = (value) => {
         if (!busLineSelect) {
             return;
         }
 
+        busLineSelect.value = value;
+        busLineSelect.dispatchEvent(new Event("change", { bubbles: true }));
+        closeBusLineOptions();
+        busLineSelectButton?.focus();
+    };
+
+    const openBusLineOptions = () => {
+        if (!busLineOptionsMenu || !busLineSelectButton) {
+            return;
+        }
+
+        busLineOptionsMenu.hidden = false;
+        busLineSelectButton.setAttribute("aria-expanded", "true");
+        positionBusLineOptions();
+        const selectedIndex = Array.from(busLineOptionsMenu.querySelectorAll(".bus-line-option"))
+            .findIndex((option) => option.dataset.value === busLineSelect?.value);
+        setActiveBusLineOption(selectedIndex >= 0 ? selectedIndex : 0);
+    };
+
+    const populateBusLineOptions = (options) => {
+        if (!busLineSelect || !busLineOptionsMenu) {
+            return;
+        }
+
         busLineSelect.innerHTML = "";
+        busLineOptionsMenu.innerHTML = "";
 
         const placeholder = document.createElement("option");
         placeholder.value = "";
         placeholder.textContent = "Select line";
         busLineSelect.appendChild(placeholder);
 
+        const placeholderMenuOption = document.createElement("div");
+        placeholderMenuOption.id = "bus-line-option-0";
+        placeholderMenuOption.className = "bus-line-option";
+        placeholderMenuOption.setAttribute("role", "option");
+        placeholderMenuOption.setAttribute("aria-selected", "false");
+        placeholderMenuOption.dataset.value = "";
+        placeholderMenuOption.textContent = placeholder.textContent;
+        placeholderMenuOption.addEventListener("click", () => chooseBusLineOption(""));
+        busLineOptionsMenu.appendChild(placeholderMenuOption);
+
         options.forEach((option) => {
             const opt = document.createElement("option");
             opt.value = String(option.value || "");
             opt.textContent = option.label || opt.value;
             busLineSelect.appendChild(opt);
+
+            const menuOption = document.createElement("div");
+            menuOption.id = `bus-line-option-${busLineOptionsMenu.childElementCount}`;
+            menuOption.className = "bus-line-option";
+            menuOption.setAttribute("role", "option");
+            menuOption.setAttribute("aria-selected", "false");
+            menuOption.dataset.value = opt.value;
+            menuOption.textContent = opt.textContent;
+            menuOption.addEventListener("click", () => chooseBusLineOption(opt.value));
+            busLineOptionsMenu.appendChild(menuOption);
         });
 
         busLineSelect.value = "";
         currentBusLine = "";
+        syncBusLinePicker();
     };
 
     const updateMetric = (metric) => {
@@ -960,7 +1081,89 @@
     });
 
     if (busLineSelect) {
-        busLineSelect.addEventListener("change", () => updateBusLine(busLineSelect.value));
+        busLineSelect.addEventListener("change", () => {
+            syncBusLinePicker();
+            updateBusLine(busLineSelect.value);
+        });
+    }
+
+    if (busLineSelect && busLineSelectButton && busLineOptionsMenu) {
+        busLineSelectButton.addEventListener("click", () => {
+            if (busLineOptionsMenu.hidden) {
+                openBusLineOptions();
+            } else {
+                closeBusLineOptions();
+            }
+        });
+
+        busLineSelectButton.addEventListener("keydown", (event) => {
+            const optionCount = busLineOptionsMenu.querySelectorAll(".bus-line-option").length;
+            const isOpen = !busLineOptionsMenu.hidden;
+
+            if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+                event.preventDefault();
+                if (!isOpen) {
+                    openBusLineOptions();
+                } else {
+                    setActiveBusLineOption(activeBusLineOptionIndex + (event.key === "ArrowDown" ? 1 : -1));
+                }
+            } else if (event.key === "Home" && isOpen) {
+                event.preventDefault();
+                setActiveBusLineOption(0);
+            } else if (event.key === "End" && isOpen) {
+                event.preventDefault();
+                setActiveBusLineOption(optionCount - 1);
+            } else if ((event.key === "Enter" || event.key === " ") && isOpen) {
+                event.preventDefault();
+                const activeOption = busLineOptionsMenu.querySelector(".bus-line-option.is-active");
+                if (activeOption) {
+                    chooseBusLineOption(activeOption.dataset.value || "");
+                }
+            } else if (event.key === "Escape" && isOpen) {
+                event.preventDefault();
+                closeBusLineOptions();
+            } else if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
+                busLineTypeahead += event.key.toLocaleLowerCase();
+                window.clearTimeout(busLineTypeaheadTimeout);
+                busLineTypeaheadTimeout = window.setTimeout(() => {
+                    busLineTypeahead = "";
+                }, 700);
+                const matchIndex = Array.from(busLineOptionsMenu.querySelectorAll(".bus-line-option"))
+                    .findIndex((option) => option.textContent.toLocaleLowerCase().startsWith(busLineTypeahead));
+                if (matchIndex >= 0) {
+                    if (!isOpen) {
+                        openBusLineOptions();
+                    }
+                    setActiveBusLineOption(matchIndex);
+                }
+            }
+        });
+
+        document.addEventListener("pointerdown", (event) => {
+            if (
+                !busLineOptionsMenu.hidden &&
+                !busLineOptionsMenu.contains(event.target) &&
+                !busLineSelectButton.contains(event.target)
+            ) {
+                closeBusLineOptions();
+            }
+        });
+
+        document.addEventListener("focusin", (event) => {
+            if (
+                !busLineOptionsMenu.hidden &&
+                !busLineOptionsMenu.contains(event.target) &&
+                !busLineSelectButton.contains(event.target)
+            ) {
+                closeBusLineOptions();
+            }
+        });
+
+        window.addEventListener("resize", () => {
+            if (!busLineOptionsMenu.hidden) {
+                positionBusLineOptions();
+            }
+        });
     }
 
     if (revealMapButton) {

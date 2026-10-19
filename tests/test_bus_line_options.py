@@ -170,3 +170,5 @@ def test_3d_bus_line_map_deep_stats_use_2024_data(client):
     assert payload['year'] == 2024
     line_two = next(line for line in payload['lines'] if line['line'] == '2')
     assert line_two['metrics']['annual_revenue_hours'] == pytest.approx(123.0666667)
+    assert line_two['metrics']['avg_peak_passenger_load_north_east_directions'] == ['EAST']
+    assert line_two['metrics']['avg_peak_load_factor_south_west_directions'] == ['WEST']

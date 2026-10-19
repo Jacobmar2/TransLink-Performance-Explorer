@@ -2389,13 +2389,24 @@ def _build_deep_bus_line_map_metrics(base_df, peak_df, line_code, day_norm, seas
                 'peak_load_factor': _mean_or_none(group, 'Average_Peak_Load_Factor')
             }
 
-    def _mean_direction_values(direction_names, metric_name):
+    def _direction_values(direction_names, metric_name):
         values = []
         for direction_name in direction_names:
             direction_value = direction_metrics.get(direction_name, {}).get(metric_name)
             if direction_value is not None:
-                values.append(direction_value)
-        return _mean_list_or_none(values)
+                values.append((direction_name, direction_value))
+        return values
+
+    def _mean_direction_values(direction_names, metric_name):
+        return _mean_list_or_none([
+            value for _, value in _direction_values(direction_names, metric_name)
+        ])
+
+    def _metric_directions(direction_names, metric_name):
+        return [
+            direction_name
+            for direction_name, _ in _direction_values(direction_names, metric_name)
+        ]
 
     return {
         'annual_revenue_hours': _mean_or_none(section_rows, 'Annual_Revenue_Hours'),
@@ -2404,9 +2415,13 @@ def _build_deep_bus_line_map_metrics(base_df, peak_df, line_code, day_norm, seas
         'boardings_per_revenue_hour': _mean_or_none(section_rows, 'Average_Boardings_Per_Revenue_Hour'),
         'boardings_per_trip': _mean_or_none(section_rows, 'Average_Boardings_Per_Trip'),
         'avg_peak_passenger_load_north_east': _mean_direction_values(['NORTH', 'EAST'], 'peak_passenger_load'),
+        'avg_peak_passenger_load_north_east_directions': _metric_directions(['NORTH', 'EAST'], 'peak_passenger_load'),
         'avg_peak_passenger_load_south_west': _mean_direction_values(['SOUTH', 'WEST'], 'peak_passenger_load'),
+        'avg_peak_passenger_load_south_west_directions': _metric_directions(['SOUTH', 'WEST'], 'peak_passenger_load'),
         'avg_peak_load_factor_north_east': _mean_direction_values(['NORTH', 'EAST'], 'peak_load_factor'),
-        'avg_peak_load_factor_south_west': _mean_direction_values(['SOUTH', 'WEST'], 'peak_load_factor')
+        'avg_peak_load_factor_north_east_directions': _metric_directions(['NORTH', 'EAST'], 'peak_load_factor'),
+        'avg_peak_load_factor_south_west': _mean_direction_values(['SOUTH', 'WEST'], 'peak_load_factor'),
+        'avg_peak_load_factor_south_west_directions': _metric_directions(['SOUTH', 'WEST'], 'peak_load_factor')
     }
 
 

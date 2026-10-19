@@ -60,10 +60,22 @@
         annual_service_hours: { label: "Annual Service Hours" },
         trips_per_clock_hour_per_direction: { label: "Trips per Clock Hour per Direction" },
         boardings_per_trip: { label: "Boardings per Trip" },
-        avg_peak_passenger_load_north_east: { label: "Avg Peak Passenger Load (North/East)" },
-        avg_peak_passenger_load_south_west: { label: "Avg Peak Passenger Load (South/West)" },
-        avg_peak_load_factor_north_east: { label: "Avg Peak Load Factor (North/East)" },
-        avg_peak_load_factor_south_west: { label: "Avg Peak Load Factor (South/West)" }
+        avg_peak_passenger_load_north_east: {
+            label: "Avg Peak Passenger Load",
+            directionsKey: "avg_peak_passenger_load_north_east_directions"
+        },
+        avg_peak_passenger_load_south_west: {
+            label: "Avg Peak Passenger Load",
+            directionsKey: "avg_peak_passenger_load_south_west_directions"
+        },
+        avg_peak_load_factor_north_east: {
+            label: "Avg Peak Load Factor",
+            directionsKey: "avg_peak_load_factor_north_east_directions"
+        },
+        avg_peak_load_factor_south_west: {
+            label: "Avg Peak Load Factor",
+            directionsKey: "avg_peak_load_factor_south_west_directions"
+        }
     };
 
     const percentMetrics = new Set([
@@ -121,6 +133,7 @@
         season: "Fall",
         timeRange: "4-6"
     };
+    let loadedDeepSelections = { ...deepSelections };
 
     const numberFormatter = new Intl.NumberFormat("en-CA", {
         maximumFractionDigits: 2
@@ -647,11 +660,21 @@
         }
 
         const line = info.object;
-        const metricLabel = metricConfig[activeMetric]?.label || "Metric";
+        const metric = metricConfig[activeMetric];
+        const directionKey = metric?.directionsKey;
+        const directions = directionKey && Array.isArray(line.metrics?.[directionKey])
+            ? line.metrics[directionKey]
+                .map((direction) => String(direction).toLowerCase())
+                .map((direction) => direction.charAt(0).toUpperCase() + direction.slice(1))
+            : [];
+        const metricLabel = `${metric?.label || "Metric"}${directions.length ? ` (${directions.join("/")})` : ""}`;
         const metricValue = formatMetricValue(activeMetric, line.__metricValue);
         const routeName = line.line_name || line.shape_name || "";
         const description = line.description ? `<p class="map-tooltip-line">${line.description}</p>` : "";
         const lineTitle = line.group_code || line.line_label || line.line || "Bus Line";
+        const timeSlice = activeMapMode === "deep"
+            ? `${loadedDeepSelections.season || "Fall"} ${loadedDeepSelections.day || "MF"} hours of ${loadedDeepSelections.timeRange || "4-6"}`
+            : "";
         const previousLineKey = getHoveredLineKey();
         const nextLineKey = normalizeLineCode(line.group_code || line.line || "");
         hoverInfo = info;
@@ -662,6 +685,7 @@
         tooltip.innerHTML = [
             `<p class="map-tooltip-title">${lineTitle}</p>`,
             routeName ? `<p class="map-tooltip-line">${routeName}</p>` : "",
+            timeSlice ? `<p class="map-tooltip-line">${timeSlice}</p>` : "",
             `<p class="map-tooltip-line">${metricLabel}: ${metricValue}</p>`,
             description
         ].join("");
@@ -893,6 +917,7 @@
 
     const loadData = async () => {
         const requestId = ++currentRequestId;
+        const requestedDeepSelections = { ...deepSelections };
         const response = await fetch(buildDataUrl());
         if (!response.ok) {
             throw new Error(`Failed to load bus line usage data (${response.status})`);
@@ -923,11 +948,31 @@
 
         if (payload.time_range) {
             deepSelections.timeRange = payload.time_range;
+            requestedDeepSelections.timeRange = payload.time_range;
         }
+        loadedDeepSelections = requestedDeepSelections;
 
         dataReady = true;
         fitMapBounds();
         renderCurrentView();
+        if (hoverInfo?.object) {
+            const hoveredLineKey = getHoveredLineKey();
+            const currentLine = lines.find((line) =>
+                normalizeLineCode(line.group_code || line.line || "") === hoveredLineKey
+            );
+            if (currentLine && Number.isFinite(getMetricValue(currentLine))) {
+                showTooltip({
+                    ...hoverInfo,
+                    object: {
+                        ...currentLine,
+                        __metricValue: getMetricValue(currentLine)
+                    }
+                });
+            } else {
+                hoverInfo = null;
+                hideTooltip();
+            }
+        }
     };
 
     const initializeMap = () => {
