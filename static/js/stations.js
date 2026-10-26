@@ -33,6 +33,10 @@ function syncStationDropdownWidths() {
         const targetWidth = Math.max(yearSelectors.offsetWidth, yearSelectors.scrollWidth) + 2;
         if (targetWidth > 0) {
             selectNode.style.width = targetWidth + 'px';
+            const picker = selectNode.closest('.bus-line-picker');
+            if (picker) {
+                picker.style.width = targetWidth + 'px';
+            }
         }
     });
 }

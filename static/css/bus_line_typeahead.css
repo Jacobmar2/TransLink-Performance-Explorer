@@ -1,0 +1,72 @@
+.bus-line-picker {
+    position: relative;
+    min-width: 0;
+}
+
+.bus-line-picker-button {
+    box-sizing: border-box;
+    position: relative;
+    display: block;
+    width: 100%;
+    margin: 0;
+    padding: 0.8em 2.2em 0.8em 0.8em;
+    border: 1px solid #b8c6d1;
+    border-radius: 0.5em;
+    background: #fff;
+    color: #17384a;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.bus-line-picker-button::after {
+    content: "⌄";
+    position: absolute;
+    top: 50%;
+    right: 0.8em;
+    transform: translateY(-58%);
+}
+
+.bus-line-picker-options {
+    position: fixed;
+    z-index: 1000;
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior: contain;
+    padding: 4px;
+    border: 1px solid #b8c6d1;
+    border-radius: 8px;
+    background: #fff;
+    color: #17384a;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.18);
+    box-sizing: border-box;
+}
+
+.bus-line-picker-options[hidden] {
+    display: none;
+}
+
+.bus-line-picker-option {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 7px 8px;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    overflow-wrap: anywhere;
+    cursor: pointer;
+}
+
+.bus-line-picker-option:hover,
+.bus-line-picker-option.is-active,
+.bus-line-picker-option[aria-selected="true"] {
+    background: #d6ecff;
+}
+
+.bus-line-picker-native {
+    display: none;
+}

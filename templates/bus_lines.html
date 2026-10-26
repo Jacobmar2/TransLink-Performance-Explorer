@@ -1,9 +1,10 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <title>My 2 Bus Lines</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/bus_line_typeahead.css', v='20261026-3') }}">
     </head>
 <body class="bus-lines-page">
 
@@ -14,7 +15,7 @@
     <div class="select-row" style="display:flex;gap:5em;justify-content:center;flex-wrap:wrap;margin:1.2em 0;">
         <div style="width:300px;min-width:400px;max-width:600px;">
             <label for="line1"><strong>Line 1</strong></label>
-            <select id="line1" name="line1" style="width:100%;padding:0.8em;border-radius:0.5em;">
+            <select id="line1" name="line1" class="bus-line-typeahead" style="width:100%;padding:0.8em;border-radius:0.5em;">
                 <option value="">Select line</option>
                 <option>2</option>
                 <option>3</option>
@@ -228,7 +229,7 @@
 
         <div style="width:300px;min-width:400px;max-width:600px;margin-left:-32px;">
             <label for="line2"><strong>Line 2</strong></label>
-            <select id="line2" name="line2" style="width:100%;padding:0.8em;border-radius:0.5em;">
+            <select id="line2" name="line2" class="bus-line-typeahead" style="width:100%;padding:0.8em;border-radius:0.5em;">
                 <option value="">Select line</option>
                 <option>2</option>
                 <option>3</option>
@@ -446,6 +447,7 @@
         <div id="compareResult" class="vs-compare" style="text-align:center;margin-top:0.5em;font-weight:bold;color:#006c9e;word-wrap:break-word;"></div>
     </div>
 
+    <script src="{{ url_for('static', filename='js/bus_line_typeahead.js', v='20261026-3') }}"></script>
     <script src="{{ url_for('static', filename='js/bus_lines.js') }}"></script>
 
     <a href="/" class="button-card back-button">

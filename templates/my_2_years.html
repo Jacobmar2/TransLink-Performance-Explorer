@@ -5,6 +5,7 @@
     <title>My 2 Years</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/similar_to.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/bus_line_typeahead.css', v='20261026-3') }}">
 </head>
 <body>
 
@@ -136,7 +137,7 @@
     <div class="similar-controls" style="margin-top:0.7em;">
         <div class="reference-card">
             <label class="reference-label" for="detailEntityDropdown">Individual Bus/Station details</label>
-            <select id="detailEntityDropdown" name="detailEntity" style="width:100%;padding:0.8em;border-radius:0.5em;">
+            <select id="detailEntityDropdown" name="detailEntity" class="bus-line-typeahead" style="width:100%;padding:0.8em;border-radius:0.5em;">
                 <option value="">Loading options...</option>
             </select>
         </div>
@@ -161,6 +162,7 @@
         </div>
     </div>
 
+    <script src="{{ url_for('static', filename='js/bus_line_typeahead.js', v='20261026-3') }}"></script>
     <script src="{{ url_for('static', filename='js/my_2_years.js') }}"></script>
 
     <a href="/" class="button-card back-button">

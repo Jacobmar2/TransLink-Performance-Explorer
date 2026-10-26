@@ -6,6 +6,7 @@
     const metricButtons = Array.from(document.querySelectorAll(".metric-button"));
     const dailyUsageButtons = Array.from(document.querySelectorAll("[data-daily-usage]"));
     const modeButtons = Array.from(document.querySelectorAll(".mode-button"));
+    const capacityModeButtons = Array.from(document.querySelectorAll("[data-capacity-mode]"));
     const hourlyDayTypeButtons = Array.from(document.querySelectorAll("[data-hourly-daytype]"));
     const hourlyUsageButtons = Array.from(document.querySelectorAll("[data-hourly-usage]"));
     const hourlyTimeModeButtons = Array.from(document.querySelectorAll("[data-hourly-time-mode]"));
@@ -64,6 +65,7 @@
     };
 
     let activeMode = "total";
+    let activeCapacityMode = "total_capacity";
     let activeTotalMetric = "weekday";
     let activeDailyUsage = "total";
     let activeHourlyDayType = "weekday";
@@ -103,6 +105,12 @@
     const formatNumber = (value) => {
         return new Intl.NumberFormat("en-CA", {
             maximumFractionDigits: 0
+        }).format(value);
+    };
+
+    const formatPeoplePerTrain = (value) => {
+        return new Intl.NumberFormat("en-CA", {
+            maximumFractionDigits: 1
         }).format(value);
     };
 
@@ -200,28 +208,45 @@
     };
 
     const getCurrentProfile = () => {
+        const peoplePerTrainActive = activeCapacityMode === "people_per_train";
+
         if (activeMode === "total") {
             const dayKey = activeTotalMetric;
             const usageKey = activeDailyUsage;
             const cfg = usageConfig[usageKey];
             const dayLabel = dayTypeConfig[dayKey].label;
 
+            const getPassengerValue = (segment) => {
+                const daySeries = segment.usage[dayKey] || {};
+                const series = daySeries[usageKey] || [];
+                let sum = 0;
+                for (let idx = 0; idx < series.length; idx += 4) {
+                    sum += toNumber(series[idx]);
+                }
+                return sum;
+            };
+            const getTrainCount = (segment) => {
+                const dayCounts = (segment.train_counts || {})[dayKey] || {};
+                return ["inbound", "outbound"].reduce((count, direction) => {
+                    const series = dayCounts[direction] || [];
+                    const total = series.reduce((sum, value) => sum + toNumber(value), 0);
+                    return count + (usageKey === "total" ? total : direction === usageKey ? total : 0);
+                }, 0);
+            };
+
             return {
-                label: `${cfg.label} (Daily total, ${dayLabel})`,
-                tooltipLabel: `${cfg.label} (Daily total, ${dayLabel})`,
+                label: peoplePerTrainActive ? "Average People per Train" : `${cfg.label} (Daily total, ${dayLabel})`,
+                tooltipLabel: peoplePerTrainActive ? "Average Occupancy per Train" : `${cfg.label} (Daily total, ${dayLabel})`,
                 colorLow: cfg.colorLow,
                 colorHigh: cfg.colorHigh,
+                getTrainCount,
                 getValue: (segment) => {
-                    const daySeries = segment.usage[dayKey] || {};
-                    const series = daySeries[usageKey] || [];
-                    if (!series.length) {
-                        return 0;
+                    const passengerValue = getPassengerValue(segment);
+                    if (!peoplePerTrainActive) {
+                        return passengerValue;
                     }
-                    let sum = 0;
-                    for (let idx = 0; idx < series.length; idx += 4) {
-                        sum += toNumber(series[idx]);
-                    }
-                    return sum;
+                    const trainCount = getTrainCount(segment);
+                    return trainCount > 0 ? passengerValue / trainCount : 0;
                 }
             };
         }
@@ -230,22 +255,71 @@
         const usageKey = activeHourlyUsage;
         const cfg = usageConfig[usageKey];
         const slot = indexToSlot(activeTimeSliderIndex);
+        const referenceKey = cfg.referenceKey || usageKey;
+        const getTrainCountAtSlot = (segment, selectedSlot) => {
+            const directionCounts = ((segment.train_counts || {})[dayKey]) || {};
+            const countInRollingHour = (series) => {
+                let total = 0;
+                for (let offset = 0; offset < 4; offset += 1) {
+                    total += toNumber(series[(selectedSlot + offset) % 96]);
+                }
+                return total;
+            };
+            const inbound = countInRollingHour(directionCounts.inbound || []);
+            const outbound = countInRollingHour(directionCounts.outbound || []);
+            if (referenceKey === "inbound") {
+                return inbound;
+            }
+            if (referenceKey === "outbound") {
+                return outbound;
+            }
+            return inbound + outbound;
+        };
+        const getTrainCount = (segment) => getTrainCountAtSlot(segment, slot);
+        const getPassengerValueAtSlot = (segment, selectedSlot) => {
+            const daySeries = segment.usage[dayKey] || {};
+            const usageSeries = daySeries[referenceKey] || [];
+            return toNumber(usageSeries[selectedSlot]);
+        };
+        const getPassengerValue = (segment) => getPassengerValueAtSlot(segment, slot);
+        const getDailyPeakPeoplePerTrain = (segment) => {
+            let peak = 0;
+            for (let selectedSlot = 0; selectedSlot < 96; selectedSlot += 1) {
+                const trainCount = getTrainCountAtSlot(segment, selectedSlot);
+                if (trainCount === 0) {
+                    continue;
+                }
+                peak = Math.max(peak, getPassengerValueAtSlot(segment, selectedSlot) / trainCount);
+            }
+            return peak;
+        };
 
         return {
-            label: `${cfg.label} (${dayTypeConfig[dayKey].label}, ${formatTimeRangeLabel(slot)})`,
-            tooltipLabel: `${cfg.tooltipLabel} (${dayTypeConfig[dayKey].label}, ${formatTimeRangeLabel(slot)})`,
+            label: peoplePerTrainActive
+                ? "Average People per Train"
+                : `${cfg.label} (${dayTypeConfig[dayKey].label}, ${formatTimeRangeLabel(slot)})`,
+            tooltipLabel: peoplePerTrainActive
+                ? "Average Occupancy per Train"
+                : `${cfg.tooltipLabel} (${dayTypeConfig[dayKey].label}, ${formatTimeRangeLabel(slot)})`,
             colorLow: cfg.colorLow,
             colorHigh: cfg.colorHigh,
             dayKey,
             usageKey,
-            referenceKey: cfg.referenceKey || usageKey,
+            referenceKey,
             slot,
             splitGradient: Boolean(cfg.splitGradient),
+            getTrainCount,
             getValue: (segment) => {
-                const daySeries = segment.usage[dayKey] || {};
-                const usageSeries = daySeries[cfg.referenceKey || usageKey] || [];
-                return toNumber(usageSeries[slot]);
-            }
+                const passengerValue = getPassengerValue(segment);
+                if (!peoplePerTrainActive) {
+                    return passengerValue;
+                }
+                const trainCount = getTrainCount(segment);
+                return trainCount > 0 ? passengerValue / trainCount : 0;
+            },
+            getDailyPeakValue: (segment) => peoplePerTrainActive
+                ? getDailyPeakPeoplePerTrain(segment)
+                : 0
         };
     };
 
@@ -388,6 +462,12 @@
 
         modeButtons.forEach((button) => {
             button.classList.toggle("is-active", button.dataset.mode === activeMode);
+        });
+
+        capacityModeButtons.forEach((button) => {
+            const isActive = button.dataset.capacityMode === activeCapacityMode;
+            button.classList.toggle("is-active", isActive);
+            button.setAttribute("aria-pressed", isActive ? "true" : "false");
         });
 
         hourlyDayTypeButtons.forEach((button) => {
@@ -605,17 +685,26 @@
 
         const profile = getCurrentProfile();
 
-        const maxValue = activeMode === "hourly"
+        const maxValue = activeMode === "hourly" && activeCapacityMode !== "people_per_train"
             ? getHourlyReferenceMax(profile.dayKey, profile.referenceKey || profile.usageKey)
             : segments.reduce((maxSoFar, segment) => {
                 return Math.max(maxSoFar, profile.getValue(segment));
             }, 0);
+        const sizeUsesDailyPeak = activeMode === "hourly" && activeCapacityMode === "people_per_train";
+        const maxSizeValue = sizeUsesDailyPeak
+            ? segments.reduce((maxSoFar, segment) => {
+                return Math.max(maxSoFar, profile.getDailyPeakValue(segment));
+            }, 0)
+            : maxValue;
 
         const minValue = segments.reduce((minSoFar, segment) => {
             return Math.min(minSoFar, profile.getValue(segment));
         }, Number.POSITIVE_INFINITY);
 
         const effectiveMax = maxValue > 0 ? maxValue : 1;
+        const effectiveSizeMax = sizeUsesDailyPeak
+            ? (maxSizeValue > 0 ? maxSizeValue : 1)
+            : effectiveMax;
         const effectiveMin = Number.isFinite(minValue) ? minValue : 0;
 
         let revealMaxSegmentKey = null;
@@ -647,8 +736,10 @@
 
         const renderData = segments.map((segment) => {
             const metricValue = profile.getValue(segment);
+            const sizeValue = metricValue;
+            const trainCount = profile.getTrainCount(segment);
             const ratio = Math.max(0, Math.min(1, metricValue / effectiveMax));
-            const tubeHeight = toTubeHeight(metricValue, effectiveMax);
+            const tubeHeight = toTubeHeight(sizeValue, effectiveSizeMax);
             const hoveredKey = getSegmentHoverKey(hoverInfo && hoverInfo.object ? hoverInfo.object : null);
             const segmentKey = getSegmentHoverKey(segment);
             const isHovered = hoveredKey && hoveredKey === segmentKey;
@@ -679,17 +770,19 @@
             return {
                 ...segment,
                 __metricValue: metricValue,
+                __sizeValue: sizeValue,
+                __trainCount: trainCount,
                 __splitInbound: splitInbound,
                 __splitOutbound: splitOutbound,
                 __ratio: ratio,
                 __segmentPeakRatio: segmentPeakRatio,
                 __tooltipLabel: profile.tooltipLabel,
-                __tubeWidth: toTubeWidth(metricValue, effectiveMax),
+                __tubeWidth: toTubeWidth(sizeValue, effectiveSizeMax),
                 __tubeHeight: tubeHeight,
                 __fillColor: revealFillColor,
                 __isHovered: isHovered,
                 __hoverFillColor: isHovered ? brightenColor(revealFillColor, 0.3) : revealFillColor,
-                __hoverTubeWidth: isHovered ? toTubeWidth(metricValue, effectiveMax) * 1.15 : toTubeWidth(metricValue, effectiveMax),
+                __hoverTubeWidth: isHovered ? toTubeWidth(sizeValue, effectiveSizeMax) * 1.15 : toTubeWidth(sizeValue, effectiveSizeMax),
                 __pathBase: pathBase,
                 __pathMid: pathMid,
                 __pathTop: pathTop
@@ -706,6 +799,18 @@
         updateLegend(profile.label, effectiveMin, effectiveMax);
         syncModeUI();
     };
+
+    capacityModeButtons.forEach((button) => {
+        button.addEventListener("click", () => {
+            const capacityMode = button.dataset.capacityMode;
+            if (capacityMode !== "total_capacity" && capacityMode !== "people_per_train") {
+                return;
+            }
+            activeCapacityMode = capacityMode;
+            syncButtons();
+            renderCurrentView();
+        });
+    });
 
     map = new maplibregl.Map({
         container: "map",
@@ -824,6 +929,9 @@
 
         const payload = await response.json();
         segments = Array.isArray(payload.segments) ? payload.segments : [];
+        if (!segments.every((segment) => segment.train_counts)) {
+            throw new Error("Segment map data is missing GTFS train counts.");
+        }
         dataReady = true;
     } catch (error) {
         console.error(error);
@@ -889,9 +997,10 @@
         const segment = pickInfo.object;
         const metricValue = toNumber(segment.__metricValue);
         const ratio = toNumber(segment.__ratio) * 100;
+        const peoplePerTrainActive = activeCapacityMode === "people_per_train";
         let usageShareLine = "";
 
-        if (activeMode === "hourly" && activeHourlyUsage === "total_split") {
+        if (!peoplePerTrainActive && activeMode === "hourly" && activeHourlyUsage === "total_split") {
             const inbound = toNumber(segment.__splitInbound);
             const outbound = toNumber(segment.__splitOutbound);
             const totalUsage = inbound + outbound;
@@ -906,13 +1015,19 @@
 
         hoverInfo = pickInfo;
 
-        const tooltipLines = [
-            `<strong>${segment.from_station} &mdash; ${segment.to_station}</strong>`,
-            `${segment.__tooltipLabel}: ${formatNumber(metricValue)}${usageShareLine ? `, ${usageShareLine}` : ""}`,
-            `Relative usage: ${ratio.toFixed(1)}%`
-        ];
+        const tooltipLines = [`<strong>${segment.from_station} &mdash; ${segment.to_station}</strong>`];
 
-        if (activeMode === "hourly") {
+        if (peoplePerTrainActive) {
+            tooltipLines.push(`Number of Trains: ${formatNumber(toNumber(segment.__trainCount))}`);
+            tooltipLines.push(`${segment.__tooltipLabel}: ${formatPeoplePerTrain(metricValue)}`);
+        } else {
+            tooltipLines.push(
+                `${segment.__tooltipLabel}: ${formatNumber(metricValue)}${usageShareLine ? `, ${usageShareLine}` : ""}`
+            );
+            tooltipLines.push(`Relative usage: ${ratio.toFixed(1)}%`);
+        }
+
+        if (activeMode === "hourly" && !peoplePerTrainActive) {
             const segmentRatio = toNumber(segment.__segmentPeakRatio) * 100;
             tooltipLines.push(`Relative segment usage: ${segmentRatio.toFixed(1)}%`);
 

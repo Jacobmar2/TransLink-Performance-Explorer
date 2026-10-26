@@ -6,7 +6,7 @@ import sqlite3
 import re
 import logging
 import numpy as np
-from collections import Counter, OrderedDict
+from collections import Counter, OrderedDict, defaultdict
 from datetime import datetime, timedelta
 from functools import lru_cache
 from difflib import SequenceMatcher
@@ -177,11 +177,14 @@ STATION_BOARDINGS_2022_PATH = os.path.join(DATA_DIR, "tspr2022_rail_skytrain_boa
 STATION_DAILY_2022_PATH = os.path.join(DATA_DIR, "tspr2022_rail_skytrain_avgdailyboardings_stationyeardaytype(1).csv")
 SEGMENT_SHAPES_PATH = os.path.join(DATA_DIR, "SkyTrain segments map- segments.csv")
 SEGMENT_USAGE_ROLLING_PATH = os.path.join(DATA_DIR, "tspr2024_rail_rollinghouravgpassengervol.csv")
+GTFS_TRIPS_PATH = os.path.join(DATA_DIR, "GTFS", "trips.txt")
+GTFS_STOP_TIMES_PATH = os.path.join(DATA_DIR, "GTFS", "stop_times.txt")
+GTFS_STOPS_PATH = os.path.join(DATA_DIR, "GTFS", "stops.txt")
 STATION_COVID_2020_TOTAL_PATH = os.path.join(DATA_DIR, "covid years", "tspr-2020---total-skytrain-and-wce-boardings-by-station.csv")
 STATION_COVID_2020_DAILY_PATH = os.path.join(DATA_DIR, "covid years", "tspr-2020--avg-daily-skytrain-and-wce-boardings-by-mode-line-station-and-day-type.csv")
 STATION_COVID_2021_TOTAL_PATH = os.path.join(DATA_DIR, "covid years", "tspr-fall-2021-skytrain-and-wce-total-boardings-by-station.csv")
 STATION_COVID_2021_DAILY_PATH = os.path.join(DATA_DIR, "covid years", "tspr-fall-2021-avg-daily-skytrain-and-wce-boardings-by-mode-station-and-day-type.csv")
-STOPS_PATH = os.path.join(DATA_DIR, "stops.txt")
+STOPS_PATH = os.path.join(DATA_DIR, "GTFS", "stops.txt")
 BUS_STOP_OPEN_ARCHIVE_PATH = os.path.join(DATA_DIR, "TSPR_OpenData_Archive_6085823632155390806.csv")
 BUS_STOP_EXCLUDED_NAMES = {
     "sb lonsdale quay seabus station",
@@ -315,6 +318,149 @@ def _best_shape_match_for_usage_segment(from_station, to_station, shape_rows):
     }
 
 
+def _normalize_gtfs_station_label(value):
+    text = str(value or "").strip()
+    text = re.sub(r'\s*-\s*(?:expo\s*/\s*seabus|cl|millennium)\s*$', '', text, flags=re.IGNORECASE)
+    return _normalize_segment_station_label(text)
+
+
+def _load_skytrain_segment_train_counts(segment_rows):
+    service_day_types = {
+        '1': 'weekday',
+        '1101': 'weekday',
+        '2': 'saturday',
+        '3': 'sunday'
+    }
+    segment_station_aliases = {
+        '22nd st': '22nd street',
+        '29th av': '29th avenue',
+        'brentwood': 'brentwood town center',
+        'brighouse': 'richmond-brighouse',
+        'joyce': 'joyce-collingwood',
+        'lafarge lake douglas college': 'lafarge lake-douglas',
+        'langara-49th': 'langara-49th avenue',
+        'lougheed': 'lougheed town center',
+        'oakridge-41st': 'oakridge-41st avenue',
+        'production way': 'production way-university',
+        'sea island': 'sea island center',
+        'sperling': 'sperling-burnaby lake',
+        'stadium': 'stadium-chinatown'
+    }
+
+    def trip_direction(headsign):
+        line, separator, destination = headsign.partition(' To ')
+        if not separator:
+            raise ValueError(f"Invalid SkyTrain trip headsign: {headsign}")
+
+        if line == 'Canada Line':
+            return 'inbound' if destination in {'Waterfront', 'Bridgeport'} else 'outbound'
+        if line == 'Expo Line':
+            return 'inbound' if destination in {'Waterfront', 'New Westminster'} else 'outbound'
+        if line == 'Millennium Line':
+            return 'inbound' if destination == 'VCC-Clark' else 'outbound'
+        raise ValueError(f"Unknown SkyTrain line in trip headsign: {headsign}")
+
+    def canonical_segment_station(name):
+        normalized = _normalize_gtfs_station_label(name)
+        return segment_station_aliases.get(normalized, normalized)
+
+    stop_rows = {}
+    with open(GTFS_STOPS_PATH, encoding='utf-8-sig', newline='') as stops_file:
+        for row in csv.DictReader(stops_file):
+            stop_id = row.get('stop_id', '').strip()
+            if stop_id:
+                stop_rows[stop_id] = row
+
+    root_names = {
+        stop_id: row.get('stop_name', '')
+        for stop_id, row in stop_rows.items()
+        if not row.get('parent_station', '').strip()
+    }
+    station_by_stop_id = {}
+    for stop_id, row in stop_rows.items():
+        parent_station = row.get('parent_station', '').strip()
+        station_name = root_names.get(parent_station, row.get('stop_name', ''))
+        station_by_stop_id[stop_id] = _normalize_gtfs_station_label(station_name)
+
+    known_station_names = set(station_by_stop_id.values())
+    segment_indices_by_pair = defaultdict(list)
+    for segment_index, segment in enumerate(segment_rows):
+        from_station = canonical_segment_station(segment['from_station'])
+        to_station = canonical_segment_station(segment['to_station'])
+        segment_indices_by_pair[tuple(sorted((from_station, to_station)))].append(segment_index)
+        if from_station not in known_station_names or to_station not in known_station_names:
+            raise ValueError(
+                f"GTFS station not found for segment {segment.get('seg_id')}: "
+                f"{segment['from_station']} - {segment['to_station']}"
+            )
+
+    trip_metadata = {}
+    with open(GTFS_TRIPS_PATH, encoding='utf-8-sig', newline='') as trips_file:
+        for row in csv.DictReader(trips_file):
+            service_id = row.get('service_id', '').strip()
+            day_type = service_day_types.get(service_id)
+            headsign = row.get('trip_headsign', '').strip()
+            if (
+                day_type
+                and any(line_name in headsign for line_name in ('Expo Line', 'Millennium Line', 'Canada Line'))
+            ):
+                trip_id = row.get('trip_id', '').strip()
+                if trip_id:
+                    trip_metadata[trip_id] = (day_type, trip_direction(headsign))
+
+    trip_stops = defaultdict(list)
+    with open(GTFS_STOP_TIMES_PATH, encoding='utf-8-sig', newline='') as stop_times_file:
+        for row in csv.DictReader(stop_times_file):
+            trip_id = row.get('trip_id', '').strip()
+            if trip_id not in trip_metadata:
+                continue
+
+            stop_id = row.get('stop_id', '').strip()
+            if stop_id not in station_by_stop_id:
+                raise ValueError(f"GTFS stop_times.txt references unknown stop_id {stop_id}")
+
+            try:
+                stop_sequence = int(row.get('stop_sequence', ''))
+            except (TypeError, ValueError) as exc:
+                raise ValueError(f"Invalid stop_sequence for GTFS trip {trip_id}") from exc
+
+            departure_time = row.get('departure_time', '').strip()
+            time_match = re.fullmatch(r'(\d+):([0-5]\d):([0-5]\d)', departure_time)
+            if not time_match:
+                raise ValueError(f"Invalid departure_time for GTFS trip {trip_id}: {departure_time}")
+
+            hour = int(time_match.group(1))
+            minute = int(time_match.group(2))
+            slot = ((hour * 60 + minute) % (24 * 60)) // 15
+            trip_stops[trip_id].append((stop_sequence, station_by_stop_id[stop_id], slot))
+
+    train_counts = [
+        {
+            day_type: {
+                'inbound': [0] * 96,
+                'outbound': [0] * 96
+            }
+            for day_type in ('weekday', 'saturday', 'sunday')
+        }
+        for _ in segment_rows
+    ]
+
+    for trip_id, stops in trip_stops.items():
+        ordered_stops = sorted(stops, key=lambda stop: stop[0])
+        day_type, direction = trip_metadata[trip_id]
+        for current_stop, next_stop in zip(ordered_stops, ordered_stops[1:]):
+            current_station = current_stop[1]
+            next_station = next_stop[1]
+            if current_station == next_station:
+                continue
+
+            station_pair = tuple(sorted((current_station, next_station)))
+            for segment_index in segment_indices_by_pair.get(station_pair, ()):
+                train_counts[segment_index][day_type][direction][current_stop[2]] += 1
+
+    return train_counts
+
+
 @lru_cache(maxsize=1)
 def _load_skytrain_segment_usage_map_2024_data():
     if not os.path.exists(SEGMENT_USAGE_ROLLING_PATH):
@@ -431,6 +577,9 @@ def _load_skytrain_segment_usage_map_2024_data():
         })
 
     segment_rows.sort(key=lambda row: row['seg_id'])
+    train_counts = _load_skytrain_segment_train_counts(segment_rows)
+    for segment, counts in zip(segment_rows, train_counts):
+        segment['train_counts'] = counts
 
     return {
         'year': 2024,

@@ -91,6 +91,10 @@ function syncBusDropdownWidths() {
         const targetWidth = Math.max(measured, yearSelectors.scrollWidth) + 4;
         if (targetWidth > 0) {
             selectNode.style.width = Math.ceil(targetWidth) + 'px';
+            const picker = selectNode.closest('.bus-line-picker');
+            if (picker) {
+                picker.style.width = Math.ceil(targetWidth) + 'px';
+            }
         }
     });
 }

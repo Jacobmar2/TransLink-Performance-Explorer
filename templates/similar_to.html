@@ -5,6 +5,7 @@
     <title>Similar To</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/similar_to.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/bus_line_typeahead.css', v='20261026-3') }}">
     </head>
 <body>
 
@@ -17,7 +18,7 @@
             <label class="reference-label" for="referenceDropdown">Reference (single input)</label>
 
             <div id="referenceDropdownWrap">
-                <select id="referenceDropdown" name="reference" style="width:100%;padding:0.8em;border-radius:0.5em;">
+                <select id="referenceDropdown" name="reference" class="bus-line-typeahead" style="width:100%;padding:0.8em;border-radius:0.5em;">
                     <option value="">Loading 2024 values...</option>
                 </select>
             </div>
@@ -96,6 +97,7 @@
         </table>
     </div>
 
+    <script src="{{ url_for('static', filename='js/bus_line_typeahead.js', v='20261026-3') }}"></script>
     <script src="{{ url_for('static', filename='js/similar_to.js') }}"></script>
 
     <a href="/" class="button-card back-button">
