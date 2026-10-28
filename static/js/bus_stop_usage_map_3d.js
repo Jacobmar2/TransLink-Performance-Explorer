@@ -1437,6 +1437,19 @@
         renderMap();
     });
 
+    document.addEventListener("pointerover", (event) => {
+        const target = event.target;
+        if (!(target instanceof Element)
+            || !target.closest("#control-panel, .overlay, .top-right-controls, .legend, #bus-line-options, .maplibregl-ctrl")
+            || !hoverInfo?.object) {
+            return;
+        }
+
+        hoverInfo = null;
+        hideTooltip();
+        renderMap();
+    });
+
     await loadBusData;
 
     if (map.loaded()) {

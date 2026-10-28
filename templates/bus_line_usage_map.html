@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Bus Line Usage Map</title>
+    <title>Bus Line Usage Map</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
     <style>
@@ -614,11 +614,11 @@
     </style>
 </head>
 <body class="bus-line-page">
-    <div id="map" aria-label="3D bus line usage map"></div>
+    <div id="map" aria-label="Bus Line Usage Map"></div>
     <div class="map-fog" aria-hidden="true"></div>
 
     <div class="overlay">
-        <h1 id="map-mode-heading">3D Bus Line Usage Map (2024)</h1>
+        <h1 id="map-mode-heading">Bus Line Usage Map (2024)</h1>
         <p id="map-mode-detail">Each line keeps a fixed color while tube width scales to the selected 2024 bus-line metric.</p>
         <p id="map-mode-summary" class="note">Use the panel below to switch between annual, daily, revenue, load, and overcrowding metrics.</p>
     </div>
@@ -801,6 +801,6 @@
     <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
     <script src="https://unpkg.com/deck.gl@9.0.34/dist.min.js"></script>
     <script src="{{ url_for('static', filename='js/reset_map_scale.js', v='20261026-1') }}"></script>
-    <script src="{{ url_for('static', filename='js/bus_line_usage_map.js', v='20261019-3') }}"></script>
+    <script src="{{ url_for('static', filename='js/bus_line_usage_map.js', v='20261028-1') }}"></script>
 </body>
 </html>

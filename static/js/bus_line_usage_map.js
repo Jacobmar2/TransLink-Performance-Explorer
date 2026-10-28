@@ -105,6 +105,8 @@
     let fittedBounds = false;
     let bounds = null;
     let lines = [];
+    let deepMetricsBySlice = null;
+    let deepMetricsRequest = null;
     let filterOptions = {
         sub_region_of_primary_service: [],
         predominant_vehicle_type: [],
@@ -917,25 +919,55 @@
 
     const loadData = async () => {
         const requestId = ++currentRequestId;
-        const requestedDeepSelections = { ...deepSelections };
-        const response = await fetch(buildDataUrl());
-        if (!response.ok) {
-            throw new Error(`Failed to load bus line usage data (${response.status})`);
+        let payload = null;
+        if (activeMapMode === "deep") {
+            if (!lines.length) {
+                const geometryResponse = await fetch(`${apiBaseUrl}?year=2024`);
+                if (!geometryResponse.ok) {
+                    throw new Error(`Failed to load bus line usage data (${geometryResponse.status})`);
+                }
+                payload = await geometryResponse.json();
+                if (payload.error) {
+                    throw new Error(payload.error);
+                }
+                if (requestId !== currentRequestId) {
+                    return;
+                }
+                lines = Array.isArray(payload.lines) ? payload.lines : [];
+                bounds = Array.isArray(payload.bounds) ? payload.bounds : null;
+            }
+
+            const metricsBySlice = await loadDeepMetrics();
+            if (requestId !== currentRequestId) {
+                return;
+            }
+            const sliceKey = `${deepSelections.day}|${deepSelections.season}|${deepSelections.timeRange}`;
+            const lineMetrics = metricsBySlice[sliceKey];
+            if (!lineMetrics) {
+                throw new Error(`Deep bus line metrics are missing for ${sliceKey}`);
+            }
+            lines = lines.map((line) => ({
+                ...line,
+                metrics: lineMetrics[normalizeLineCode(line.group_code || line.line || "")] || {}
+            }));
+        } else {
+            const response = await fetch(buildDataUrl());
+            if (!response.ok) {
+                throw new Error(`Failed to load bus line usage data (${response.status})`);
+            }
+
+            payload = await response.json();
+            if (payload.error) {
+                throw new Error(payload.error);
+            }
+            if (requestId !== currentRequestId) {
+                return;
+            }
+            lines = Array.isArray(payload.lines) ? payload.lines : [];
+            bounds = Array.isArray(payload.bounds) ? payload.bounds : null;
         }
 
-        const payload = await response.json();
-        if (payload.error) {
-            throw new Error(payload.error);
-        }
-
-        if (requestId !== currentRequestId) {
-            return;
-        }
-
-        lines = Array.isArray(payload.lines) ? payload.lines : [];
-        bounds = Array.isArray(payload.bounds) ? payload.bounds : null;
-
-        filterOptions = payload.filter_options && typeof payload.filter_options === "object"
+        filterOptions = payload?.filter_options && typeof payload.filter_options === "object"
             ? payload.filter_options
             : collectFilterOptionsFromLines(lines);
         if (activeMapMode !== "annual") {
@@ -946,11 +978,10 @@
         }
         populateFilterButtons(filterOptions);
 
-        if (payload.time_range) {
+        if (payload?.time_range) {
             deepSelections.timeRange = payload.time_range;
-            requestedDeepSelections.timeRange = payload.time_range;
         }
-        loadedDeepSelections = requestedDeepSelections;
+        loadedDeepSelections = { ...deepSelections };
 
         dataReady = true;
         fitMapBounds();
@@ -1044,20 +1075,49 @@
             hideTooltip();
             renderCurrentView();
         });
+
+        document.addEventListener("pointerover", (event) => {
+            const target = event.target;
+            if (!(target instanceof Element)
+                || !target.closest("#control-panel, .overlay, .top-right-controls, .legend, .maplibregl-ctrl")
+                || !hoverInfo) {
+                return;
+            }
+
+            hoverInfo = null;
+            hideTooltip();
+            renderCurrentView();
+        });
+    };
+
+    const loadDeepMetrics = async () => {
+        if (deepMetricsBySlice) {
+            return deepMetricsBySlice;
+        }
+        if (!deepMetricsRequest) {
+            deepMetricsRequest = (async () => {
+                const response = await fetch(`${apiBaseUrl}?year=2024&mode=deep&preload=1`);
+                if (!response.ok) {
+                    throw new Error(`Failed to preload deep bus line metrics (${response.status})`);
+                }
+                const payload = await response.json();
+                if (payload.error) {
+                    throw new Error(payload.error);
+                }
+                if (!payload.slices || typeof payload.slices !== "object") {
+                    throw new Error("Deep bus line metrics response is invalid");
+                }
+                deepMetricsBySlice = payload.slices;
+                return deepMetricsBySlice;
+            })().catch((error) => {
+                deepMetricsRequest = null;
+                throw error;
+            });
+        }
+        return deepMetricsRequest;
     };
 
     const buildDataUrl = () => {
-        if (activeMapMode === "deep") {
-            const params = new URLSearchParams({
-                year: "2024",
-                mode: "deep",
-                day: deepSelections.day,
-                season: deepSelections.season,
-                time_range: deepSelections.timeRange
-            });
-            return `${apiBaseUrl}?${params.toString()}`;
-        }
-
         return `${apiBaseUrl}?year=2024`;
     };
 

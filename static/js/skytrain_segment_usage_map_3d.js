@@ -233,6 +233,12 @@
                     return count + (usageKey === "total" ? total : direction === usageKey ? total : 0);
                 }, 0);
             };
+            const isRecordedOccupancy = (segment) => {
+                return peoplePerTrainActive
+                    && usageKey !== "total_split"
+                    && getTrainCount(segment) === 0
+                    && getPassengerValue(segment) > 0;
+            };
 
             return {
                 label: peoplePerTrainActive ? "Average People per Train" : `${cfg.label} (Daily total, ${dayLabel})`,
@@ -246,8 +252,11 @@
                         return passengerValue;
                     }
                     const trainCount = getTrainCount(segment);
-                    return trainCount > 0 ? passengerValue / trainCount : 0;
-                }
+                    return trainCount > 0 || usageKey === "total_split"
+                        ? (trainCount > 0 ? passengerValue / trainCount : 0)
+                        : passengerValue;
+                },
+                isRecordedOccupancy
             };
         }
 
@@ -286,12 +295,22 @@
             let peak = 0;
             for (let selectedSlot = 0; selectedSlot < 96; selectedSlot += 1) {
                 const trainCount = getTrainCountAtSlot(segment, selectedSlot);
+                const passengerValue = getPassengerValueAtSlot(segment, selectedSlot);
                 if (trainCount === 0) {
+                    if (usageKey !== "total_split") {
+                        peak = Math.max(peak, passengerValue);
+                    }
                     continue;
                 }
-                peak = Math.max(peak, getPassengerValueAtSlot(segment, selectedSlot) / trainCount);
+                peak = Math.max(peak, passengerValue / trainCount);
             }
             return peak;
+        };
+        const isRecordedOccupancy = (segment) => {
+            return peoplePerTrainActive
+                && !cfg.splitGradient
+                && getTrainCount(segment) === 0
+                && getPassengerValue(segment) > 0;
         };
 
         return {
@@ -315,11 +334,14 @@
                     return passengerValue;
                 }
                 const trainCount = getTrainCount(segment);
-                return trainCount > 0 ? passengerValue / trainCount : 0;
+                return trainCount > 0 || cfg.splitGradient
+                    ? (trainCount > 0 ? passengerValue / trainCount : 0)
+                    : passengerValue;
             },
             getDailyPeakValue: (segment) => peoplePerTrainActive
                 ? getDailyPeakPeoplePerTrain(segment)
-                : 0
+                : 0,
+            isRecordedOccupancy
         };
     };
 
@@ -738,6 +760,7 @@
             const metricValue = profile.getValue(segment);
             const sizeValue = metricValue;
             const trainCount = profile.getTrainCount(segment);
+            const isRecordedOccupancy = profile.isRecordedOccupancy(segment);
             const ratio = Math.max(0, Math.min(1, metricValue / effectiveMax));
             const tubeHeight = toTubeHeight(sizeValue, effectiveSizeMax);
             const hoveredKey = getSegmentHoverKey(hoverInfo && hoverInfo.object ? hoverInfo.object : null);
@@ -749,6 +772,8 @@
             const splitOutbound = profile.splitGradient ? toNumber(daySeries.outbound && daySeries.outbound[selectedSlot]) : 0;
             const fillColor = profile.splitGradient
                 ? toSplitColor(splitInbound, splitOutbound)
+                : isRecordedOccupancy && Math.round(metricValue) > 0
+                    ? [255, 215, 0, 245]
                 : toColor(metricValue, effectiveMax, profile.colorLow, profile.colorHigh);
             const isNeutralGrayFill = fillColor[0] === 128 && fillColor[1] === 128 && fillColor[2] === 128 && fillColor[3] === 170;
             const maxRevealTarget = revealMostLeastActive && !isNeutralGrayFill && segmentKey && segmentKey === revealMaxSegmentKey;
@@ -772,11 +797,12 @@
                 __metricValue: metricValue,
                 __sizeValue: sizeValue,
                 __trainCount: trainCount,
+                __isRecordedOccupancy: isRecordedOccupancy,
                 __splitInbound: splitInbound,
                 __splitOutbound: splitOutbound,
                 __ratio: ratio,
                 __segmentPeakRatio: segmentPeakRatio,
-                __tooltipLabel: profile.tooltipLabel,
+                __tooltipLabel: isRecordedOccupancy ? "Recorded Usage" : profile.tooltipLabel,
                 __tubeWidth: toTubeWidth(sizeValue, effectiveSizeMax),
                 __tubeHeight: tubeHeight,
                 __fillColor: revealFillColor,
@@ -1047,6 +1073,19 @@
     });
 
     map.on("mouseleave", () => {
+        hoverInfo = null;
+        tooltip.style.display = "none";
+        renderCurrentView();
+    });
+
+    document.addEventListener("pointerover", (event) => {
+        const target = event.target;
+        if (!(target instanceof Element)
+            || !target.closest("#control-panel, .overlay, .top-right-controls, .legend, .maplibregl-ctrl")
+            || !hoverInfo) {
+            return;
+        }
+
         hoverInfo = null;
         tooltip.style.display = "none";
         renderCurrentView();

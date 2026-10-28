@@ -838,7 +838,7 @@
             </div>
             <div class="capacity-mode-row">
                 <div class="capacity-mode-buttons" role="group" aria-label="Capacity display mode">
-                    <button type="button" class="capacity-mode-button is-active" data-capacity-mode="total_capacity" aria-pressed="true">Total Capacity</button>
+                    <button type="button" class="capacity-mode-button is-active" data-capacity-mode="total_capacity" aria-pressed="true">Total Usage</button>
                     <button type="button" class="capacity-mode-button" data-capacity-mode="people_per_train" aria-pressed="false">Occupancy Per Train</button>
                 </div>
             </div>
@@ -911,7 +911,7 @@
     <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
     <script src="https://unpkg.com/deck.gl@9.0.34/dist.min.js"></script>
     <script src="{{ url_for('static', filename='js/reset_map_scale.js', v='20261026-1') }}"></script>
-    <script src="{{ url_for('static', filename='js/skytrain_segment_usage_map_3d.js', v='20261026-5') }}"></script>
+    <script src="{{ url_for('static', filename='js/skytrain_segment_usage_map_3d.js', v='20261026-8') }}"></script>
     <script>
         (function setupTitleVisibilityControls() {
             const titleOverlay = document.querySelector(".overlay");

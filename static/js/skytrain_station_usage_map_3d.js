@@ -1251,6 +1251,19 @@
         updateHoverState();
     });
 
+    document.addEventListener("pointerover", (event) => {
+        const target = event.target;
+        if (!(target instanceof Element)
+            || !target.closest("#control-panel, .overlay, .top-right-controls, .legend, #bars-warning, .maplibregl-ctrl")
+            || !hoverInfo) {
+            return;
+        }
+
+        hoverInfo = null;
+        tooltip.style.display = "none";
+        updateHoverState();
+    });
+
     metricButtons.forEach((button) => {
         button.addEventListener("click", () => {
             const metric = button.dataset.metric;

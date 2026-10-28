@@ -22,9 +22,13 @@ def test_segment_train_counts_follow_gtfs_stop_sequence_and_service_day(tmp_path
             {"stop_id": "10", "stop_name": "Alpha Station", "parent_station": ""},
             {"stop_id": "20", "stop_name": "Beta Station", "parent_station": ""},
             {"stop_id": "30", "stop_name": "Gamma Station", "parent_station": ""},
+            {"stop_id": "40", "stop_name": "Lougheed Town Centre Station", "parent_station": ""},
+            {"stop_id": "50", "stop_name": "Production Way-University Station", "parent_station": ""},
             {"stop_id": "101", "stop_name": "Alpha Station @ Platform 1", "parent_station": "10"},
             {"stop_id": "201", "stop_name": "Beta Station @ Platform 1", "parent_station": "20"},
             {"stop_id": "301", "stop_name": "Gamma Station @ Platform 1", "parent_station": "30"},
+            {"stop_id": "401", "stop_name": "Lougheed Town Centre Station @ Platform 1", "parent_station": "40"},
+            {"stop_id": "501", "stop_name": "Production Way-University Station @ Platform 1", "parent_station": "50"},
         ],
     )
     _write_csv(
@@ -34,6 +38,9 @@ def test_segment_train_counts_follow_gtfs_stop_sequence_and_service_day(tmp_path
             {"trip_id": "weekday-through", "service_id": "1", "trip_headsign": "Expo Line To King George"},
             {"trip_id": "weekday-terminal", "service_id": "1101", "trip_headsign": "Expo Line To Waterfront"},
             {"trip_id": "weekday-inbound", "service_id": "1", "trip_headsign": "Expo Line To Waterfront"},
+            {"trip_id": "weekday-production-way", "service_id": "1", "trip_headsign": "Expo Line To Production Way-University"},
+            {"trip_id": "weekday-waterfront-from-production-way", "service_id": "1", "trip_headsign": "Expo Line To Waterfront"},
+            {"trip_id": "weekday-new-westminster-from-production-way", "service_id": "1", "trip_headsign": "Expo Line To New Westminster"},
             {"trip_id": "saturday", "service_id": "2", "trip_headsign": "Canada Line To YVR-Airport"},
             {"trip_id": "sunday", "service_id": "3", "trip_headsign": "Canada Line To Waterfront"},
             {"trip_id": "ignored-friday", "service_id": "1201", "trip_headsign": "Expo Line To Gamma"},
@@ -52,6 +59,15 @@ def test_segment_train_counts_follow_gtfs_stop_sequence_and_service_day(tmp_path
             {"trip_id": "weekday-inbound", "departure_time": "06:30:00", "stop_id": "101", "stop_sequence": "3"},
             {"trip_id": "weekday-inbound", "departure_time": "06:15:00", "stop_id": "201", "stop_sequence": "2"},
             {"trip_id": "weekday-inbound", "departure_time": "06:00:00", "stop_id": "301", "stop_sequence": "1"},
+            {"trip_id": "weekday-production-way", "departure_time": "07:00:00", "stop_id": "301", "stop_sequence": "1"},
+            {"trip_id": "weekday-production-way", "departure_time": "07:15:00", "stop_id": "401", "stop_sequence": "2"},
+            {"trip_id": "weekday-production-way", "departure_time": "07:30:00", "stop_id": "501", "stop_sequence": "3"},
+            {"trip_id": "weekday-waterfront-from-production-way", "departure_time": "08:00:00", "stop_id": "501", "stop_sequence": "1"},
+            {"trip_id": "weekday-waterfront-from-production-way", "departure_time": "08:15:00", "stop_id": "401", "stop_sequence": "2"},
+            {"trip_id": "weekday-waterfront-from-production-way", "departure_time": "08:30:00", "stop_id": "301", "stop_sequence": "3"},
+            {"trip_id": "weekday-new-westminster-from-production-way", "departure_time": "08:45:00", "stop_id": "501", "stop_sequence": "1"},
+            {"trip_id": "weekday-new-westminster-from-production-way", "departure_time": "09:00:00", "stop_id": "401", "stop_sequence": "2"},
+            {"trip_id": "weekday-new-westminster-from-production-way", "departure_time": "09:15:00", "stop_id": "301", "stop_sequence": "3"},
             {"trip_id": "saturday", "departure_time": "05:15:00", "stop_id": "101", "stop_sequence": "1"},
             {"trip_id": "saturday", "departure_time": "05:30:00", "stop_id": "201", "stop_sequence": "2"},
             {"trip_id": "sunday", "departure_time": "05:30:00", "stop_id": "201", "stop_sequence": "1"},
@@ -70,6 +86,8 @@ def test_segment_train_counts_follow_gtfs_stop_sequence_and_service_day(tmp_path
     counts = _load_skytrain_segment_train_counts([
         {"seg_id": 1, "from_station": "Alpha Stn", "to_station": "Beta Stn"},
         {"seg_id": 2, "from_station": "Beta Stn", "to_station": "Gamma Stn"},
+        {"seg_id": 49, "from_station": "Gamma Stn", "to_station": "Lougheed Stn"},
+        {"seg_id": 50, "from_station": "Lougheed Stn", "to_station": "Production Way Stn"},
     ])
 
     assert counts[0]["weekday"]["outbound"][20] == 1
@@ -81,3 +99,13 @@ def test_segment_train_counts_follow_gtfs_stop_sequence_and_service_day(tmp_path
     assert counts[1]["weekday"]["outbound"][20] == 0
     assert counts[0]["saturday"]["outbound"][21] == 1
     assert counts[0]["sunday"]["inbound"][22] == 1
+    assert counts[2]["weekday"]["outbound"][28] == 1
+    assert counts[2]["weekday"]["inbound"][28] == 0
+    assert counts[3]["weekday"]["outbound"][29] == 0
+    assert counts[3]["weekday"]["inbound"][29] == 1
+    assert counts[3]["weekday"]["outbound"][32] == 1
+    assert counts[3]["weekday"]["inbound"][32] == 0
+    assert counts[2]["weekday"]["inbound"][33] == 1
+    assert counts[3]["weekday"]["outbound"][35] == 1
+    assert counts[3]["weekday"]["inbound"][35] == 0
+    assert counts[2]["weekday"]["inbound"][36] == 1

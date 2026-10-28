@@ -406,7 +406,7 @@ def _load_skytrain_segment_train_counts(segment_rows):
             ):
                 trip_id = row.get('trip_id', '').strip()
                 if trip_id:
-                    trip_metadata[trip_id] = (day_type, trip_direction(headsign))
+                    trip_metadata[trip_id] = (day_type, trip_direction(headsign), headsign)
 
     trip_stops = defaultdict(list)
     with open(GTFS_STOP_TIMES_PATH, encoding='utf-8-sig', newline='') as stop_times_file:
@@ -447,8 +447,8 @@ def _load_skytrain_segment_train_counts(segment_rows):
 
     for trip_id, stops in trip_stops.items():
         ordered_stops = sorted(stops, key=lambda stop: stop[0])
-        day_type, direction = trip_metadata[trip_id]
-        for current_stop, next_stop in zip(ordered_stops, ordered_stops[1:]):
+        day_type, direction, headsign = trip_metadata[trip_id]
+        for stop_index, (current_stop, next_stop) in enumerate(zip(ordered_stops, ordered_stops[1:])):
             current_station = current_stop[1]
             next_station = next_stop[1]
             if current_station == next_station:
@@ -456,7 +456,23 @@ def _load_skytrain_segment_train_counts(segment_rows):
 
             station_pair = tuple(sorted((current_station, next_station)))
             for segment_index in segment_indices_by_pair.get(station_pair, ()):
-                train_counts[segment_index][day_type][direction][current_stop[2]] += 1
+                segment = segment_rows[segment_index]
+                segment_direction = direction
+                if (
+                    segment.get('seg_id') == 50
+                    and headsign == 'Expo Line To Production Way-University'
+                    and stop_index == len(ordered_stops) - 2
+                ):
+                    segment_direction = 'inbound'
+                elif (
+                    segment.get('seg_id') == 50
+                    and headsign in {'Expo Line To Waterfront', 'Expo Line To New Westminster'}
+                    and stop_index == 0
+                    and current_station == canonical_segment_station('Production Way Stn')
+                    and next_station == canonical_segment_station('Lougheed Stn')
+                ):
+                    segment_direction = 'outbound'
+                train_counts[segment_index][day_type][segment_direction][current_stop[2]] += 1
 
     return train_counts
 
@@ -2510,23 +2526,7 @@ def _build_deep_side_payload_legacy(legacy_df, year, line_code, day_norm, season
     }
 
 
-def _build_deep_bus_line_map_metrics(base_df, peak_df, line_code, day_norm, season_norm, hour_start, year):
-    section_rows = base_df[
-        (base_df['year_norm'] == year) &
-        (base_df['line_norm'] == line_code) &
-        (base_df['day_norm'] == day_norm) &
-        (base_df['season_norm'] == season_norm) &
-        (base_df['hour_start_norm'] == hour_start)
-    ] if not base_df.empty else pd.DataFrame()
-
-    peak_rows = peak_df[
-        (peak_df['year_norm'] == year) &
-        (peak_df['line_norm'] == line_code) &
-        (peak_df['day_norm'] == day_norm) &
-        (peak_df['season_norm'] == season_norm) &
-        (peak_df['hour_start_norm'] == hour_start)
-    ] if not peak_df.empty else pd.DataFrame()
-
+def _build_deep_bus_line_map_metrics_from_rows(section_rows, peak_rows):
     direction_metrics = {}
     if not peak_rows.empty and 'direction_norm' in peak_rows.columns:
         for direction_name, group in peak_rows.groupby('direction_norm'):
@@ -2571,6 +2571,137 @@ def _build_deep_bus_line_map_metrics(base_df, peak_df, line_code, day_norm, seas
         'avg_peak_load_factor_north_east_directions': _metric_directions(['NORTH', 'EAST'], 'peak_load_factor'),
         'avg_peak_load_factor_south_west': _mean_direction_values(['SOUTH', 'WEST'], 'peak_load_factor'),
         'avg_peak_load_factor_south_west_directions': _metric_directions(['SOUTH', 'WEST'], 'peak_load_factor')
+    }
+
+
+def _build_deep_bus_line_map_metrics(base_df, peak_df, line_code, day_norm, season_norm, hour_start, year):
+    selection = (
+        base_df['year_norm'].eq(year) &
+        base_df['line_norm'].eq(line_code) &
+        base_df['day_norm'].eq(day_norm) &
+        base_df['season_norm'].eq(season_norm) &
+        base_df['hour_start_norm'].eq(hour_start)
+    ) if not base_df.empty else pd.Series(dtype=bool)
+    peak_selection = (
+        peak_df['year_norm'].eq(year) &
+        peak_df['line_norm'].eq(line_code) &
+        peak_df['day_norm'].eq(day_norm) &
+        peak_df['season_norm'].eq(season_norm) &
+        peak_df['hour_start_norm'].eq(hour_start)
+    ) if not peak_df.empty else pd.Series(dtype=bool)
+    section_rows = base_df.loc[selection] if not base_df.empty else pd.DataFrame()
+    peak_rows = peak_df.loc[peak_selection] if not peak_df.empty else pd.DataFrame()
+    return _build_deep_bus_line_map_metrics_from_rows(section_rows, peak_rows)
+
+
+def _build_deep_bus_line_map_metrics_from_aggregates(section_values, peak_values_by_direction):
+    direction_metrics = {
+        direction: {
+            'peak_passenger_load': _safe_float(values.get('Average_Peak_Passenger_Load')),
+            'peak_load_factor': _safe_float(values.get('Average_Peak_Load_Factor'))
+        }
+        for direction, values in peak_values_by_direction.items()
+        if values
+    }
+
+    def mean_direction_values(directions, metric_name):
+        values = [
+            direction_metrics[direction][metric_name]
+            for direction in directions
+            if direction in direction_metrics
+            and direction_metrics[direction][metric_name] is not None
+        ]
+        return sum(values) / len(values) if values else None
+
+    def metric_directions(directions, metric_name):
+        return [
+            direction
+            for direction in directions
+            if direction in direction_metrics
+            and direction_metrics[direction][metric_name] is not None
+        ]
+
+    return {
+        'annual_revenue_hours': section_values.get('Annual_Revenue_Hours'),
+        'annual_service_hours': section_values.get('Annual_Service_Hours'),
+        'trips_per_clock_hour_per_direction': section_values.get('Average_Trips_Per_Clock_Hour_Per_Direction'),
+        'boardings_per_revenue_hour': section_values.get('Average_Boardings_Per_Revenue_Hour'),
+        'boardings_per_trip': section_values.get('Average_Boardings_Per_Trip'),
+        'avg_peak_passenger_load_north_east': mean_direction_values(['NORTH', 'EAST'], 'peak_passenger_load'),
+        'avg_peak_passenger_load_north_east_directions': metric_directions(['NORTH', 'EAST'], 'peak_passenger_load'),
+        'avg_peak_passenger_load_south_west': mean_direction_values(['SOUTH', 'WEST'], 'peak_passenger_load'),
+        'avg_peak_passenger_load_south_west_directions': metric_directions(['SOUTH', 'WEST'], 'peak_passenger_load'),
+        'avg_peak_load_factor_north_east': mean_direction_values(['NORTH', 'EAST'], 'peak_load_factor'),
+        'avg_peak_load_factor_north_east_directions': metric_directions(['NORTH', 'EAST'], 'peak_load_factor'),
+        'avg_peak_load_factor_south_west': mean_direction_values(['SOUTH', 'WEST'], 'peak_load_factor'),
+        'avg_peak_load_factor_south_west_directions': metric_directions(['SOUTH', 'WEST'], 'peak_load_factor')
+    }
+
+
+@lru_cache(maxsize=1)
+def _load_bus_line_usage_map_2024_deep_metrics():
+    base_payload = _load_bus_line_usage_map_2024_data(2024)
+    base_lines = base_payload.get('lines', []) if isinstance(base_payload, dict) else []
+    base_df = _load_deep_base_df()
+    peak_df = _load_deep_peak_df()
+
+    grouping_columns = ['year_norm', 'line_norm', 'day_norm', 'season_norm', 'hour_start_norm']
+    base_metric_columns = [
+        'Annual_Revenue_Hours',
+        'Annual_Service_Hours',
+        'Average_Trips_Per_Clock_Hour_Per_Direction',
+        'Average_Boardings_Per_Revenue_Hour',
+        'Average_Boardings_Per_Trip'
+    ]
+    peak_metric_columns = ['Average_Peak_Passenger_Load', 'Average_Peak_Load_Factor']
+
+    def aggregate_by_keys(df, metric_columns, additional_keys=()):
+        if df.empty:
+            return {}
+        available_columns = [column for column in metric_columns if column in df.columns]
+        if not available_columns:
+            return {}
+        values = df[available_columns].apply(pd.to_numeric, errors='coerce')
+        grouped_df = df[list(grouping_columns) + list(additional_keys)].join(values)
+        grouped = grouped_df.groupby(
+            list(grouping_columns) + list(additional_keys),
+            sort=False,
+            dropna=False
+        )[available_columns].mean()
+        return grouped.to_dict(orient='index')
+
+    base_aggregates = aggregate_by_keys(base_df, base_metric_columns)
+    peak_aggregates = aggregate_by_keys(peak_df, peak_metric_columns, ('direction_norm',))
+
+    line_codes = {
+        _normalize_bus_line_code(line.get('group_code') or line.get('line'))
+        for line in base_lines
+    }
+    line_codes.discard('')
+    slices = {}
+
+    for day_norm in ('MF', 'SAT', 'SUN'):
+        for season_norm in ('Fall', 'Summer'):
+            for time_range, hour_start in DEEP_TIME_RANGE_TO_START.items():
+                slice_key = f'{day_norm}|{season_norm}|{time_range}'
+                line_metrics = {}
+                for line_code in line_codes:
+                    group_key = (2024, line_code, day_norm, season_norm, hour_start)
+                    section_values = base_aggregates.get(group_key, {})
+                    direction_values = {
+                        direction: peak_aggregates.get((*group_key, direction), {})
+                        for direction in ('NORTH', 'EAST', 'SOUTH', 'WEST')
+                    }
+                    line_metrics[line_code] = _build_deep_bus_line_map_metrics_from_aggregates(
+                        section_values,
+                        direction_values
+                    )
+                slices[slice_key] = line_metrics
+
+    return {
+        'year': 2024,
+        'mode': 'deep_metrics',
+        'slices': slices
     }
 
 
@@ -2816,6 +2947,7 @@ def bus_line_usage_map_3d_data():
             logger.info("[api] Cache clear requested")
             _load_bus_line_usage_map_2024_data.cache_clear()
             _load_bus_line_usage_map_2024_deep_data.cache_clear()
+            _load_bus_line_usage_map_2024_deep_metrics.cache_clear()
 
         if year == 2024 and mode != 'deep':
             result = _load_bus_line_usage_map_2024_data(year)
@@ -2823,6 +2955,14 @@ def bus_line_usage_map_3d_data():
             return jsonify(_sanitize_for_json(result))
 
         if year == 2024 and mode == 'deep':
+            if request.args.get('preload', default='0') == '1':
+                result = _load_bus_line_usage_map_2024_deep_metrics()
+                logger.info(
+                    "[api] Deep bus line metrics preloaded for %s slices",
+                    len(result.get('slices', {}))
+                )
+                return jsonify(_sanitize_for_json(result))
+
             day_norm = _normalize_deep_day(request.args.get('day', default='MF', type=str)) or 'MF'
             season_norm = _normalize_deep_season(request.args.get('season', default='Fall', type=str)) or 'Fall'
             time_range = request.args.get('time_range', default='4-6', type=str).strip() or '4-6'

@@ -172,3 +172,20 @@ def test_3d_bus_line_map_deep_stats_use_2024_data(client):
     assert line_two['metrics']['annual_revenue_hours'] == pytest.approx(123.0666667)
     assert line_two['metrics']['avg_peak_passenger_load_north_east_directions'] == ['EAST']
     assert line_two['metrics']['avg_peak_load_factor_south_west_directions'] == ['WEST']
+
+
+def test_3d_bus_line_map_preloads_deep_metrics_without_geometry(client):
+    response = client.get(
+        '/api/bus-line-usage-map-3d-data',
+        query_string={'year': 2024, 'mode': 'deep', 'preload': 1},
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload['mode'] == 'deep_metrics'
+    assert len(payload['slices']) == 42
+    assert 'coordinates' not in payload
+
+    default_metrics = payload['slices']['MF|Fall|4-6']
+    assert default_metrics['2']['annual_revenue_hours'] == pytest.approx(123.0666667)
+    assert default_metrics['2']['avg_peak_passenger_load_north_east_directions'] == ['EAST']
