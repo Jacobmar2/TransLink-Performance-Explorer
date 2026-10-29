@@ -1,21 +1,21 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>About TransLink Performance Explorer</title>
+    <title>About Transit Performance Explorer</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 
 <body>
 
     <div class="card">
-        <h2>About TransLink Performance Explorer</h2>
+        <h2>About Transit Performance Explorer</h2>
     </div>
 
     <!-- ⭐ SAMPLE TEXT BLOCK -->
     <div class="howto-text">
-        <h3>What is TransLink Performance Explorer?</h3>
+        <h3>What is Transit Performance Explorer?</h3>
         <p>
-            TransLink Performance Explorer is a web application designed to help users analyze and visualize transit 
+            Transit Performance Explorer is a web application designed to help users analyze and visualize transit 
             performance data. It allows users to easily explore and compare performance metrics between each other as well as create custom visualizations. 
             The app is built using Python and Flask, and it utilizes the TSPR CSV files provided by TransLink as its data source.
         </p>
@@ -62,10 +62,19 @@
                 ● Image credit for My 2 Stations goes to Wikimedia Commons, where all images are licensed under Creative Commons. Images are found from the station's main Wikipedia page.
             </p>
             <p>
-                ● SkyTrain Stations and Bus Stops are located using TransLink's GTFS data and TSPR Catalog, which provides the latitude and longitude of each station and stop.
+                ● SkyTrain Stations and Bus Stops are located using TransLink's GTFS data and TSPR Catalog, which provides the latitude and longitude locations of each station and stop.
             </p>
             <p>
-                ● SkyTrain Segments were manually made using Google My Maps.
+                ● TSPR Data: Contains information licensed under the Open Government Licence - TransLink.
+            </p>
+            <p>
+                ● GTFS Data: Route and arrival data used in this product or service is provided by permission of TransLink. TransLink assumes no responsibility for the accuracy or currency of the Data used in this product or service.
+            </p>
+            <p>
+                ● GTFS Data is based on the data downloaded from TransLink's GTFS data page on Oct 26, 2026. The data is subject to change and may not reflect the most current information available.
+            </p>
+            <p>
+                ● SkyTrain Segments were manually made using Google My Maps. Number of trains per segment was derived from GTFS data.
             </p>
             <p>
                 ● Bus Lines were mapped using <a href="https://www.google.com/maps/d/viewer?hl=en&mid=1pmQlG8105ELNbdnWDOfuMOfXEcETQqFX&ll=49.23984696853358%2C-122.68972059999999&z=10" target="_blank">this provided Google My Maps</a>.

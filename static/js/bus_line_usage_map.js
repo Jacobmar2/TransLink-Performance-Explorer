@@ -205,8 +205,8 @@
 
         if (pageHeading) {
             pageHeading.textContent = activeMapMode === "deep"
-                ? "3D Bus Line Usage Map (2024 Deep Stats)"
-                : "3D Bus Line Usage Map (2024)";
+                ? "Bus Line Usage Map (2024 Deep Stats)"
+                : "Bus Line Usage Map (2024)";
         }
 
         if (pageDetail) {

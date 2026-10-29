@@ -1,10 +1,10 @@
-# TransLink-Performance-Explorer
+# Transit-Performance-Explorer
 
-Live Project: https://trans-link-performance-explorer.vercel.app/
+Live Project: https://transit-performance-explorer.vercel.app/
 
-## What is TransLink-Performance-Explorer?
+## What is Transit-Performance-Explorer?
 
-TransLink Performance Explorer is a web application designed to help users analyze and visualize transit performance data. It allows users to easily explore and compare performance metrics between each other as well as create custom visualizations. It utilizes the TSPR CSV files provided by TransLink as its data source.
+Transit Performance Explorer is a web application designed to help users analyze and visualize transit performance data. It allows users to easily explore and compare performance metrics between each other as well as create custom visualizations. It utilizes the TSPR CSV files provided by TransLink as its data source.
 
 ## Features
 
@@ -30,7 +30,7 @@ TransLink Performance Explorer is a web application designed to help users analy
 
 ● 3D Skytrain Segment Usage Map: Reveals the usage of each SkyTrain segment in a 3D map, where the size of each segment tube corresponds to its ridership usage.
 
-● 3D Bus Line Usage Map: Reveals the usage of each bus line in a 3D map, where the width or color of each line corresponds to its ridership, usage, crowding, speed, ontime performance and more.
+● Bus Line Usage Map: Reveals the usage of each bus line in a laid out map, where the width or color of each line corresponds to its ridership, usage, crowding, speed, ontime performance and more.
 
 ## Preview
 
@@ -52,9 +52,15 @@ Comparing ridership of 144 and 145
 
 ● Image credit for My 2 Stations goes to Wikimedia Commons, where all images are licensed under Creative Commons. Images are found from the station's main Wikipedia page.
 
-● SkyTrain Stations and Bus Stops are located using TransLink's GTFS data and TSPR Catalog, which provides the latitude and longitude of each station and stop.
+● SkyTrain Stations and Bus Stops are located using TransLink's GTFS data and TSPR Catalog, which provides the latitude and longitude locations of each station and stop.
 
-● SkyTrain Segments were manually made using Google My Maps.
+● TSPR Data: Contains information licensed under the Open Government Licence - TransLink.
+
+● GTFS Data: Route and arrival data used in this product or service is provided by permission of TransLink. TransLink assumes no responsibility for the accuracy or currency of the Data used in this product or service.
+
+● GTFS Data is based on the data downloaded from TransLink's GTFS data page on Oct 26, 2026. The data is subject to change and may not reflect the most current information available.
+
+● SkyTrain Segments were manually made using Google My Maps. Number of trains per segment was derived from GTFS data.
 
 ● Bus Lines were mapped using this Google My Maps: https://www.google.com/maps/d/viewer?hl=en&mid=1pmQlG8105ELNbdnWDOfuMOfXEcETQqFX&ll=49.23984696853358%2C-122.68972059999999&z=10
 
@@ -68,10 +74,10 @@ Comparing ridership of 144 and 145
 
 1. Download ZIP and extract files into a selected folder.
 
-2. Using a terminal (with command prompt or an IDE of your choice), navigate to the selected folder, then to the Translink-Performance-Explorer-main folder, by typing the following:
+2. Using a terminal (with command prompt or an IDE of your choice), navigate to the selected folder, then to the Transit-Performance-Explorer-main folder, by typing the following:
 
 ```bash
-cd Translink-Performance-Explorer-main
+cd Transit-Performance-Explorer-main
 ```
 
 3. Type in terminal: 
